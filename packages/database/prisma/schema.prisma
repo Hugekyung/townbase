@@ -1,0 +1,257 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DataSourceType {
+  notion
+  local_repo
+}
+
+enum SourceType {
+  notion_page
+  repo_readme
+  repo_docs
+  adr
+  prd
+  schema
+  migration
+  issue_template
+  pr_template
+  incident_review
+  github_issue
+  github_pr
+  slack_thread
+}
+
+enum KnowledgeType {
+  onboarding
+  product_history
+  architecture
+  domain_policy
+  database
+  deployment
+  incident
+  code_convention
+  testing
+  operation
+  documentation_gap
+  unknown
+}
+
+enum DocumentStatus {
+  active
+  draft
+  deprecated
+  archived
+}
+
+enum RetrievalMode {
+  auto
+  onboarding
+  product_history
+  documentation_gap
+  change_impact
+}
+
+enum GapPriority {
+  low
+  medium
+  high
+}
+
+enum GapStatus {
+  open
+  drafted
+  resolved
+  ignored
+}
+
+enum ActionDraftType {
+  github_issue
+  markdown_doc
+  notion_page
+}
+
+enum ActionDraftStatus {
+  draft
+  copied
+  discarded
+}
+
+model Workspace {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  dataSources     DataSource[]
+  documents       Document[]
+  documentChunks  DocumentChunk[]
+  questions       Question[]
+  questionSources QuestionSource[]
+  knowledgeGaps   KnowledgeGap[]
+  actionDrafts    ActionDraft[]
+}
+
+model DataSource {
+  id           String         @id @default(cuid())
+  workspaceId  String
+  type         DataSourceType
+  name         String
+  rootPath     String?
+  rootPageId   String?
+  config       Json?
+  lastSyncedAt DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  documents    Document[]
+
+  @@unique([workspaceId, name])
+  @@unique([workspaceId, id])
+  @@index([workspaceId, type])
+  @@index([workspaceId])
+}
+
+model Document {
+  id                String          @id @default(cuid())
+  workspaceId       String
+  dataSourceId      String
+  externalId        String
+  sourceType        SourceType
+  title             String
+  url               String?
+  filePath          String?
+  repoName          String?
+  content           String
+  status            DocumentStatus  @default(active)
+  knowledgeTypes    KnowledgeType[]
+  domainTags        String[]
+  externalCreatedAt DateTime?
+  externalUpdatedAt DateTime?
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  dataSource        DataSource      @relation(fields: [workspaceId, dataSourceId], references: [workspaceId, id], onDelete: Cascade)
+  chunks            DocumentChunk[]
+
+  @@unique([dataSourceId, externalId])
+  @@unique([workspaceId, id])
+  @@index([workspaceId, sourceType])
+  @@index([workspaceId, status])
+  @@index([workspaceId])
+  @@index([dataSourceId])
+}
+
+model DocumentChunk {
+  id              String           @id @default(cuid())
+  workspaceId     String
+  documentId      String
+  content         String
+  sourceType      SourceType
+  chunkType       String
+  knowledgeTypes  KnowledgeType[]
+  domainTags      String[]
+  sourcePriority  Int
+  tokenCount      Int?
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document        Document         @relation(fields: [workspaceId, documentId], references: [workspaceId, id], onDelete: Cascade)
+  questionSources QuestionSource[]
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, documentId])
+  @@index([workspaceId])
+  @@index([documentId])
+}
+
+model Question {
+  id              String           @id @default(cuid())
+  workspaceId     String
+  question        String
+  answer          String?
+  requestedMode   RetrievalMode    @default(auto)
+  resolvedMode    RetrievalMode?
+  confidence      Float?
+  isAnswerable    Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  questionSources QuestionSource[]
+  knowledgeGap    KnowledgeGap?
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, requestedMode])
+  @@index([workspaceId])
+}
+
+model QuestionSource {
+  id          String        @id @default(cuid())
+  workspaceId String
+  questionId  String
+  chunkId     String
+  score       Float
+  rank        Int
+  mode        RetrievalMode
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  question    Question      @relation(fields: [workspaceId, questionId], references: [workspaceId, id], onDelete: Cascade)
+  chunk       DocumentChunk @relation(fields: [workspaceId, chunkId], references: [workspaceId, id], onDelete: Cascade)
+
+  @@unique([workspaceId, questionId, chunkId, mode])
+  @@index([workspaceId])
+  @@index([questionId, mode])
+  @@index([chunkId])
+}
+
+model KnowledgeGap {
+  id                        String        @id @default(cuid())
+  workspaceId               String
+  questionId                String        @unique
+  category                  String
+  title                     String
+  description               String?
+  suggestedDocumentTitle    String
+  suggestedMarkdownPath     String
+  suggestedGithubIssueTitle String
+  priority                  GapPriority   @default(medium)
+  status                    GapStatus     @default(open)
+  similarQuestionCount      Int           @default(0)
+  relatedMode               RetrievalMode
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+  workspace                 Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  question                  Question      @relation(fields: [workspaceId, questionId], references: [workspaceId, id], onDelete: Cascade)
+  actionDrafts              ActionDraft[]
+
+  @@unique([workspaceId, questionId])
+  @@unique([workspaceId, id])
+  @@index([workspaceId, category])
+  @@index([workspaceId, relatedMode, status])
+  @@index([workspaceId])
+  @@index([questionId])
+}
+
+model ActionDraft {
+  id             String            @id @default(cuid())
+  workspaceId    String
+  knowledgeGapId String
+  type           ActionDraftType
+  title          String
+  body           String
+  status         ActionDraftStatus @default(draft)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  workspace      Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  knowledgeGap   KnowledgeGap      @relation(fields: [workspaceId, knowledgeGapId], references: [workspaceId, id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, knowledgeGapId, type])
+  @@index([knowledgeGapId])
+}
