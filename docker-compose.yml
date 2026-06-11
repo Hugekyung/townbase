@@ -10,7 +10,6 @@ services:
       - "5432:5432"
     volumes:
       - townbase-postgres-data:/var/lib/postgresql/data
-      - ./repos:/repos
 
 volumes:
   townbase-postgres-data:

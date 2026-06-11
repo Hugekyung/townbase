@@ -12,8 +12,8 @@ export default [
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        project: ["./apps/api/tsconfig.json"],
-        tsconfigRootDir: new URL(".", import.meta.url).pathname,
+        project: ["./apps/api/tsconfig.eslint.json"],
+        tsconfigRootDir: import.meta.dirname,
       },
     },
     plugins: {
