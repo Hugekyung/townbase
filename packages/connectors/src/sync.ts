@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 
 import { loadNotionConnectorEnv } from "./env";
 import { loadNotionSyncFixture } from "./notion/fixture";
@@ -38,7 +39,13 @@ const resolveFixturePath = (fixturePath: string | undefined): string =>
   fixturePath ?? path.resolve(__dirname, "..", "fixtures", "notion-sync.fixture.json");
 
 const loadDatabaseRuntime = (): DatabaseRuntimeModule => {
-  const databasePath = path.resolve(__dirname, "..", "..", "database", "src");
+  const packageJsonPath = require.resolve("@townbase/database/package.json");
+  const packageRoot = path.dirname(packageJsonPath);
+  const builtRuntimePath = path.resolve(packageRoot, "dist", "index.js");
+  const sourceRuntimePath = path.resolve(packageRoot, "src", "index.ts");
+  const databasePath = fs.existsSync(builtRuntimePath)
+    ? builtRuntimePath
+    : sourceRuntimePath;
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   return require(databasePath) as DatabaseRuntimeModule;
 };

@@ -154,6 +154,81 @@ describe("syncNotionPages", () => {
     ]);
   });
 
+  it("does not overwrite a newer stored document with a stale incoming page", async () => {
+    let syncedAtCalls = 0;
+    const logEntries: Array<{
+      pageId: string;
+      pageTitle?: string;
+      reason: string;
+    }> = [];
+    const store: {
+      findDocumentByExternalId: (
+        externalId: string,
+      ) => Promise<{ externalUpdatedAt: Date | null; status: "active" | "archived" } | null>;
+      upsertDocument: (input: {
+        externalId: string;
+        status: "active" | "archived";
+        externalUpdatedAt: Date;
+      }) => Promise<void>;
+      markLastSyncedAt: (syncedAt: Date) => Promise<void>;
+    } = {
+      async findDocumentByExternalId(externalId: string) {
+        if (externalId !== "stale-page") {
+          return null;
+        }
+
+        return {
+          externalUpdatedAt: new Date("2024-01-10T00:00:00.000Z"),
+          status: "active",
+        };
+      },
+      async upsertDocument() {
+        throw new Error("should not upsert stale document");
+      },
+      async markLastSyncedAt() {
+        syncedAtCalls += 1;
+        return undefined;
+      },
+    };
+
+    const result = await syncNotionPages(
+      {
+        workspaceId: "workspace-1",
+        dataSourceId: "source-1",
+        syncedAt: new Date("2024-01-12T00:00:00.000Z"),
+        pages: [
+          {
+            page: {
+              id: "stale-page",
+              title: "Stale Note",
+              url: "https://notion.so/stale-page",
+              lastEditedTime: "2024-01-05T00:00:00.000Z",
+            },
+            content: "older content",
+            pathSegments: [],
+          },
+        ],
+      },
+      store,
+      {
+        warn: (entry: { pageId: string; pageTitle?: string; reason: string }) => {
+          logEntries.push(entry);
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      inserted: 0,
+      updated: 0,
+      archived: 0,
+      skippedUnchanged: 1,
+      failed: 0,
+      failures: [],
+    });
+    expect(logEntries).toEqual([]);
+    expect(syncedAtCalls).toBe(1);
+  });
+
   it("skips a page with a missing timestamp and keeps the summary deterministic", async () => {
     const logEntries: Array<{
       pageId: string;

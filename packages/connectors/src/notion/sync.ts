@@ -142,7 +142,7 @@ export const syncNotionPages = async (
     if (existing !== null) {
       const comparison = compareEditedAt(existing.externalUpdatedAt, editedAt);
 
-      if (comparison === 0) {
+      if (comparison >= 0) {
         skippedUnchanged += 1;
         continue;
       }
