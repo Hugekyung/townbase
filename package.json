@@ -6,6 +6,12 @@
   "scripts": {
     "build": "pnpm --filter @townbase/api build",
     "dev": "pnpm --filter @townbase/api dev",
+    "db:generate": "pnpm --filter @townbase/database prisma:generate",
+    "db:validate": "pnpm --filter @townbase/database prisma:validate",
+    "db:migrate": "pnpm --filter @townbase/database prisma:migrate",
+    "db:deploy": "pnpm --filter @townbase/database prisma:migrate:deploy",
+    "db:seed": "pnpm --filter @townbase/database prisma:seed",
+    "db:test": "pnpm --filter @townbase/database test",
     "lint": "pnpm --filter @townbase/api lint",
     "start": "pnpm --filter @townbase/api start",
     "test": "pnpm --filter @townbase/api test"
@@ -16,6 +22,7 @@
     "eslint": "^9.22.0",
     "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-import": "^2.31.0",
+    "prisma": "^6.19.3",
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
   }
