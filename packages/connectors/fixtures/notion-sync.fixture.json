@@ -1,0 +1,20 @@
+{
+  "workspaceName": "townbase",
+  "dataSourceName": "notion-connector",
+  "rootPageId": "root-page",
+  "syncedAt": "2024-01-10T00:00:00.000Z",
+  "pages": [
+    {
+      "page": {
+        "id": "page-1",
+        "title": "Getting Started with Payments",
+        "url": "https://notion.so/page-1",
+        "createdTime": "2024-01-01T00:00:00.000Z",
+        "lastEditedTime": "2024-01-03T01:02:03.000Z"
+      },
+      "content": "Hello world",
+      "pathSegments": ["Engineering", "Onboarding"]
+    }
+  ],
+  "failures": []
+}

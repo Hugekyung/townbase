@@ -1,23 +1,22 @@
-export type { NotionConnectorEnv } from "./env";
-export { loadNotionConnectorEnv } from "./env";
 export {
   classifyNotionPage,
   mapNotionPageToDocumentDraft,
   type NotionPageClassification,
   type NotionPageDraft,
+} from "./mapping";
+export {
   syncNotionPages,
   type NotionSyncFailure,
   type NotionSyncInput,
   type NotionSyncLogger,
   type NotionSyncStore,
   type NotionSyncSummary,
-} from "./notion";
+} from "./sync";
 export type {
   NotionBlockChildrenResponse,
   NotionBlockRecord,
   NotionClientLike,
   NotionPageRecord,
   NotionPageSnapshot,
-} from "./notion";
-export { loadNotionPageSnapshot } from "./notion";
-export { runNotionSync } from "./sync";
+} from "./types";
+export { loadNotionPageSnapshot } from "./traverse";
