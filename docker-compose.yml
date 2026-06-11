@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: townbase-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-townbase}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-townbase}
+      POSTGRES_DB: ${POSTGRES_DB:-townbase}
+    ports:
+      - "5432:5432"
+    volumes:
+      - townbase-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  townbase-postgres-data:
