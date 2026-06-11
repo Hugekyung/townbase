@@ -10,7 +10,11 @@ import {
   type SourceType,
 } from "@prisma/client";
 
-import { createPrismaClient, DEFAULT_WORKSPACE_NAME } from "../src";
+import {
+  createPrismaClient,
+  DEFAULT_WORKSPACE_NAME,
+  disconnectPrismaClient,
+} from "../src";
 
 const clearDatabase = async (prisma: PrismaClient): Promise<void> => {
   await prisma.actionDraft.deleteMany();
@@ -35,7 +39,7 @@ describe("database integration", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    await disconnectPrismaClient();
   });
 
   it("keeps the seeded workspace available", async () => {
@@ -118,6 +122,7 @@ describe("database integration", () => {
 
     const source = await prisma.questionSource.create({
       data: {
+        workspaceId: workspace.id,
         questionId: question.id,
         chunkId: chunk.id,
         score: 0.91,

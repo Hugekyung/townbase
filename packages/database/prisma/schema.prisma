@@ -84,16 +84,17 @@ enum ActionDraftStatus {
 }
 
 model Workspace {
-  id             String          @id @default(cuid())
-  name           String          @unique
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  dataSources    DataSource[]
-  documents      Document[]
-  documentChunks DocumentChunk[]
-  questions      Question[]
-  knowledgeGaps  KnowledgeGap[]
-  actionDrafts   ActionDraft[]
+  id              String           @id @default(cuid())
+  name            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  dataSources     DataSource[]
+  documents       Document[]
+  documentChunks  DocumentChunk[]
+  questions       Question[]
+  questionSources QuestionSource[]
+  knowledgeGaps   KnowledgeGap[]
+  actionDrafts    ActionDraft[]
 }
 
 model DataSource {
@@ -111,7 +112,9 @@ model DataSource {
   documents    Document[]
 
   @@unique([workspaceId, name])
+  @@unique([workspaceId, id])
   @@index([workspaceId, type])
+  @@index([workspaceId])
 }
 
 model Document {
@@ -134,12 +137,15 @@ model Document {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  dataSource        DataSource      @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  dataSource        DataSource      @relation(fields: [workspaceId, dataSourceId], references: [workspaceId, id], onDelete: Cascade)
   chunks            DocumentChunk[]
 
   @@unique([dataSourceId, externalId])
+  @@unique([workspaceId, id])
   @@index([workspaceId, sourceType])
   @@index([workspaceId, status])
+  @@index([workspaceId])
+  @@index([dataSourceId])
 }
 
 model DocumentChunk {
@@ -157,10 +163,13 @@ model DocumentChunk {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  document        Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document        Document         @relation(fields: [workspaceId, documentId], references: [workspaceId, id], onDelete: Cascade)
   questionSources QuestionSource[]
 
+  @@unique([workspaceId, id])
   @@index([workspaceId, documentId])
+  @@index([workspaceId])
+  @@index([documentId])
 }
 
 model Question {
@@ -177,22 +186,28 @@ model Question {
   questionSources QuestionSource[]
   knowledgeGap    KnowledgeGap?
 
+  @@unique([workspaceId, id])
   @@index([workspaceId, requestedMode])
+  @@index([workspaceId])
 }
 
 model QuestionSource {
-  id         String        @id @default(cuid())
-  questionId String
-  chunkId    String
-  score      Float
-  rank       Int
-  mode       RetrievalMode
-  createdAt  DateTime      @default(now())
-  question   Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  chunk      DocumentChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  id          String        @id @default(cuid())
+  workspaceId String
+  questionId  String
+  chunkId     String
+  score       Float
+  rank        Int
+  mode        RetrievalMode
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  question    Question      @relation(fields: [workspaceId, questionId], references: [workspaceId, id], onDelete: Cascade)
+  chunk       DocumentChunk @relation(fields: [workspaceId, chunkId], references: [workspaceId, id], onDelete: Cascade)
 
-  @@unique([questionId, chunkId, mode])
+  @@unique([workspaceId, questionId, chunkId, mode])
+  @@index([workspaceId])
   @@index([questionId, mode])
+  @@index([chunkId])
 }
 
 model KnowledgeGap {
@@ -212,11 +227,15 @@ model KnowledgeGap {
   createdAt                 DateTime      @default(now())
   updatedAt                 DateTime      @updatedAt
   workspace                 Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  question                  Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question                  Question      @relation(fields: [workspaceId, questionId], references: [workspaceId, id], onDelete: Cascade)
   actionDrafts              ActionDraft[]
 
+  @@unique([workspaceId, questionId])
+  @@unique([workspaceId, id])
   @@index([workspaceId, category])
   @@index([workspaceId, relatedMode, status])
+  @@index([workspaceId])
+  @@index([questionId])
 }
 
 model ActionDraft {
@@ -230,7 +249,9 @@ model ActionDraft {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   workspace      Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  knowledgeGap   KnowledgeGap      @relation(fields: [knowledgeGapId], references: [id], onDelete: Cascade)
+  knowledgeGap   KnowledgeGap      @relation(fields: [workspaceId, knowledgeGapId], references: [workspaceId, id], onDelete: Cascade)
 
+  @@index([workspaceId])
   @@index([workspaceId, knowledgeGapId, type])
+  @@index([knowledgeGapId])
 }

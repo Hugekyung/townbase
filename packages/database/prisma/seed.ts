@@ -1,4 +1,7 @@
-import { createPrismaClient } from "../src/prisma-client";
+import {
+  createPrismaClient,
+  disconnectPrismaClient,
+} from "../src/prisma-client";
 import { DEFAULT_WORKSPACE_NAME } from "../src/runtime";
 
 async function main(): Promise<void> {
@@ -15,7 +18,7 @@ async function main(): Promise<void> {
       update: {},
     });
   } finally {
-    await prisma.$disconnect();
+    await disconnectPrismaClient();
   }
 }
 
