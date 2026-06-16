@@ -14,6 +14,8 @@ describe("local repo scanner", () => {
     const rootPath = await fs.mkdtemp(path.join(os.tmpdir(), "tmp-local-repo-"));
 
     await fs.mkdir(path.join(rootPath, "repo-a", "docs"), { recursive: true });
+    await fs.mkdir(path.join(rootPath, "repo-a", "docs", "logs"), { recursive: true });
+    await fs.mkdir(path.join(rootPath, "repo-a", "docs", "secrets"), { recursive: true });
     await fs.mkdir(path.join(rootPath, "repo-a", "node_modules"), { recursive: true });
     await fs.mkdir(path.join(rootPath, "repo-a", ".git"), { recursive: true });
     await fs.mkdir(path.join(rootPath, "repo-a", "secrets"), { recursive: true });
@@ -21,6 +23,8 @@ describe("local repo scanner", () => {
 
     await fs.writeFile(path.join(rootPath, "repo-a", "README.md"), "# Repo A\n");
     await fs.writeFile(path.join(rootPath, "repo-a", "docs", "guide.md"), "# Guide\n");
+    await fs.writeFile(path.join(rootPath, "repo-a", "docs", "logs", "activity.md"), "# Ignore\n");
+    await fs.writeFile(path.join(rootPath, "repo-a", "docs", "secrets", "keys.md"), "# Ignore\n");
     await fs.writeFile(path.join(rootPath, "repo-a", "node_modules", "ignored.md"), "# Ignore\n");
     await fs.writeFile(path.join(rootPath, "repo-a", ".git", "config"), "[core]\n");
     await fs.writeFile(path.join(rootPath, "repo-a", "secrets", "key.pem"), "secret\n");
@@ -49,6 +53,21 @@ describe("local repo scanner", () => {
     ]);
     expect(isIncludedLocalRepoPath("docs/guide.md")).toBe(true);
     expect(isExcludedLocalRepoPath("node_modules/ignored.md")).toBe(true);
+    expect(isExcludedLocalRepoPath("docs/logs/activity.md")).toBe(true);
+    expect(isExcludedLocalRepoPath("docs/secrets/keys.md")).toBe(true);
+
+    await fs.rm(rootPath, { recursive: true, force: true });
+  });
+
+  it("rejects dot repositories before scanning", async () => {
+    const rootPath = await fs.mkdtemp(path.join(os.tmpdir(), "tmp-local-repo-"));
+
+    await expect(collectSelectedLocalRepoFiles(rootPath, ["."])).rejects.toThrow(
+      "Invalid selected repository name: .",
+    );
+    await expect(collectSelectedLocalRepoFiles(rootPath, [".."])).rejects.toThrow(
+      "Invalid selected repository name: ..",
+    );
 
     await fs.rm(rootPath, { recursive: true, force: true });
   });

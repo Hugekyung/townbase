@@ -81,7 +81,13 @@ importers:
       '@notionhq/client':
         specifier: ^2.2.15
         version: 2.3.0
+      '@townbase/database':
+        specifier: workspace:*
+        version: link:../database
     devDependencies:
+      '@prisma/client':
+        specifier: ^6.19.3
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       '@types/jest':
         specifier: ^29.5.14
         version: 29.5.14

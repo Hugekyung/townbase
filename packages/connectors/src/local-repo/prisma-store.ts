@@ -3,41 +3,14 @@ import type { LocalRepoDocumentDraft, LocalRepoSyncStore } from "./types";
 
 type PrismaClientLike = Readonly<{
   document: Readonly<{
-    findUnique: (input: Readonly<{
-      where: Readonly<{
-        dataSourceId_externalId: Readonly<{
-          dataSourceId: string;
-          externalId: string;
-        }>;
-      }>;
-      select: Readonly<{
-        externalUpdatedAt: true;
-        status: true;
-      }>;
-    }>) => Promise<{
+    findUnique: (input: any) => Promise<{
       externalUpdatedAt: Date | null;
       status: string;
     } | null>;
-    upsert: (input: Readonly<{
-      where: Readonly<{
-        dataSourceId_externalId: Readonly<{
-          dataSourceId: string;
-          externalId: string;
-        }>;
-      }>;
-      create: unknown;
-      update: unknown;
-    }>) => Promise<unknown>;
+    upsert: (input: any) => Promise<unknown>;
   }>;
   dataSource: Readonly<{
-    update: (input: Readonly<{
-      where: Readonly<{
-        id: string;
-      }>;
-      data: Readonly<{
-        lastSyncedAt: Date;
-      }>;
-    }>) => Promise<unknown>;
+    update: (input: any) => Promise<unknown>;
   }>;
 }>;
 

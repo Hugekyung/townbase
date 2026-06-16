@@ -18,8 +18,8 @@ const isExcludedLocalRepoPath = (relativePath: string): boolean => {
     hasExcludedSegment(segments, "node_modules") ||
     hasExcludedSegment(segments, "dist") ||
     hasExcludedSegment(segments, "build") ||
-    normalizedPath.startsWith("secrets/") ||
-    normalizedPath.startsWith("logs/") ||
+    hasExcludedSegment(segments, "secrets") ||
+    hasExcludedSegment(segments, "logs") ||
     basename.startsWith(".env") ||
     basename.endsWith(".pem") ||
     basename.endsWith(".key")
@@ -46,7 +46,13 @@ const isIncludedLocalRepoPath = (relativePath: string): boolean => {
 };
 
 const assertValidRepositoryName = (repoName: string): void => {
-  if (repoName.trim() === "" || repoName.includes("/") || repoName.includes("\\") || repoName.includes("..")) {
+  if (
+    repoName.trim() === "" ||
+    repoName === "." ||
+    repoName === ".." ||
+    repoName.includes("/") ||
+    repoName.includes("\\")
+  ) {
     throw new Error(`Invalid selected repository name: ${repoName}`);
   }
 };

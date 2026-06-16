@@ -1,7 +1,7 @@
 import path from "node:path";
-import fs from "node:fs";
 
 import { loadNotionConnectorEnv } from "./env";
+import { loadDatabaseRuntime } from "./database-runtime";
 import { loadNotionSyncFixture } from "./notion/fixture";
 import { createPrismaNotionSyncStore } from "./notion/prisma-store";
 import { syncNotionPages, type NotionSyncSummary } from "./notion/sync";
@@ -10,45 +10,11 @@ type RunNotionSyncOptions = Readonly<{
   fixturePath?: string;
 }>;
 
+type DatabaseRuntimeModule = ReturnType<typeof loadDatabaseRuntime>;
 type PrismaClientLike = ReturnType<DatabaseRuntimeModule["createPrismaClient"]>;
-
-type DatabaseRuntimeModule = Readonly<{
-  createPrismaClient: () => {
-    $connect: () => Promise<void>;
-    document: {
-      findUnique: (input: unknown) => Promise<{
-        externalUpdatedAt: Date | null;
-        status: string;
-      } | null>;
-      upsert: (input: unknown) => Promise<unknown>;
-    };
-    workspace: {
-      upsert: (input: unknown) => Promise<{ id: string }>;
-    };
-    dataSource: {
-      upsert: (input: unknown) => Promise<{ id: string }>;
-      update: (input: unknown) => Promise<unknown>;
-    };
-    $disconnect?: () => Promise<void>;
-  };
-  disconnectPrismaClient: () => Promise<void>;
-  DEFAULT_WORKSPACE_NAME: string;
-}>;
 
 const resolveFixturePath = (fixturePath: string | undefined): string =>
   fixturePath ?? path.resolve(__dirname, "..", "fixtures", "notion-sync.fixture.json");
-
-const loadDatabaseRuntime = (): DatabaseRuntimeModule => {
-  const packageJsonPath = require.resolve("@townbase/database/package.json");
-  const packageRoot = path.dirname(packageJsonPath);
-  const builtRuntimePath = path.resolve(packageRoot, "dist", "index.js");
-  const sourceRuntimePath = path.resolve(packageRoot, "src", "index.ts");
-  const databasePath = fs.existsSync(builtRuntimePath)
-    ? builtRuntimePath
-    : sourceRuntimePath;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  return require(databasePath) as DatabaseRuntimeModule;
-};
 
 const upsertWorkspace = async (
   prisma: PrismaClientLike,
@@ -107,7 +73,7 @@ export const runNotionSync = async (
   options: RunNotionSyncOptions = {},
 ): Promise<NotionSyncSummary> => {
   const env = loadNotionConnectorEnv();
-  const database = loadDatabaseRuntime();
+  const database = loadDatabaseRuntime(path.resolve(__dirname, "..", "..", "database"));
   const prisma = database.createPrismaClient();
   const fixture = await loadNotionSyncFixture(resolveFixturePath(options.fixturePath));
 

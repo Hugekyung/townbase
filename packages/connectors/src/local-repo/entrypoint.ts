@@ -1,34 +1,16 @@
-import fs from "node:fs";
 import path from "node:path";
+
+import {
+  loadDatabaseRuntime,
+  type DatabaseRuntimeModule,
+} from "../database-runtime";
 
 import { collectSelectedLocalRepoFiles } from "./scan";
 import { createPrismaLocalRepoSyncStore } from "./prisma-store";
 import { syncLocalRepoFiles } from "./sync";
 import type { LocalRepoSyncSummary } from "./types";
 
-type PrismaClientLike = Readonly<{
-  $connect: () => Promise<void>;
-  document: Readonly<{
-    findUnique: (input: unknown) => Promise<{
-      externalUpdatedAt: Date | null;
-      status: string;
-    } | null>;
-    upsert: (input: unknown) => Promise<unknown>;
-  }>;
-  workspace: Readonly<{
-    upsert: (input: unknown) => Promise<{ id: string }>;
-  }>;
-  dataSource: Readonly<{
-    upsert: (input: unknown) => Promise<{ id: string }>;
-    update: (input: unknown) => Promise<unknown>;
-  }>;
-}>;
-
-type DatabaseRuntimeModule = Readonly<{
-  createPrismaClient: () => PrismaClientLike;
-  disconnectPrismaClient: () => Promise<void>;
-  DEFAULT_WORKSPACE_NAME: string;
-}>;
+type PrismaClientLike = ReturnType<DatabaseRuntimeModule["createPrismaClient"]>;
 
 type RunLocalRepoSyncOptions = Readonly<{
   repoRootPath?: string;
@@ -75,6 +57,10 @@ const parseLocalRepoSyncArgs = (argv: ReadonlyArray<string>): ParsedLocalRepoSyn
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
+
+    if (token === undefined) {
+      throw new Error("Missing local repo sync argument");
+    }
 
     if (token === "--root-path") {
       const value = argv[index + 1];
@@ -144,17 +130,6 @@ const parseLocalRepoSyncArgs = (argv: ReadonlyArray<string>): ParsedLocalRepoSyn
   };
 };
 
-const loadDatabaseRuntime = (): DatabaseRuntimeModule => {
-  const packageJsonPath = require.resolve("@townbase/database/package.json");
-  const packageRoot = path.dirname(packageJsonPath);
-  const builtRuntimePath = path.resolve(packageRoot, "dist", "index.js");
-  const sourceRuntimePath = path.resolve(packageRoot, "src", "index.ts");
-  const databasePath = fs.existsSync(builtRuntimePath) ? builtRuntimePath : sourceRuntimePath;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const runtime: DatabaseRuntimeModule = require(databasePath);
-  return runtime;
-};
-
 const upsertWorkspace = async (prisma: PrismaClientLike, workspaceName: string): Promise<string> => {
   const workspace = await prisma.workspace.upsert({
     where: {
@@ -211,7 +186,9 @@ const upsertDataSource = async (
 export const runLocalRepoSync = async (
   options: RunLocalRepoSyncOptions = {},
 ): Promise<LocalRepoSyncSummary> => {
-  const database = options.databaseRuntime ?? loadDatabaseRuntime();
+  const database =
+    options.databaseRuntime ??
+    loadDatabaseRuntime(path.resolve(__dirname, "..", "..", "..", "database"));
   const prisma = database.createPrismaClient();
   const repoRootPath = resolveRepoRootPath(options.repoRootPath);
   const selectedRepoNames = readSelectedRepoNames(options.selectedRepoNames);
