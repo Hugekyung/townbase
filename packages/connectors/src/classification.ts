@@ -127,6 +127,7 @@ const collectRepoRules = (filePath: string): ReadonlyArray<string> => {
   if (basename === "readme.md") matchedRules.push("path:readme");
   if (normalizedPath.startsWith("docs/")) matchedRules.push("path:docs");
   if (normalizedPath.startsWith("adr/")) matchedRules.push("path:adr");
+  if (normalizedPath.startsWith("architecture/")) matchedRules.push("path:architecture");
   if (normalizedPath.startsWith("prd/")) matchedRules.push("path:prd");
   if (normalizedPath === "prisma/schema.prisma" || basename === "schema.prisma") matchedRules.push("path:schema");
   if (normalizedPath.includes("/migrations/") || normalizedPath.startsWith("migrations/")) matchedRules.push("path:migration");

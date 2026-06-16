@@ -5,6 +5,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "notion:sync": "ts-node --project tsconfig.json src/sync.ts",
+    "local-repo:sync": "ts-node --project tsconfig.json src/local-repo/entrypoint.ts",
     "test": "jest --runInBand"
   },
   "dependencies": {

@@ -1,4 +1,13 @@
-import { loadNotionConnectorEnv } from "../src/env";
+import { loadLocalRepoConnectorEnv, loadNotionConnectorEnv } from "../src/env";
+
+const restoreEnvVar = (name: string, value: string | undefined): void => {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+};
 
 describe("loadNotionConnectorEnv", () => {
   it("throws when the Notion env vars are missing", () => {
@@ -12,8 +21,8 @@ describe("loadNotionConnectorEnv", () => {
       "Missing required environment variable: NOTION_API_KEY",
     );
 
-    process.env.NOTION_API_KEY = originalApiKey;
-    process.env.NOTION_ROOT_PAGE_ID = originalRootPageId;
+    restoreEnvVar("NOTION_API_KEY", originalApiKey);
+    restoreEnvVar("NOTION_ROOT_PAGE_ID", originalRootPageId);
   });
 
   it("loads the Notion env vars when they are present", () => {
@@ -24,5 +33,21 @@ describe("loadNotionConnectorEnv", () => {
       notionApiKey: "secret-api-key",
       notionRootPageId: "root-page-id",
     });
+  });
+
+  it("loads the local repo root path with a default fallback", () => {
+    const originalRepoRootPath = process.env.REPO_ROOT_PATH;
+
+    delete process.env.REPO_ROOT_PATH;
+    expect(loadLocalRepoConnectorEnv()).toEqual({
+      repoRootPath: "./repos",
+    });
+
+    process.env.REPO_ROOT_PATH = "/tmp/repos";
+    expect(loadLocalRepoConnectorEnv()).toEqual({
+      repoRootPath: "/tmp/repos",
+    });
+
+    restoreEnvVar("REPO_ROOT_PATH", originalRepoRootPath);
   });
 });

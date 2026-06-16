@@ -1,0 +1,10 @@
+Command:
+REPO_ROOT_PATH=/var/folders/k6/_414bqbj0v15wxf9dlbwkq_m0000gn/T/phase4-local-repo-qa.zzRGJk LOCAL_REPO_NAMES=repo-a pnpm --filter @townbase/connectors local-repo:sync
+
+Output:
+{
+  "inserted": 2,
+  "updated": 0,
+  "archived": 0,
+  "skippedUnchanged": 0
+}
