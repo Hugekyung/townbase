@@ -2,6 +2,7 @@ import {
   mapNotionPageToDocumentDraft,
   type NotionPageDraft,
 } from "./mapping";
+import type { DocumentStatus } from "../classification";
 
 type NotionPageInput = Readonly<{
   page: Readonly<{
@@ -36,7 +37,7 @@ export type NotionSyncStore = Readonly<{
     externalId: string,
   ) => Promise<{
     externalUpdatedAt: Date | null;
-    status: "active" | "archived";
+    status: DocumentStatus;
   } | null>;
   upsertDocument: (input: NotionPageDraft) => Promise<void>;
   markLastSyncedAt: (syncedAt: Date) => Promise<void>;
@@ -128,13 +129,20 @@ export const syncNotionPages = async (
       page: pageInput.page,
       content: pageInput.content,
       pathSegments: pageInput.pathSegments,
+      archived: pageInput.archived,
     });
 
     if (pageInput.archived === true) {
-      await upsertDraft(store, {
-        ...draft,
-        status: "archived",
-      });
+      if (existing !== null && existing.status === "archived") {
+        const comparison = compareEditedAt(existing.externalUpdatedAt, editedAt);
+
+        if (comparison >= 0) {
+          skippedUnchanged += 1;
+          continue;
+        }
+      }
+
+      await upsertDraft(store, draft);
       archived += 1;
       continue;
     }

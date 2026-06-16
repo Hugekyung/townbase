@@ -9,16 +9,19 @@ describe("classifyNotionPage", () => {
       classifyNotionPage({
         title: "Getting Started with Payments",
         pathSegments: ["Engineering", "Onboarding"],
+        archived: undefined,
       }),
     ).toEqual({
       sourceType: "notion_page",
       knowledgeTypes: ["onboarding"],
       domainTags: ["payment", "onboarding"],
+      status: "active",
       matchedRules: [
         "title:onboarding",
         "title:payment",
         "path:onboarding",
       ],
+      classifierVersion: "phase2-v1",
     });
   });
 
@@ -26,13 +29,32 @@ describe("classifyNotionPage", () => {
     expect(
       classifyNotionPage({
         title: "Random Notes",
-        pathSegments: ["Archive"],
+        pathSegments: ["General"],
+        archived: undefined,
       }),
     ).toEqual({
       sourceType: "notion_page",
       knowledgeTypes: ["unknown"],
       domainTags: [],
+      status: "active",
       matchedRules: [],
+      classifierVersion: "phase2-v1",
+    });
+  });
+
+  it("keeps explicitly unarchived notion pages active even when the text mentions archive", () => {
+    expect(
+      classifyNotionPage({
+        title: "Archive of Q1 Goals",
+        pathSegments: ["General"],
+        archived: false,
+      }),
+    ).toMatchObject({
+      sourceType: "notion_page",
+      knowledgeTypes: ["unknown"],
+      domainTags: [],
+      status: "active",
+      classifierVersion: "phase2-v1",
     });
   });
 });
@@ -52,6 +74,7 @@ describe("mapNotionPageToDocumentDraft", () => {
         },
         content: "Hello world",
         pathSegments: ["Engineering", "Onboarding"],
+        archived: undefined,
       }),
     ).toEqual({
       workspaceId: "workspace-1",
@@ -67,7 +90,7 @@ describe("mapNotionPageToDocumentDraft", () => {
       externalCreatedAt: new Date("2024-01-01T00:00:00.000Z"),
       externalUpdatedAt: new Date("2024-01-03T01:02:03.000Z"),
       metadata: {
-        classifierVersion: "phase3-v1",
+        classifierVersion: "phase2-v1",
         matchedRules: [
           "title:onboarding",
           "title:payment",

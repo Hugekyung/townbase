@@ -1,5 +1,6 @@
 import type { NotionPageDraft } from "./mapping";
 import type { NotionSyncStore } from "./sync";
+import type { DocumentStatus } from "../classification";
 
 type PrismaClientLike = Readonly<{
   document: Readonly<{
@@ -19,8 +20,8 @@ type PrismaNotionStoreContext = Readonly<{
   dataSourceId: string;
 }>;
 
-const normalizeStatus = (status: string): "active" | "archived" =>
-  status === "archived" ? "archived" : "active";
+const normalizeStatus = (status: string): DocumentStatus =>
+  status === "archived" || status === "deprecated" ? status : "active";
 
 export const createPrismaNotionSyncStore = (
   prisma: PrismaClientLike,
@@ -44,10 +45,10 @@ export const createPrismaNotionSyncStore = (
       return null;
     }
 
-    return {
-      externalUpdatedAt: document.externalUpdatedAt,
-      status: normalizeStatus(document.status),
-    };
+      return {
+        externalUpdatedAt: document.externalUpdatedAt,
+        status: normalizeStatus(document.status),
+      };
   },
   async upsertDocument(input: NotionPageDraft) {
     await prisma.document.upsert({

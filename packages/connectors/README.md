@@ -43,6 +43,9 @@ NOTION_API_KEY=... NOTION_ROOT_PAGE_ID=... pnpm --filter @townbase/connectors no
 ## Notes
 
 - This package owns Notion ingestion logic.
+- Shared metadata classification lives in `packages/connectors/src/classification.ts`.
+- `classifyNotionPage` and `classifyRepositoryPath` use the same deterministic output contract for `sourceType`, `knowledgeTypes`, `domainTags`, and `status`.
+- `buildChunkMetadata` exposes the chunk metadata shape that later chunk writers should consume.
 - Live Notion API tests are intentionally not required for the Phase 3 plan.
 - `pnpm --filter @townbase/connectors test` covers unit, fixture, and Prisma/PostgreSQL-backed integration tests.
 - `notion:sync` consumes the bundled fixture at `packages/connectors/fixtures/notion-sync.fixture.json` unless `NOTION_SYNC_FIXTURE_PATH` overrides it, then writes into PostgreSQL through Prisma.

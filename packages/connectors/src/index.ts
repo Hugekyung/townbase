@@ -1,10 +1,18 @@
 export type { NotionConnectorEnv } from "./env";
 export { loadNotionConnectorEnv } from "./env";
 export {
+  buildChunkMetadata,
   classifyNotionPage,
+  classifyRepositoryPath,
   mapNotionPageToDocumentDraft,
-  type NotionPageClassification,
+  type ClassificationResult,
+  type DocumentStatus,
+  type KnowledgeType,
   type NotionPageDraft,
+  type SourceType,
+} from "./classification";
+export {
+  type NotionPageClassification,
   syncNotionPages,
   type NotionSyncFailure,
   type NotionSyncInput,

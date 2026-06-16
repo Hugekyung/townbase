@@ -1,4 +1,5 @@
-import { syncNotionPages } from "../src/notion/sync";
+import { syncNotionPages, type NotionSyncStore } from "../src/notion/sync";
+import type { DocumentStatus } from "../src/classification";
 
 describe("syncNotionPages", () => {
   it("skips unchanged pages, upserts changed pages once, and records failures", async () => {
@@ -9,22 +10,13 @@ describe("syncNotionPages", () => {
       pageTitle?: string;
       reason: string;
     }> = [];
-    const store: {
+    const store: NotionSyncStore & {
       documents: Map<
         string,
-        { externalUpdatedAt: Date | null; status: "active" | "archived" }
+        { externalUpdatedAt: Date | null; status: DocumentStatus }
       >;
-      findDocumentByExternalId: (
-        externalId: string,
-      ) => Promise<{ externalUpdatedAt: Date | null; status: "active" | "archived" } | null>;
-      upsertDocument: (input: {
-        externalId: string;
-        status: "active" | "archived";
-        externalUpdatedAt: Date;
-      }) => Promise<void>;
-      markLastSyncedAt: (syncedAt: Date) => Promise<void>;
     } = {
-      documents: new Map<string, { externalUpdatedAt: Date | null; status: "active" | "archived" }>([
+      documents: new Map<string, { externalUpdatedAt: Date | null; status: DocumentStatus }>([
         [
           "unchanged",
           {
@@ -50,11 +42,7 @@ describe("syncNotionPages", () => {
       async findDocumentByExternalId(externalId: string) {
         return this.documents.get(externalId) ?? null;
       },
-      async upsertDocument(input: {
-        externalId: string;
-        status: "active" | "archived";
-        externalUpdatedAt: Date;
-      }) {
+      async upsertDocument(input) {
         upserts.push({ externalId: input.externalId, status: input.status });
         this.documents.set(input.externalId, {
           externalUpdatedAt: input.externalUpdatedAt,
@@ -161,17 +149,7 @@ describe("syncNotionPages", () => {
       pageTitle?: string;
       reason: string;
     }> = [];
-    const store: {
-      findDocumentByExternalId: (
-        externalId: string,
-      ) => Promise<{ externalUpdatedAt: Date | null; status: "active" | "archived" } | null>;
-      upsertDocument: (input: {
-        externalId: string;
-        status: "active" | "archived";
-        externalUpdatedAt: Date;
-      }) => Promise<void>;
-      markLastSyncedAt: (syncedAt: Date) => Promise<void>;
-    } = {
+    const store: NotionSyncStore = {
       async findDocumentByExternalId(externalId: string) {
         if (externalId !== "stale-page") {
           return null;
@@ -236,17 +214,7 @@ describe("syncNotionPages", () => {
       reason: string;
     }> = [];
     let syncedAtCalls = 0;
-    const store: {
-      findDocumentByExternalId: (
-        externalId: string,
-      ) => Promise<{ externalUpdatedAt: Date | null; status: "active" | "archived" } | null>;
-      upsertDocument: (input: {
-        externalId: string;
-        status: "active" | "archived";
-        externalUpdatedAt: Date;
-      }) => Promise<void>;
-      markLastSyncedAt: (syncedAt: Date) => Promise<void>;
-    } = {
+    const store: NotionSyncStore = {
       async findDocumentByExternalId() {
         return null;
       },

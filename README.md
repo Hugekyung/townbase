@@ -40,6 +40,7 @@ NOTION_API_KEY=... NOTION_ROOT_PAGE_ID=... pnpm --filter @townbase/connectors no
 ```
 
 `pnpm --filter @townbase/connectors test` covers fixture-based parsing/sync tests and Prisma/PostgreSQL-backed verification.
+The connector package also exposes the shared metadata classifier used for Notion and repository path rules in Phase 2.
 `pnpm --filter @townbase/connectors notion:sync` consumes `packages/connectors/fixtures/notion-sync.fixture.json` unless `NOTION_SYNC_FIXTURE_PATH` overrides it.
 
 ## Repository layout
