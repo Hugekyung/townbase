@@ -36,6 +36,12 @@ describe("classifyRepositoryPath", () => {
       knowledgeTypes: ["code_convention"],
       status: "active",
     });
+
+    expect(classifyRepositoryPath({ filePath: ".github/pull_request_template/bug_report.md" })).toMatchObject({
+      sourceType: "pr_template",
+      knowledgeTypes: ["code_convention"],
+      status: "active",
+    });
   });
 
   it("flags deprecated and archived repo paths", () => {

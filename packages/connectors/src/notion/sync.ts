@@ -133,6 +133,15 @@ export const syncNotionPages = async (
     });
 
     if (pageInput.archived === true) {
+      if (existing !== null && existing.status === "archived") {
+        const comparison = compareEditedAt(existing.externalUpdatedAt, editedAt);
+
+        if (comparison >= 0) {
+          skippedUnchanged += 1;
+          continue;
+        }
+      }
+
       await upsertDraft(store, draft);
       archived += 1;
       continue;

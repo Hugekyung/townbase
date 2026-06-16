@@ -85,7 +85,8 @@ const determineStatus = (
   text: string,
   archived?: boolean,
 ): DocumentStatus => {
-  if (archived === true || includesAny(text, ["archive", "archived"])) return "archived";
+  if (archived === true) return "archived";
+  if (archived === undefined && includesAny(text, ["archive", "archived"])) return "archived";
   if (includesAny(text, ["deprecated", "deprecate"])) return "deprecated";
   return "active";
 };
@@ -129,7 +130,7 @@ const collectRepoRules = (filePath: string): ReadonlyArray<string> => {
   if (normalizedPath.startsWith("prd/")) matchedRules.push("path:prd");
   if (normalizedPath === "prisma/schema.prisma" || basename === "schema.prisma") matchedRules.push("path:schema");
   if (normalizedPath.includes("/migrations/") || normalizedPath.startsWith("migrations/")) matchedRules.push("path:migration");
-  if (normalizedPath === ".github/pull_request_template.md" || normalizedPath.endsWith("/pull_request_template.md")) matchedRules.push("path:pr_template");
+  if (normalizedPath.includes(".github/pull_request_template")) matchedRules.push("path:pr_template");
   if (normalizedPath.includes(".github/issue_template")) matchedRules.push("path:issue_template");
   if (normalizedPath.includes("incident") || normalizedPath.includes("postmortem")) matchedRules.push("path:incident_review");
   if (normalizedPath.includes("deprecated")) matchedRules.push("path:deprecated");

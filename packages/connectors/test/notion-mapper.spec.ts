@@ -41,6 +41,22 @@ describe("classifyNotionPage", () => {
       classifierVersion: "phase2-v1",
     });
   });
+
+  it("keeps explicitly unarchived notion pages active even when the text mentions archive", () => {
+    expect(
+      classifyNotionPage({
+        title: "Archive of Q1 Goals",
+        pathSegments: ["General"],
+        archived: false,
+      }),
+    ).toMatchObject({
+      sourceType: "notion_page",
+      knowledgeTypes: ["unknown"],
+      domainTags: [],
+      status: "active",
+      classifierVersion: "phase2-v1",
+    });
+  });
 });
 
 describe("mapNotionPageToDocumentDraft", () => {
