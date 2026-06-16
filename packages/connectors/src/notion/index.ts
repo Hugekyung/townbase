@@ -1,4 +1,5 @@
 export {
+  buildChunkMetadata,
   classifyNotionPage,
   mapNotionPageToDocumentDraft,
   type NotionPageClassification,
