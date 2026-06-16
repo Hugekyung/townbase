@@ -28,6 +28,20 @@ curl http://localhost:3000/health
 docker compose up -d
 ```
 
+## Phase 3 connector workflow
+
+The Notion connector lives in `packages/connectors` and uses the local PostgreSQL container.
+
+```bash
+docker compose up -d postgres
+DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public pnpm --filter @townbase/database prisma:migrate:deploy
+pnpm --filter @townbase/connectors test
+NOTION_API_KEY=... NOTION_ROOT_PAGE_ID=... pnpm --filter @townbase/connectors notion:sync
+```
+
+`pnpm --filter @townbase/connectors test` covers fixture-based parsing/sync tests and Prisma/PostgreSQL-backed verification.
+`pnpm --filter @townbase/connectors notion:sync` consumes `packages/connectors/fixtures/notion-sync.fixture.json` unless `NOTION_SYNC_FIXTURE_PATH` overrides it.
+
 ## Repository layout
 
 ```text
@@ -40,4 +54,3 @@ packages/
   database/   Planned schema and persistence layer
 repos/        Mounted local Git repositories for ingestion
 ```
-

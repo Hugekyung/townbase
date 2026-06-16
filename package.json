@@ -12,6 +12,9 @@
     "db:deploy": "pnpm --filter @townbase/database prisma:migrate:deploy",
     "db:seed": "pnpm --filter @townbase/database prisma:seed",
     "db:test": "pnpm --filter @townbase/database test",
+    "connectors:build": "pnpm --filter @townbase/connectors build",
+    "connectors:sync": "pnpm --filter @townbase/connectors notion:sync",
+    "connectors:test": "pnpm --filter @townbase/connectors test",
     "lint": "pnpm --filter @townbase/api lint",
     "start": "pnpm --filter @townbase/api start",
     "test": "pnpm --filter @townbase/api test"
