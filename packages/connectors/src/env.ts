@@ -3,6 +3,10 @@ export type NotionConnectorEnv = Readonly<{
   notionRootPageId: string;
 }>;
 
+export type LocalRepoConnectorEnv = Readonly<{
+  repoRootPath: string;
+}>;
+
 const readRequiredEnvVar = (name: string): string => {
   const value = process.env[name];
 
@@ -16,4 +20,8 @@ const readRequiredEnvVar = (name: string): string => {
 export const loadNotionConnectorEnv = (): NotionConnectorEnv => ({
   notionApiKey: readRequiredEnvVar("NOTION_API_KEY"),
   notionRootPageId: readRequiredEnvVar("NOTION_ROOT_PAGE_ID"),
+});
+
+export const loadLocalRepoConnectorEnv = (): LocalRepoConnectorEnv => ({
+  repoRootPath: process.env.REPO_ROOT_PATH ?? "./repos",
 });

@@ -19,6 +19,12 @@ describe("classifyRepositoryPath", () => {
       status: "active",
     });
 
+    expect(classifyRepositoryPath({ filePath: "docs/README.md" })).toMatchObject({
+      sourceType: "repo_readme",
+      knowledgeTypes: ["onboarding"],
+      status: "active",
+    });
+
     expect(classifyRepositoryPath({ filePath: "prd/payment-flow.md" })).toMatchObject({
       sourceType: "prd",
       knowledgeTypes: ["product_history"],
@@ -40,6 +46,18 @@ describe("classifyRepositoryPath", () => {
     expect(classifyRepositoryPath({ filePath: ".github/pull_request_template/bug_report.md" })).toMatchObject({
       sourceType: "pr_template",
       knowledgeTypes: ["code_convention"],
+      status: "active",
+    });
+
+    expect(classifyRepositoryPath({ filePath: ".github/ISSUE_TEMPLATE/bug_report.md" })).toMatchObject({
+      sourceType: "issue_template",
+      knowledgeTypes: ["code_convention"],
+      status: "active",
+    });
+
+    expect(classifyRepositoryPath({ filePath: "migrations/001_init.sql" })).toMatchObject({
+      sourceType: "migration",
+      knowledgeTypes: ["database"],
       status: "active",
     });
   });
