@@ -245,6 +245,42 @@ v0.1에서는 `change_impact`는 구조만 열어두고 optional로 둔다. v0.2
 → documentation_gap
 ```
 
+### 6.7 Indexing and Chunking Policy
+
+v0.1의 ingestion/indexing은 문서 수집과 검색 품질을 분리해서 관리한다.
+
+- source connector가 수집한 문서는 `contentHash`를 계산해 변경 여부를 판별한다.
+- 이전 sync와 `contentHash`가 같으면 재embedding과 chunk 재생성을 건너뛴다.
+- 변경된 문서는 기존 chunk를 비활성화하거나 교체한 뒤 새 chunk를 생성한다.
+- 삭제되었거나 접근 불가능한 문서는 `archived` 상태로 전환한다.
+- `DocumentChunk`는 `headingPath`, `chunkIndex`, `tokenCount`, `contentHash`를 저장한다.
+- `DocumentChunk`는 원본 문서의 `documentId`와 source URL 또는 `filePath`를 추적할 수 있어야 한다.
+- embedding 생성 실패는 `indexStatus=failed`로 기록되고 sync summary에서 확인 가능해야 한다.
+- Markdown과 Notion 문서는 heading hierarchy를 우선으로 section 단위 chunking을 수행한다.
+- chunk는 `sectionTitle`과 `headingPath`를 보존한다.
+- chunk size는 기본 500~1,000 tokens를 목표로 한다.
+- 인접 chunk 간 100~150 tokens overlap을 허용한다.
+- README, ADR, PRD, schema, migration은 sourceType에 따라 chunking 전략을 다르게 둘 수 있다.
+
+### 6.8 Confidence and Feedback Policy
+
+- confidence는 LLM의 자기 판단만으로 정하지 않고 retrieval score, source count, mode-source match, document status, freshness를 함께 반영한다.
+- confidence가 low이거나 관련 source가 부족하면 Knowledge Gap을 우선 생성하거나 노출한다.
+- 답변 가능한 경우에도 불명확한 부분은 명시한다.
+- 사용자는 답변에 대해 good/bad feedback을 남길 수 있다.
+- bad feedback reason은 `wrong_source`, `hallucination`, `outdated`, `insufficient`를 지원한다.
+- 반복적으로 bad feedback을 받은 질문은 Knowledge Gap 후보가 된다.
+- v0.1은 자동 평가보다 수동 피드백과 로그 기반 개선을 우선한다.
+
+### 6.9 Observability Policy
+
+- 모든 질문은 Question으로 저장한다.
+- 검색된 chunk는 QuestionSource로 저장한다.
+- `model`, `latencyMs`, token usage를 기록해 나중에 질문/검색 품질을 추적할 수 있어야 한다.
+- sync 실패, embedding 실패, LLM 호출 실패는 식별 가능해야 한다.
+- query log를 통해 어떤 질문에서 어떤 source가 검색됐는지 추적할 수 있어야 한다.
+- 로그에는 raw secret, token, cookie, API key, private payload를 남기지 않는다.
+
 ---
 
 ## 7. Data Source
@@ -448,7 +484,9 @@ Document
 - filePath
 - repoName
 - content
+- contentHash
 - status: active | draft | deprecated | archived
+- indexStatus
 - knowledgeTypes[]
 - domainTags[]
 - externalCreatedAt
@@ -469,10 +507,14 @@ DocumentChunk
 - embedding
 - sourceType
 - chunkType
+- sectionTitle
+- headingPath
+- chunkIndex
 - knowledgeTypes[]
 - domainTags[]
 - sourcePriority
 - tokenCount
+- contentHash
 - metadata
 - createdAt
 - updatedAt
@@ -554,6 +596,8 @@ POST /admin/sync/repos
 GET /admin/sync/status
 ```
 
+Sync response examples should expose created / updated / skipped / failed counts and enough metadata to inspect index failures and archived-document handling.
+
 ### 10.2 Chat
 
 ```http
@@ -592,6 +636,8 @@ Response:
   "knowledgeGapCreated": false
 }
 ```
+
+Chat responses should also preserve an observable confidence value and enough traceability to inspect the selected sources in logs or QuestionSource records.
 
 ### 10.3 Questions
 
@@ -651,7 +697,15 @@ GET /documents/:id
 - similar question count를 확장 가능하게 설계
 - Gap 기반 draft 생성 지원
 
-### 11.5 Draft Generator
+### 11.5 Confidence, Feedback, and Observability
+
+- confidence는 retrieval score, source count, mode match, status, and freshness 기반 rule로 산정
+- 사용자는 good/bad feedback을 남길 수 있고, bad feedback reason을 기록할 수 있다
+- 질문과 source 선택 결과는 Question / QuestionSource 로 추적 가능해야 한다
+- sync / embedding / LLM 실패는 운영 로그 또는 상태 조회에서 확인 가능해야 한다
+- query 로그는 비밀값을 노출하지 않아야 한다
+
+### 11.6 Draft Generator
 
 - GitHub Issue 초안
 - Markdown 문서 초안
