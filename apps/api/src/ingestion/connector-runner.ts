@@ -29,6 +29,15 @@ type ExecFileRunner = (
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const hasSummaryShape = (
+  value: unknown,
+): value is Readonly<Record<string, unknown>> =>
+  isRecord(value) &&
+  typeof value["inserted"] === "number" &&
+  typeof value["updated"] === "number" &&
+  typeof value["archived"] === "number" &&
+  typeof value["skippedUnchanged"] === "number";
+
 const readNumber = (
   value: Readonly<Record<string, unknown>>,
   key: string,
@@ -40,6 +49,15 @@ const readNumber = (
   }
 
   return rawValue;
+};
+
+const readOptionalString = (
+  value: Readonly<Record<string, unknown>>,
+  key: string,
+): string | undefined => {
+  const rawValue = value[key];
+
+  return typeof rawValue === "string" ? rawValue : undefined;
 };
 
 const readFailures = (
@@ -60,51 +78,104 @@ const readFailures = (
       throw new Error("Connector summary failure reason must be a string");
     }
 
-    const pageId = failure["pageId"];
-    const pageTitle = failure["pageTitle"];
+    const sourceId =
+      readOptionalString(failure, "sourceId") ??
+      readOptionalString(failure, "pageId");
+    const sourceTitle =
+      readOptionalString(failure, "sourceTitle") ??
+      readOptionalString(failure, "pageTitle");
 
     return {
-      ...(typeof pageId === "string" ? { pageId } : {}),
-      ...(typeof pageTitle === "string" ? { pageTitle } : {}),
+      ...(sourceId === undefined ? {} : { sourceId }),
+      ...(sourceTitle === undefined ? {} : { sourceTitle }),
       reason: failure["reason"],
     };
   });
 };
 
-const parseSummaryJson = (stdout: string): unknown => {
-  const lines = stdout.split("\n");
+const extractBalancedJsonValue = (
+  stdout: string,
+  startIndex: number,
+): string | undefined => {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
 
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index];
+  for (let index = startIndex; index < stdout.length; index += 1) {
+    const char = stdout[index];
 
-    if (line === undefined) {
+    if (char === undefined) {
+      break;
+    }
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = false;
+      }
+
       continue;
     }
 
-    const trimmed = line.trim();
-
-    if (trimmed !== "{" && !trimmed.startsWith('{"')) {
+    if (char === '"') {
+      inString = true;
       continue;
     }
 
-    const candidate = lines.slice(index).join("\n").trim();
-
-    if (candidate.length === 0) {
+    if (char === "{" || char === "[") {
+      depth += 1;
       continue;
     }
 
-    return JSON.parse(candidate);
+    if (char === "}" || char === "]") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return stdout.slice(startIndex, index + 1);
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const parseSummaryJson = (stdout: string): Readonly<Record<string, unknown>> => {
+  for (let index = stdout.length - 1; index >= 0; index -= 1) {
+    if (stdout[index] !== "{") {
+      continue;
+    }
+
+    const candidate = extractBalancedJsonValue(stdout, index);
+
+    if (candidate === undefined) {
+      continue;
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(candidate);
+
+      if (hasSummaryShape(parsed)) {
+        return parsed;
+      }
+    } catch {
+      continue;
+    }
   }
 
   throw new Error("Connector sync did not return a JSON summary");
 };
 
 const parseConnectorSummary = (stdout: string): ConnectorSyncSummary => {
-  const parsed: unknown = parseSummaryJson(stdout);
-
-  if (!isRecord(parsed)) {
-    throw new Error("Connector sync did not return a summary object");
-  }
+  const parsed = parseSummaryJson(stdout);
 
   const failed = parsed["failed"];
   const failures = readFailures(parsed);

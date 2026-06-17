@@ -15,8 +15,10 @@ const toFailures = (
   summary: ConnectorSyncSummary,
 ): readonly SyncFailure[] | undefined =>
   summary.failures?.map((failure) => ({
-    ...(failure.pageId === undefined ? {} : { pageId: failure.pageId }),
-    ...(failure.pageTitle === undefined ? {} : { pageTitle: failure.pageTitle }),
+    ...(failure.sourceId === undefined ? {} : { sourceId: failure.sourceId }),
+    ...(failure.sourceTitle === undefined
+      ? {}
+      : { sourceTitle: failure.sourceTitle }),
     reason: failure.reason,
   }));
 

@@ -7,15 +7,23 @@ type ExecCall = Readonly<{
 
 const repoSummaryStdout = [
   "pnpm 10.33.2",
+  "WARN unsupported pnpm banner line",
   "",
   "{",
   '  "inserted": 1,',
   '  "updated": 2,',
   '  "archived": 3,',
   '  "skippedUnchanged": 4,',
-  '  "failed": 0,',
-  '  "failures": []',
+  '  "failed": 1,',
+  '  "failures": [',
+  "    {",
+  '      "sourceId": "repo-alpha:README.md",',
+  '      "sourceTitle": "README.md",',
+  '      "reason": "read failed"',
+  "    }",
+  "  ]",
   "}",
+  "WARN repo-alpha:README.md read failed",
 ].join("\n");
 
 describe("CliConnectorSyncRunner", () => {
@@ -36,8 +44,14 @@ describe("CliConnectorSyncRunner", () => {
       updated: 2,
       archived: 3,
       skippedUnchanged: 4,
-      failed: 0,
-      failures: [],
+      failed: 1,
+      failures: [
+        {
+          sourceId: "repo-alpha:README.md",
+          sourceTitle: "README.md",
+          reason: "read failed",
+        },
+      ],
     });
     expect(calls).toEqual([
       {

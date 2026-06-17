@@ -17,16 +17,23 @@ const repoSyncResponse: SyncResponse = {
     created: 1,
     updated: 2,
     skipped: 3,
-    failed: 0,
+    failed: 1,
     archived: 1,
   },
+  failures: [
+    {
+      sourceId: "repo-alpha:README.md",
+      sourceTitle: "README.md",
+      reason: "read failed",
+    },
+  ],
   observability: {
     archived: {
       documents: 1,
     },
     index: {
       status: "deferred_phase6",
-      failed: 0,
+      failed: 1,
     },
     chunking: {
       status: "deferred_phase6",
@@ -41,16 +48,23 @@ const notionSyncResponse: SyncResponse = {
     created: 2,
     updated: 1,
     skipped: 4,
-    failed: 0,
+    failed: 1,
     archived: 0,
   },
+  failures: [
+    {
+      sourceId: "page-1",
+      sourceTitle: "Broken Page",
+      reason: "API error",
+    },
+  ],
   observability: {
     archived: {
       documents: 0,
     },
     index: {
       status: "deferred_phase6",
-      failed: 0,
+      failed: 1,
     },
     chunking: {
       status: "deferred_phase6",

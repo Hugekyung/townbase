@@ -11,8 +11,8 @@ export type SyncSummaryCounts = Readonly<{
 }>;
 
 export type SyncFailure = Readonly<{
-  pageId?: string;
-  pageTitle?: string;
+  sourceId?: string;
+  sourceTitle?: string;
   reason: string;
 }>;
 
@@ -40,8 +40,8 @@ export type SyncResponse = Readonly<{
 }>;
 
 export type ConnectorSyncFailure = Readonly<{
-  pageId?: string;
-  pageTitle?: string;
+  sourceId?: string;
+  sourceTitle?: string;
   reason: string;
 }>;
 
