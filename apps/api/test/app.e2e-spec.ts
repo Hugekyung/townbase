@@ -36,9 +36,7 @@ const repoSyncResponse: SyncResponse = {
 
 const notionSyncResponse: SyncResponse = {
   source: "notion",
-  scope: {
-    fixturePath: "fixtures/notion.json",
-  },
+  scope: {},
   summary: {
     created: 2,
     updated: 1,
@@ -106,7 +104,7 @@ describe("Admin sync endpoints", () => {
   it("rejects missing repoNames on POST /admin/sync/repos", async () => {
     const service: MockIngestionService = {
       syncRepos: jest.fn<Promise<SyncResponse>, [readonly string[]]>(),
-      syncNotion: jest.fn<Promise<SyncResponse>, [string | undefined]>(),
+      syncNotion: jest.fn<Promise<SyncResponse>, []>(),
     };
     app = await createApp(service);
 
@@ -125,8 +123,10 @@ describe("Admin sync endpoints", () => {
 
   it("syncs explicit repoNames and returns a normalized summary", async () => {
     const service: MockIngestionService = {
-      syncRepos: jest.fn<Promise<SyncResponse>, [readonly string[]]>().mockResolvedValue(repoSyncResponse),
-      syncNotion: jest.fn<Promise<SyncResponse>, [string | undefined]>(),
+      syncRepos: jest
+        .fn<Promise<SyncResponse>, [readonly string[]]>()
+        .mockResolvedValue(repoSyncResponse),
+      syncNotion: jest.fn<Promise<SyncResponse>, []>(),
     };
     app = await createApp(service);
 
@@ -142,7 +142,7 @@ describe("Admin sync endpoints", () => {
   it("syncs Notion and returns a normalized summary", async () => {
     const service: MockIngestionService = {
       syncRepos: jest.fn<Promise<SyncResponse>, [readonly string[]]>(),
-      syncNotion: jest.fn<Promise<SyncResponse>, [string | undefined]>().mockResolvedValue(notionSyncResponse),
+      syncNotion: jest.fn<Promise<SyncResponse>, []>().mockResolvedValue(notionSyncResponse),
     };
     app = await createApp(service);
 
@@ -152,6 +152,6 @@ describe("Admin sync endpoints", () => {
       .expect(201)
       .expect(notionSyncResponse);
 
-    expect(service.syncNotion).toHaveBeenCalledWith("fixtures/notion.json");
+    expect(service.syncNotion).toHaveBeenCalledWith();
   });
 });

@@ -67,15 +67,9 @@ export class IngestionService {
     return buildResponse("local_repo", summary, { repoNames });
   }
 
-  public async syncNotion(fixturePath?: string): Promise<SyncResponse> {
-    const summary = await this.connectorRunner.runNotionSync({
-      ...(fixturePath === undefined ? {} : { fixturePath }),
-    });
+  public async syncNotion(): Promise<SyncResponse> {
+    const summary = await this.connectorRunner.runNotionSync();
 
-    return buildResponse(
-      "notion",
-      summary,
-      fixturePath === undefined ? {} : { fixturePath },
-    );
+    return buildResponse("notion", summary, {});
   }
 }

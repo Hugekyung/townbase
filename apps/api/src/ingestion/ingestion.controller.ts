@@ -37,24 +37,6 @@ const readRepoNames = (body: unknown): readonly string[] => {
   return selected;
 };
 
-const readFixturePath = (body: unknown): string | undefined => {
-  if (!isRecord(body)) {
-    return undefined;
-  }
-
-  const fixturePath = body["fixturePath"];
-
-  if (fixturePath === undefined) {
-    return undefined;
-  }
-
-  if (typeof fixturePath !== "string" || fixturePath.trim() === "") {
-    throw new BadRequestException("fixturePath must be a non-empty string");
-  }
-
-  return fixturePath;
-};
-
 @Controller("admin/sync")
 export class IngestionController {
   public constructor(private readonly ingestionService: IngestionService) {}
@@ -65,7 +47,7 @@ export class IngestionController {
   }
 
   @Post("notion")
-  public syncNotion(@Body() body: unknown): Promise<SyncResponse> {
-    return this.ingestionService.syncNotion(readFixturePath(body));
+  public syncNotion(@Body() _body: unknown): Promise<SyncResponse> {
+    return this.ingestionService.syncNotion();
   }
 }

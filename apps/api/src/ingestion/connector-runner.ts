@@ -4,7 +4,6 @@ import { promisify } from "node:util";
 import type {
   ConnectorSyncFailure,
   ConnectorSyncSummary,
-  RunNotionSyncRequest,
   RunRepoSyncRequest,
 } from "./ingestion.types";
 
@@ -13,9 +12,19 @@ const execFileAsync = promisify(execFile);
 export const CONNECTOR_SYNC_RUNNER = "CONNECTOR_SYNC_RUNNER" as const;
 
 export interface ConnectorSyncRunner {
-  runNotionSync(request: RunNotionSyncRequest): Promise<ConnectorSyncSummary>;
+  runNotionSync(): Promise<ConnectorSyncSummary>;
   runRepoSync(request: RunRepoSyncRequest): Promise<ConnectorSyncSummary>;
 }
+
+type ExecFileResult = Readonly<{
+  stdout: string;
+  stderr: string;
+}>;
+
+type ExecFileRunner = (
+  file: string,
+  args: readonly string[],
+) => Promise<ExecFileResult>;
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -62,8 +71,36 @@ const readFailures = (
   });
 };
 
+const parseSummaryJson = (stdout: string): unknown => {
+  const lines = stdout.split("\n");
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+
+    if (line === undefined) {
+      continue;
+    }
+
+    const trimmed = line.trim();
+
+    if (trimmed !== "{" && !trimmed.startsWith('{"')) {
+      continue;
+    }
+
+    const candidate = lines.slice(index).join("\n").trim();
+
+    if (candidate.length === 0) {
+      continue;
+    }
+
+    return JSON.parse(candidate);
+  }
+
+  throw new Error("Connector sync did not return a JSON summary");
+};
+
 const parseConnectorSummary = (stdout: string): ConnectorSyncSummary => {
-  const parsed: unknown = JSON.parse(stdout.trim());
+  const parsed: unknown = parseSummaryJson(stdout);
 
   if (!isRecord(parsed)) {
     throw new Error("Connector sync did not return a summary object");
@@ -83,19 +120,14 @@ const parseConnectorSummary = (stdout: string): ConnectorSyncSummary => {
 };
 
 export class CliConnectorSyncRunner implements ConnectorSyncRunner {
-  public async runNotionSync(
-    request: RunNotionSyncRequest,
-  ): Promise<ConnectorSyncSummary> {
-    const env = {
-      ...process.env,
-      ...(request.fixturePath === undefined
-        ? {}
-        : { NOTION_SYNC_FIXTURE_PATH: request.fixturePath }),
-    };
-    const { stdout } = await execFileAsync(
+  public constructor(
+    private readonly execFileRunner: ExecFileRunner = execFileAsync,
+  ) {}
+
+  public async runNotionSync(): Promise<ConnectorSyncSummary> {
+    const { stdout } = await this.execFileRunner(
       "pnpm",
-      ["--filter", "@townbase/connectors", "notion:sync"],
-      { env },
+      ["--filter", "@townbase/connectors", "run", "notion:sync"],
     );
 
     return parseConnectorSummary(stdout);
@@ -108,9 +140,9 @@ export class CliConnectorSyncRunner implements ConnectorSyncRunner {
       "--repo",
       repoName,
     ]);
-    const { stdout } = await execFileAsync(
+    const { stdout } = await this.execFileRunner(
       "pnpm",
-      ["--filter", "@townbase/connectors", "local-repo:sync", "--", ...repoArgs],
+      ["--filter", "@townbase/connectors", "run", "local-repo:sync", "--", ...repoArgs],
     );
 
     return parseConnectorSummary(stdout);

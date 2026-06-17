@@ -18,7 +18,6 @@ export type SyncFailure = Readonly<{
 
 export type SyncScope = Readonly<{
   repoNames?: readonly string[];
-  fixturePath?: string;
 }>;
 
 export type SyncResponse = Readonly<{
@@ -53,10 +52,6 @@ export type ConnectorSyncSummary = Readonly<{
   skippedUnchanged: number;
   failed?: number;
   failures?: readonly ConnectorSyncFailure[];
-}>;
-
-export type RunNotionSyncRequest = Readonly<{
-  fixturePath?: string;
 }>;
 
 export type RunRepoSyncRequest = Readonly<{
