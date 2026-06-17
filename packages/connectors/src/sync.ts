@@ -127,8 +127,10 @@ const main = async (): Promise<void> => {
   });
 };
 
-void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unknown error";
-  process.stderr.write(`${message}\n`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  void main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    process.stderr.write(`${message}\n`);
+    process.exitCode = 1;
+  });
+}

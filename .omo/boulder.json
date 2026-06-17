@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": "townbase-phase2-metadata-classification",
+  "active_work_id": null,
   "works": {
     "townbase-phase2-metadata-classification": {
       "work_id": "townbase-phase2-metadata-classification",
@@ -9,7 +9,7 @@
       "session_ids": [
         "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
       ],
-      "status": "active",
+      "status": "completed",
       "worktree_path": null
     },
     "townbase-phase4-local-repository-connector": {
@@ -26,6 +26,26 @@
       "work_id": "townbase-phase4-review-feedback-fix",
       "active_plan": ".omo/plans/townbase-phase4-review-feedback-fix.md",
       "plan_name": "townbase-phase4-review-feedback-fix",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "completed",
+      "worktree_path": null
+    },
+    "townbase-phase5-ingestion-pipeline": {
+      "work_id": "townbase-phase5-ingestion-pipeline",
+      "active_plan": ".omo/plans/townbase-phase5-ingestion-pipeline.md",
+      "plan_name": "townbase-phase5-ingestion-pipeline",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "completed",
+      "worktree_path": null
+    },
+    "townbase-phase5-review-feedback-fix": {
+      "work_id": "townbase-phase5-review-feedback-fix",
+      "active_plan": ".omo/plans/townbase-phase5-review-feedback-fix.md",
+      "plan_name": "townbase-phase5-review-feedback-fix",
       "session_ids": [
         "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
       ],

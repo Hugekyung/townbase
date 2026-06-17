@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   type ActionDraftStatus,
   type DataSourceType,
@@ -82,7 +84,11 @@ describe("database integration", () => {
         filePath: "packages/database/README.md",
         repoName: "townbase",
         content: "Phase 1 defines the Prisma-backed database foundation.",
+        contentHash: createHash("sha256")
+          .update("Phase 1 defines the Prisma-backed database foundation.")
+          .digest("hex"),
         status: "active" satisfies DocumentStatus,
+        indexStatus: "pending",
         knowledgeTypes: ["architecture", "database"] satisfies KnowledgeType[],
         domainTags: ["phase-1", "database"],
         metadata: {
@@ -178,5 +184,18 @@ describe("database integration", () => {
     expect(loadedQuestion.knowledgeGap?.id).toBe(gap.id);
     expect(loadedQuestion.knowledgeGap?.actionDrafts).toHaveLength(1);
     expect(loadedQuestion.knowledgeGap?.actionDrafts[0]?.id).toBe(draft.id);
+
+    const persistedDocument = await prisma.document.findUniqueOrThrow({
+      where: {
+        id: document.id,
+      },
+    });
+
+    expect(persistedDocument.contentHash).toBe(
+      createHash("sha256")
+        .update("Phase 1 defines the Prisma-backed database foundation.")
+        .digest("hex"),
+    );
+    expect(persistedDocument.indexStatus).toBe("pending");
   });
 });

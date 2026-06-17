@@ -9,6 +9,11 @@ const compareModifiedAt = (left: Date | null, right: Date | null): number => {
   return left.getTime() - right.getTime();
 };
 
+const shouldSkipStaleDocument = (
+  existing: { readonly externalUpdatedAt: Date | null },
+  draftModifiedAt: Date,
+): boolean => existing.externalUpdatedAt !== null && compareModifiedAt(existing.externalUpdatedAt, draftModifiedAt) >= 0;
+
 const upsertDraft = async (
   store: LocalRepoSyncStore,
   input: LocalRepoSyncInput,
@@ -42,9 +47,7 @@ export const syncLocalRepoFiles = async (
 
     if (draft.status === "archived") {
       if (existing !== null && existing.status === "archived") {
-        const comparison = compareModifiedAt(existing.externalUpdatedAt, draft.externalUpdatedAt);
-
-        if (comparison >= 0) {
+        if (shouldSkipStaleDocument(existing, draft.externalUpdatedAt)) {
           skippedUnchanged += 1;
           continue;
         }
@@ -56,9 +59,7 @@ export const syncLocalRepoFiles = async (
     }
 
     if (existing !== null) {
-      const comparison = compareModifiedAt(existing.externalUpdatedAt, draft.externalUpdatedAt);
-
-      if (comparison >= 0) {
+      if (existing.status === draft.status && shouldSkipStaleDocument(existing, draft.externalUpdatedAt)) {
         skippedUnchanged += 1;
         continue;
       }
@@ -79,5 +80,7 @@ export const syncLocalRepoFiles = async (
     updated,
     archived,
     skippedUnchanged,
+    failed: 0,
+    failures: [],
   };
 };

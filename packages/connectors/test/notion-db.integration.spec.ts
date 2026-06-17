@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   createPrismaClient,
   DEFAULT_WORKSPACE_NAME,
@@ -98,6 +100,8 @@ describe("notion connector database integration", () => {
             select: {
               externalUpdatedAt: true,
               status: true,
+              contentHash: true,
+              indexStatus: true,
             },
           });
 
@@ -108,6 +112,10 @@ describe("notion connector database integration", () => {
           return {
             externalUpdatedAt: document.externalUpdatedAt,
             status: document.status === "archived" ? "archived" : "active",
+            contentHash: document.contentHash,
+            indexStatus: document.indexStatus === "failed" || document.indexStatus === "indexed"
+              ? document.indexStatus
+              : "pending",
           };
         },
         async upsertDocument(input) {
@@ -126,7 +134,9 @@ describe("notion connector database integration", () => {
               title: input.title,
               url: input.url,
               content: input.content,
+              contentHash: input.contentHash,
               status: input.status,
+              indexStatus: input.indexStatus,
               knowledgeTypes: [...input.knowledgeTypes],
               domainTags: [...input.domainTags],
               externalCreatedAt: input.externalCreatedAt,
@@ -138,7 +148,9 @@ describe("notion connector database integration", () => {
               title: input.title,
               url: input.url,
               content: input.content,
+              contentHash: input.contentHash,
               status: input.status,
+              indexStatus: input.indexStatus,
               knowledgeTypes: [...input.knowledgeTypes],
               domainTags: [...input.domainTags],
               externalCreatedAt: input.externalCreatedAt,
@@ -196,6 +208,10 @@ describe("notion connector database integration", () => {
     expect(persistedDocument.externalUpdatedAt?.toISOString()).toBe(
       "2024-01-03T01:02:03.000Z",
     );
+    expect(persistedDocument.contentHash).toBe(
+      createHash("sha256").update("Hello world").digest("hex"),
+    );
+    expect(persistedDocument.indexStatus).toBe("pending");
     expect(persistedDocument.knowledgeTypes).toEqual(["onboarding"]);
     expect(persistedDocument.domainTags).toEqual(["payment", "onboarding"]);
   });

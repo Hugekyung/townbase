@@ -2,6 +2,7 @@ import {
   classifyNotionPage,
   mapNotionPageToDocumentDraft,
 } from "../src/notion/mapping";
+import { createHash } from "node:crypto";
 
 describe("classifyNotionPage", () => {
   it("maps onboarding and domain tags deterministically", () => {
@@ -84,6 +85,8 @@ describe("mapNotionPageToDocumentDraft", () => {
       title: "Getting Started with Payments",
       url: "https://notion.so/page-1",
       content: "Hello world",
+      contentHash: createHash("sha256").update("Hello world").digest("hex"),
+      indexStatus: "pending",
       status: "active",
       knowledgeTypes: ["onboarding"],
       domainTags: ["payment", "onboarding"],

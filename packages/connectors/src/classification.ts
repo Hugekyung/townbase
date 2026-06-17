@@ -1,3 +1,6 @@
+import { computeContentHash } from "./content-hash";
+import { DEFAULT_DOCUMENT_INDEX_STATUS, type DocumentIndexStatus } from "./document-state";
+
 export const CLASSIFIER_VERSION = "phase2-v1";
 
 export type DocumentStatus = "active" | "draft" | "deprecated" | "archived";
@@ -283,6 +286,8 @@ export type NotionPageDraft = Readonly<{
   title: string;
   url: string;
   content: string;
+  contentHash: string;
+  indexStatus: DocumentIndexStatus;
   status: DocumentStatus;
   knowledgeTypes: ReadonlyArray<KnowledgeType>;
   domainTags: ReadonlyArray<string>;
@@ -325,6 +330,8 @@ export const mapNotionPageToDocumentDraft = (
     title: input.page.title,
     url: input.page.url,
     content: input.content,
+    contentHash: computeContentHash(input.content),
+    indexStatus: DEFAULT_DOCUMENT_INDEX_STATUS,
     status: classification.status,
     knowledgeTypes: classification.knowledgeTypes,
     domainTags: classification.domainTags,

@@ -1,0 +1,27 @@
+Townbase Phase5 API ingestion routes evidence
+
+Commands run:
+
+1. pnpm --filter @townbase/api test
+   Result: failed before implementation with missing ingestion service/type modules.
+
+2. pnpm --filter @townbase/api test
+   Result: passed.
+   Observable route behavior:
+   - GET /health returns 200 with {"status":"ok"}.
+   - POST /admin/sync/repos with {} returns 400 with message "repoNames must contain at least one repo name".
+   - POST /admin/sync/repos with {"repoNames":["townbase-docs"]} calls the supplied sync service with ["townbase-docs"] and returns the normalized local_repo summary:
+     created=1, updated=2, skipped=3, failed=0, archived=1, index.status=deferred_phase6, chunking.status=deferred_phase6.
+   - POST /admin/sync/notion with {"fixturePath":"fixtures/notion.json"} calls the supplied sync service with "fixtures/notion.json" and returns the normalized notion summary:
+     created=2, updated=1, skipped=4, failed=0, archived=0, index.status=deferred_phase6, chunking.status=deferred_phase6.
+
+3. pnpm --filter @townbase/api build
+   Result: passed.
+
+4. pnpm --filter @townbase/api lint
+   Result: passed.
+
+Notes:
+- No secrets were used or recorded.
+- API e2e tests use a supplied sync service seam and do not contact a real database, Notion, or local repo filesystem.
+- POST /admin/sync/repos has no API fallback to LOCAL_REPO_NAMES; missing or empty repoNames is rejected before sync execution.

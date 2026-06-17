@@ -128,7 +128,9 @@ model Document {
   filePath          String?
   repoName          String?
   content           String
+  contentHash       String?
   status            DocumentStatus  @default(active)
+  indexStatus       String          @default("pending")
   knowledgeTypes    KnowledgeType[]
   domainTags        String[]
   externalCreatedAt DateTime?

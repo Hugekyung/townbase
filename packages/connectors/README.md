@@ -53,6 +53,7 @@ REPO_ROOT_PATH=./repos LOCAL_REPO_NAMES=workspace-knowledge-agent pnpm --filter 
 - Shared metadata classification lives in `packages/connectors/src/classification.ts`.
 - `classifyNotionPage` and `classifyRepositoryPath` use the same deterministic output contract for `sourceType`, `knowledgeTypes`, `domainTags`, and `status`.
 - `buildChunkMetadata` exposes the chunk metadata shape that later chunk writers should consume.
+- Phase 5 API orchestration can normalize Notion and local-repo results with `normalizeNotionSyncSummary` and `normalizeLocalRepoSyncSummary`, which expose `created`, `updated`, `skipped`, `failed`, `archived`, `failures`, and a `phase6_chunking_deferred` index boundary.
 - Local repo sync only ingests repositories that are explicitly selected on the command line.
 - Live Notion API tests are intentionally not required for the Phase 3 plan.
 - `pnpm --filter @townbase/connectors test` covers unit, fixture, and Prisma/PostgreSQL-backed integration tests.

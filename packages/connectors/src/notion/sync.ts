@@ -2,6 +2,7 @@ import {
   mapNotionPageToDocumentDraft,
   type NotionPageDraft,
 } from "./mapping";
+import type { DocumentIndexStatus } from "../document-state";
 import type { DocumentStatus } from "../classification";
 
 type NotionPageInput = Readonly<{
@@ -37,7 +38,9 @@ export type NotionSyncStore = Readonly<{
     externalId: string,
   ) => Promise<{
     externalUpdatedAt: Date | null;
+    contentHash: string | null;
     status: DocumentStatus;
+    indexStatus: DocumentIndexStatus;
   } | null>;
   upsertDocument: (input: NotionPageDraft) => Promise<void>;
   markLastSyncedAt: (syncedAt: Date) => Promise<void>;
@@ -75,6 +78,11 @@ const compareEditedAt = (
 
   return left.getTime() - right.getTime();
 };
+
+const shouldSkipStaleDocument = (
+  existing: { readonly externalUpdatedAt: Date | null },
+  draftEditedAt: Date,
+): boolean => existing.externalUpdatedAt !== null && compareEditedAt(existing.externalUpdatedAt, draftEditedAt) >= 0;
 
 const recordFailure = (
   summary: NotionSyncFailure[],
@@ -134,9 +142,7 @@ export const syncNotionPages = async (
 
     if (pageInput.archived === true) {
       if (existing !== null && existing.status === "archived") {
-        const comparison = compareEditedAt(existing.externalUpdatedAt, editedAt);
-
-        if (comparison >= 0) {
+        if (shouldSkipStaleDocument(existing, editedAt)) {
           skippedUnchanged += 1;
           continue;
         }
@@ -148,9 +154,10 @@ export const syncNotionPages = async (
     }
 
     if (existing !== null) {
-      const comparison = compareEditedAt(existing.externalUpdatedAt, editedAt);
-
-      if (comparison >= 0) {
+      if (
+        existing.status === draft.status &&
+        shouldSkipStaleDocument(existing, editedAt)
+      ) {
         skippedUnchanged += 1;
         continue;
       }
