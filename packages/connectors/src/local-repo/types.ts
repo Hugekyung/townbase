@@ -39,11 +39,19 @@ export type LocalRepoSyncInput = Readonly<{
   files: ReadonlyArray<LocalRepoFileSnapshot>;
 }>;
 
+export type LocalRepoSyncFailure = Readonly<{
+  repoName: string;
+  filePath: string;
+  reason: string;
+}>;
+
 export type LocalRepoSyncSummary = Readonly<{
   inserted: number;
   updated: number;
   archived: number;
   skippedUnchanged: number;
+  failed: number;
+  failures: ReadonlyArray<LocalRepoSyncFailure>;
 }>;
 
 export type LocalRepoSyncStore = Readonly<{

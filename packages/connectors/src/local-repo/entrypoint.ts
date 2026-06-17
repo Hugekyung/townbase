@@ -32,6 +32,10 @@ const resolveRepoRootPath = (repoRootPath: string | undefined): string =>
 
 const readSelectedRepoNames = (selectedRepoNames: ReadonlyArray<string> | undefined): ReadonlyArray<string> => {
   if (selectedRepoNames !== undefined) {
+    if (selectedRepoNames.length === 0) {
+      throw new Error("Missing selected local repository names");
+    }
+
     return selectedRepoNames;
   }
 

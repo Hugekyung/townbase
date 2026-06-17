@@ -1,4 +1,8 @@
-import { syncNotionPages, type NotionSyncStore } from "../src/notion/sync";
+import {
+  normalizeNotionSyncSummary,
+  syncNotionPages,
+  type NotionSyncStore,
+} from "../src";
 import type { DocumentStatus } from "../src/classification";
 
 describe("syncNotionPages", () => {
@@ -275,5 +279,40 @@ describe("syncNotionPages", () => {
       },
     ]);
     expect(syncedAtCalls).toBe(0);
+  });
+
+  it("normalizes the Notion summary to the Phase5 connector contract", () => {
+    expect(
+      normalizeNotionSyncSummary({
+        inserted: 2,
+        updated: 1,
+        archived: 1,
+        skippedUnchanged: 3,
+        failed: 1,
+        failures: [
+          {
+            pageId: "page-1",
+            pageTitle: "Broken Page",
+            reason: "API error",
+          },
+        ],
+      }),
+    ).toEqual({
+      created: 2,
+      updated: 1,
+      skipped: 3,
+      failed: 1,
+      archived: 1,
+      failures: [
+        {
+          sourceId: "page-1",
+          sourceTitle: "Broken Page",
+          reason: "API error",
+        },
+      ],
+      index: {
+        boundary: "phase6_chunking_deferred",
+      },
+    });
   });
 });

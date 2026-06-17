@@ -11,6 +11,7 @@ export { syncLocalRepoFiles } from "./sync";
 export type {
   LocalRepoDocumentDraft,
   LocalRepoFileSnapshot,
+  LocalRepoSyncFailure,
   LocalRepoSyncInput,
   LocalRepoSyncStore,
   LocalRepoSyncSummary,

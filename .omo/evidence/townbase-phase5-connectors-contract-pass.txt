@@ -1,0 +1,60 @@
+Townbase Phase5 connector contract QA
+Date: 2026-06-17
+
+Commands:
+- pnpm --filter @townbase/connectors test -- local-repo-sync.spec.ts notion-sync.spec.ts
+- pnpm --filter @townbase/connectors test
+- pnpm --filter @townbase/connectors build
+
+Observed sanitized local-repo sync summary:
+{
+  "inserted": 1,
+  "updated": 0,
+  "archived": 0,
+  "skippedUnchanged": 0,
+  "failed": 0,
+  "failures": []
+}
+
+Observed Phase5-normalized local-repo summary:
+{
+  "created": 2,
+  "updated": 1,
+  "skipped": 3,
+  "failed": 1,
+  "archived": 0,
+  "failures": [
+    {
+      "sourceId": "repo-a:docs/missing.md",
+      "reason": "read failed"
+    }
+  ],
+  "index": {
+    "boundary": "phase6_chunking_deferred"
+  }
+}
+
+Observed Phase5-normalized Notion summary:
+{
+  "created": 2,
+  "updated": 1,
+  "skipped": 3,
+  "failed": 1,
+  "archived": 1,
+  "failures": [
+    {
+      "sourceId": "page-1",
+      "sourceTitle": "Broken Page",
+      "reason": "API error"
+    }
+  ],
+  "index": {
+    "boundary": "phase6_chunking_deferred"
+  }
+}
+
+Result:
+- PASS test/local-repo-sync.spec.ts
+- PASS test/notion-sync.spec.ts
+- PASS full @townbase/connectors test suite: 11 suites, 27 tests
+- PASS @townbase/connectors build

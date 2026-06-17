@@ -125,6 +125,8 @@ describe("local repo connector database integration", () => {
         updated: 0,
         archived: 0,
         skippedUnchanged: 0,
+        failed: 0,
+        failures: [],
       });
       expect(persistedDataSource.type).toBe("local_repo");
       expect(persistedDataSource.rootPath).toBe(rootPath);

@@ -22,6 +22,7 @@ export {
   syncLocalRepoFiles,
   type LocalRepoDocumentDraft,
   type LocalRepoFileSnapshot,
+  type LocalRepoSyncFailure,
   type LocalRepoSyncInput,
   type LocalRepoSyncStore,
   type LocalRepoSyncSummary,
@@ -44,3 +45,10 @@ export type {
 } from "./notion";
 export { loadNotionPageSnapshot } from "./notion";
 export { runNotionSync } from "./sync";
+export {
+  normalizeLocalRepoSyncSummary,
+  normalizeNotionSyncSummary,
+  type ConnectorIndexBoundary,
+  type ConnectorSyncFailure,
+  type ConnectorSyncSummary,
+} from "./sync-contract";

@@ -1,5 +1,9 @@
 import type { DocumentStatus } from "../src/classification";
-import { syncLocalRepoFiles, type LocalRepoSyncStore } from "../src/local-repo";
+import {
+  normalizeLocalRepoSyncSummary,
+  syncLocalRepoFiles,
+  type LocalRepoSyncStore,
+} from "../src";
 
 describe("syncLocalRepoFiles", () => {
   it("skips unchanged files, updates newer files, and inserts new files", async () => {
@@ -75,6 +79,8 @@ describe("syncLocalRepoFiles", () => {
       updated: 1,
       archived: 0,
       skippedUnchanged: 1,
+      failed: 0,
+      failures: [],
     });
     expect(upserts).toEqual([
       {
@@ -86,5 +92,39 @@ describe("syncLocalRepoFiles", () => {
         status: "active",
       },
     ]);
+  });
+
+  it("normalizes the local repo summary to the Phase5 connector contract", async () => {
+    const summary = {
+      inserted: 2,
+      updated: 1,
+      archived: 0,
+      skippedUnchanged: 3,
+      failed: 1,
+      failures: [
+        {
+          repoName: "repo-a",
+          filePath: "docs/missing.md",
+          reason: "read failed",
+        },
+      ],
+    };
+
+    expect(normalizeLocalRepoSyncSummary(summary)).toEqual({
+      created: 2,
+      updated: 1,
+      skipped: 3,
+      failed: 1,
+      archived: 0,
+      failures: [
+        {
+          sourceId: "repo-a:docs/missing.md",
+          reason: "read failed",
+        },
+      ],
+      index: {
+        boundary: "phase6_chunking_deferred",
+      },
+    });
   });
 });

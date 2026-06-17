@@ -79,5 +79,7 @@ export const syncLocalRepoFiles = async (
     updated,
     archived,
     skippedUnchanged,
+    failed: 0,
+    failures: [],
   };
 };
