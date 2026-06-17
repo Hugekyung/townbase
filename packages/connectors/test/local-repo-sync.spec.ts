@@ -134,6 +134,59 @@ describe("syncLocalRepoFiles", () => {
     ]);
   });
 
+  it("does not overwrite a newer archived repo document with an older archived snapshot", async () => {
+    let syncedAtCalls = 0;
+    const store: LocalRepoSyncStore = {
+      async findDocumentByExternalId(externalId: string) {
+        if (externalId !== "repo-a:archive/notes.md") {
+          return null;
+        }
+
+        return {
+          externalUpdatedAt: new Date("2024-01-10T00:00:00.000Z"),
+          status: "archived",
+          contentHash: createHash("sha256").update("# Newer archived notes\n").digest("hex"),
+          indexStatus: "pending",
+        };
+      },
+      async upsertDocument() {
+        throw new Error("should not upsert archived snapshot");
+      },
+      async markLastSyncedAt() {
+        syncedAtCalls += 1;
+        return undefined;
+      },
+    };
+
+    const result = await syncLocalRepoFiles(
+      {
+        workspaceId: "workspace-1",
+        dataSourceId: "source-1",
+        syncedAt: new Date("2024-01-12T00:00:00.000Z"),
+        files: [
+          {
+            repoName: "repo-a",
+            filePath: "archive/notes.md",
+            content: "# Older archived notes\n",
+            createdAt: new Date("2024-01-01T00:00:00.000Z"),
+            modifiedAt: new Date("2024-01-05T00:00:00.000Z"),
+          },
+        ],
+      },
+      store,
+    );
+
+    expect(result).toEqual({
+      inserted: 0,
+      updated: 0,
+      archived: 0,
+      skippedUnchanged: 1,
+      failed: 0,
+      failures: [],
+    });
+    expect(syncedAtCalls).toBe(1);
+  });
+
   it("normalizes the local repo summary to the Phase5 connector contract", async () => {
     const summary = {
       inserted: 2,

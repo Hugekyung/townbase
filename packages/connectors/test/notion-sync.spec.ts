@@ -106,7 +106,7 @@ describe("syncNotionPages", () => {
               id: "unchanged",
               title: "Getting Started",
               url: "https://notion.so/unchanged",
-              lastEditedTime: "2024-01-05T00:00:00.000Z",
+              lastEditedTime: "2024-01-01T00:00:00.000Z",
             },
             content: "old",
             pathSegments: ["Onboarding"],
@@ -262,6 +262,142 @@ describe("syncNotionPages", () => {
       failures: [],
     });
     expect(logEntries).toEqual([]);
+    expect(syncedAtCalls).toBe(1);
+  });
+
+  it("upserts a newer Notion page when only metadata changes and the content hash stays the same", async () => {
+    const upserts: Array<{
+      externalId: string;
+      title: string;
+      pathSegments: ReadonlyArray<string>;
+      externalUpdatedAt: Date;
+    }> = [];
+    const sharedHash = createHash("sha256").update("shared content").digest("hex");
+    const store: NotionSyncStore = {
+      async findDocumentByExternalId(externalId: string) {
+        if (externalId !== "metadata-page") {
+          return null;
+        }
+
+        return {
+          externalUpdatedAt: new Date("2024-01-01T00:00:00.000Z"),
+          status: "active",
+          contentHash: sharedHash,
+          indexStatus: "pending",
+        };
+      },
+      async upsertDocument(input) {
+        upserts.push({
+          externalId: input.externalId,
+          title: input.title,
+          pathSegments: input.metadata.pathSegments,
+          externalUpdatedAt: input.externalUpdatedAt,
+        });
+      },
+      async markLastSyncedAt() {
+        return undefined;
+      },
+    };
+
+    const result = await syncNotionPages(
+      {
+        workspaceId: "workspace-1",
+        dataSourceId: "source-1",
+        syncedAt: new Date("2024-01-12T00:00:00.000Z"),
+        pages: [
+          {
+            page: {
+              id: "metadata-page",
+              title: "Getting Started v2",
+              url: "https://notion.so/metadata-page",
+              lastEditedTime: "2024-01-08T00:00:00.000Z",
+            },
+            content: "shared content",
+            pathSegments: ["Docs", "Guides"],
+          },
+        ],
+      },
+      store,
+      {
+        warn: () => undefined,
+      },
+    );
+
+    expect(result).toEqual({
+      inserted: 0,
+      updated: 1,
+      archived: 0,
+      skippedUnchanged: 0,
+      failed: 0,
+      failures: [],
+    });
+    expect(upserts).toEqual([
+      {
+        externalId: "metadata-page",
+        title: "Getting Started v2",
+        pathSegments: ["Docs", "Guides"],
+        externalUpdatedAt: new Date("2024-01-08T00:00:00.000Z"),
+      },
+    ]);
+  });
+
+  it("does not overwrite a newer archived Notion document with an older archived snapshot", async () => {
+    let syncedAtCalls = 0;
+    const store: NotionSyncStore = {
+      async findDocumentByExternalId(externalId: string) {
+        if (externalId !== "archived-page") {
+          return null;
+        }
+
+        return {
+          externalUpdatedAt: new Date("2024-01-10T00:00:00.000Z"),
+          status: "archived",
+          contentHash: createHash("sha256").update("newer archived content").digest("hex"),
+          indexStatus: "pending",
+        };
+      },
+      async upsertDocument() {
+        throw new Error("should not upsert archived snapshot");
+      },
+      async markLastSyncedAt() {
+        syncedAtCalls += 1;
+        return undefined;
+      },
+    };
+
+    const result = await syncNotionPages(
+      {
+        workspaceId: "workspace-1",
+        dataSourceId: "source-1",
+        syncedAt: new Date("2024-01-12T00:00:00.000Z"),
+        pages: [
+          {
+            page: {
+              id: "archived-page",
+              title: "Archived Note",
+              url: "https://notion.so/archived-page",
+              lastEditedTime: "2024-01-05T00:00:00.000Z",
+            },
+            content: "older archived content",
+            pathSegments: ["Archive"],
+            archived: true,
+          },
+        ],
+      },
+      store,
+      {
+        warn: () => undefined,
+      },
+    );
+
+    expect(result).toEqual({
+      inserted: 0,
+      updated: 0,
+      archived: 0,
+      skippedUnchanged: 1,
+      failed: 0,
+      failures: [],
+    });
     expect(syncedAtCalls).toBe(1);
   });
 

@@ -79,18 +79,10 @@ const compareEditedAt = (
   return left.getTime() - right.getTime();
 };
 
-const hasMatchingContentHash = (
-  existing: { readonly contentHash: string | null },
-  draft: { readonly contentHash: string },
-): boolean => existing.contentHash !== null && existing.contentHash === draft.contentHash;
-
-const shouldSkipLegacyDocument = (
+const shouldSkipStaleDocument = (
   existing: { readonly externalUpdatedAt: Date | null },
   draftEditedAt: Date,
-): boolean => {
-  const comparison = compareEditedAt(existing.externalUpdatedAt, draftEditedAt);
-  return comparison >= 0;
-};
+): boolean => existing.externalUpdatedAt !== null && compareEditedAt(existing.externalUpdatedAt, draftEditedAt) >= 0;
 
 const recordFailure = (
   summary: NotionSyncFailure[],
@@ -150,12 +142,7 @@ export const syncNotionPages = async (
 
     if (pageInput.archived === true) {
       if (existing !== null && existing.status === "archived") {
-        if (hasMatchingContentHash(existing, draft)) {
-          skippedUnchanged += 1;
-          continue;
-        }
-
-        if (existing.contentHash === null && shouldSkipLegacyDocument(existing, editedAt)) {
+        if (shouldSkipStaleDocument(existing, editedAt)) {
           skippedUnchanged += 1;
           continue;
         }
@@ -167,12 +154,15 @@ export const syncNotionPages = async (
     }
 
     if (existing !== null) {
-      if (existing.status === draft.status && hasMatchingContentHash(existing, draft)) {
+      if (
+        existing.status === draft.status &&
+        shouldSkipStaleDocument(existing, editedAt)
+      ) {
         skippedUnchanged += 1;
         continue;
       }
 
-      if (existing.contentHash === null && shouldSkipLegacyDocument(existing, editedAt)) {
+      if (existing.contentHash === null && shouldSkipStaleDocument(existing, editedAt)) {
         skippedUnchanged += 1;
         continue;
       }

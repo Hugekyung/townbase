@@ -9,15 +9,10 @@ const compareModifiedAt = (left: Date | null, right: Date | null): number => {
   return left.getTime() - right.getTime();
 };
 
-const hasMatchingContentHash = (
-  existing: { readonly contentHash: string | null },
-  draft: { readonly contentHash: string },
-): boolean => existing.contentHash !== null && existing.contentHash === draft.contentHash;
-
-const shouldSkipLegacyDocument = (
+const shouldSkipStaleDocument = (
   existing: { readonly externalUpdatedAt: Date | null },
   draftModifiedAt: Date,
-): boolean => compareModifiedAt(existing.externalUpdatedAt, draftModifiedAt) >= 0;
+): boolean => existing.externalUpdatedAt !== null && compareModifiedAt(existing.externalUpdatedAt, draftModifiedAt) >= 0;
 
 const upsertDraft = async (
   store: LocalRepoSyncStore,
@@ -52,12 +47,7 @@ export const syncLocalRepoFiles = async (
 
     if (draft.status === "archived") {
       if (existing !== null && existing.status === "archived") {
-        if (hasMatchingContentHash(existing, draft)) {
-          skippedUnchanged += 1;
-          continue;
-        }
-
-        if (existing.contentHash === null && shouldSkipLegacyDocument(existing, draft.externalUpdatedAt)) {
+        if (shouldSkipStaleDocument(existing, draft.externalUpdatedAt)) {
           skippedUnchanged += 1;
           continue;
         }
@@ -69,12 +59,12 @@ export const syncLocalRepoFiles = async (
     }
 
     if (existing !== null) {
-      if (existing.status === draft.status && hasMatchingContentHash(existing, draft)) {
+      if (existing.status === draft.status && shouldSkipStaleDocument(existing, draft.externalUpdatedAt)) {
         skippedUnchanged += 1;
         continue;
       }
 
-      if (existing.contentHash === null && shouldSkipLegacyDocument(existing, draft.externalUpdatedAt)) {
+      if (existing.contentHash === null && shouldSkipStaleDocument(existing, draft.externalUpdatedAt)) {
         skippedUnchanged += 1;
         continue;
       }
