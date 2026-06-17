@@ -1,4 +1,5 @@
 import type { DocumentStatus, KnowledgeType, SourceType } from "../classification";
+import type { DocumentIndexStatus } from "../document-state";
 
 export type LocalRepoFileSnapshot = Readonly<{
   repoName: string;
@@ -18,6 +19,8 @@ export type LocalRepoDocumentDraft = Readonly<{
   filePath: string;
   repoName: string;
   content: string;
+  contentHash: string;
+  indexStatus: DocumentIndexStatus;
   status: DocumentStatus;
   knowledgeTypes: ReadonlyArray<KnowledgeType>;
   domainTags: ReadonlyArray<string>;
@@ -59,7 +62,9 @@ export type LocalRepoSyncStore = Readonly<{
     externalId: string,
   ) => Promise<{
     externalUpdatedAt: Date | null;
+    contentHash: string | null;
     status: DocumentStatus;
+    indexStatus: DocumentIndexStatus;
   } | null>;
   upsertDocument: (input: LocalRepoDocumentDraft) => Promise<void>;
   markLastSyncedAt: (syncedAt: Date) => Promise<void>;

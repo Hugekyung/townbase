@@ -1,16 +1,19 @@
 import type { DocumentStatus } from "../classification";
+import type { DocumentIndexStatus } from "../document-state";
 import type { LocalRepoDocumentDraft, LocalRepoSyncStore } from "./types";
 
 type PrismaClientLike = Readonly<{
   document: Readonly<{
-    findUnique: (input: any) => Promise<{
+    findUnique: (input: unknown) => Promise<{
       externalUpdatedAt: Date | null;
+      contentHash: string | null;
       status: string;
+      indexStatus: string;
     } | null>;
-    upsert: (input: any) => Promise<unknown>;
+    upsert: (input: unknown) => Promise<unknown>;
   }>;
   dataSource: Readonly<{
-    update: (input: any) => Promise<unknown>;
+    update: (input: unknown) => Promise<unknown>;
   }>;
 }>;
 
@@ -21,6 +24,9 @@ type LocalRepoStoreContext = Readonly<{
 
 const normalizeStatus = (status: string): DocumentStatus =>
   status === "archived" || status === "deprecated" || status === "draft" ? status : "active";
+
+const normalizeIndexStatus = (indexStatus: string): DocumentIndexStatus =>
+  indexStatus === "failed" || indexStatus === "indexed" ? indexStatus : "pending";
 
 export const createPrismaLocalRepoSyncStore = (
   prisma: PrismaClientLike,
@@ -36,7 +42,9 @@ export const createPrismaLocalRepoSyncStore = (
       },
       select: {
         externalUpdatedAt: true,
+        contentHash: true,
         status: true,
+        indexStatus: true,
       },
     });
 
@@ -46,7 +54,9 @@ export const createPrismaLocalRepoSyncStore = (
 
     return {
       externalUpdatedAt: document.externalUpdatedAt,
+      contentHash: document.contentHash,
       status: normalizeStatus(document.status),
+      indexStatus: normalizeIndexStatus(document.indexStatus),
     };
   },
   async upsertDocument(input: LocalRepoDocumentDraft) {
@@ -67,6 +77,8 @@ export const createPrismaLocalRepoSyncStore = (
         filePath: input.filePath,
         repoName: input.repoName,
         content: input.content,
+        contentHash: input.contentHash,
+        indexStatus: input.indexStatus,
         status: input.status,
         knowledgeTypes: [...input.knowledgeTypes],
         domainTags: [...input.domainTags],
@@ -81,6 +93,8 @@ export const createPrismaLocalRepoSyncStore = (
         filePath: input.filePath,
         repoName: input.repoName,
         content: input.content,
+        contentHash: input.contentHash,
+        indexStatus: input.indexStatus,
         status: input.status,
         knowledgeTypes: [...input.knowledgeTypes],
         domainTags: [...input.domainTags],

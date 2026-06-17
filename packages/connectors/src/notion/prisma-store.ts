@@ -1,12 +1,15 @@
 import type { NotionPageDraft } from "./mapping";
 import type { NotionSyncStore } from "./sync";
 import type { DocumentStatus } from "../classification";
+import type { DocumentIndexStatus } from "../document-state";
 
 type PrismaClientLike = Readonly<{
   document: Readonly<{
     findUnique: (input: unknown) => Promise<{
       externalUpdatedAt: Date | null;
+      contentHash: string | null;
       status: string;
+      indexStatus: string;
     } | null>;
     upsert: (input: unknown) => Promise<unknown>;
   }>;
@@ -23,6 +26,9 @@ type PrismaNotionStoreContext = Readonly<{
 const normalizeStatus = (status: string): DocumentStatus =>
   status === "archived" || status === "deprecated" ? status : "active";
 
+const normalizeIndexStatus = (indexStatus: string): DocumentIndexStatus =>
+  indexStatus === "failed" || indexStatus === "indexed" ? indexStatus : "pending";
+
 export const createPrismaNotionSyncStore = (
   prisma: PrismaClientLike,
   context: PrismaNotionStoreContext,
@@ -37,7 +43,9 @@ export const createPrismaNotionSyncStore = (
       },
       select: {
         externalUpdatedAt: true,
+        contentHash: true,
         status: true,
+        indexStatus: true,
       },
     });
 
@@ -45,10 +53,12 @@ export const createPrismaNotionSyncStore = (
       return null;
     }
 
-      return {
-        externalUpdatedAt: document.externalUpdatedAt,
-        status: normalizeStatus(document.status),
-      };
+    return {
+      externalUpdatedAt: document.externalUpdatedAt,
+      contentHash: document.contentHash,
+      status: normalizeStatus(document.status),
+      indexStatus: normalizeIndexStatus(document.indexStatus),
+    };
   },
   async upsertDocument(input: NotionPageDraft) {
     await prisma.document.upsert({
@@ -66,6 +76,8 @@ export const createPrismaNotionSyncStore = (
         title: input.title,
         url: input.url,
         content: input.content,
+        contentHash: input.contentHash,
+        indexStatus: input.indexStatus,
         status: input.status,
         knowledgeTypes: [...input.knowledgeTypes],
         domainTags: [...input.domainTags],
@@ -78,6 +90,8 @@ export const createPrismaNotionSyncStore = (
         title: input.title,
         url: input.url,
         content: input.content,
+        contentHash: input.contentHash,
+        indexStatus: input.indexStatus,
         status: input.status,
         knowledgeTypes: [...input.knowledgeTypes],
         domainTags: [...input.domainTags],

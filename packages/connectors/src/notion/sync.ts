@@ -2,6 +2,7 @@ import {
   mapNotionPageToDocumentDraft,
   type NotionPageDraft,
 } from "./mapping";
+import type { DocumentIndexStatus } from "../document-state";
 import type { DocumentStatus } from "../classification";
 
 type NotionPageInput = Readonly<{
@@ -37,7 +38,9 @@ export type NotionSyncStore = Readonly<{
     externalId: string,
   ) => Promise<{
     externalUpdatedAt: Date | null;
+    contentHash: string | null;
     status: DocumentStatus;
+    indexStatus: DocumentIndexStatus;
   } | null>;
   upsertDocument: (input: NotionPageDraft) => Promise<void>;
   markLastSyncedAt: (syncedAt: Date) => Promise<void>;
@@ -74,6 +77,19 @@ const compareEditedAt = (
   }
 
   return left.getTime() - right.getTime();
+};
+
+const hasMatchingContentHash = (
+  existing: { readonly contentHash: string | null },
+  draft: { readonly contentHash: string },
+): boolean => existing.contentHash !== null && existing.contentHash === draft.contentHash;
+
+const shouldSkipLegacyDocument = (
+  existing: { readonly externalUpdatedAt: Date | null },
+  draftEditedAt: Date,
+): boolean => {
+  const comparison = compareEditedAt(existing.externalUpdatedAt, draftEditedAt);
+  return comparison >= 0;
 };
 
 const recordFailure = (
@@ -134,9 +150,12 @@ export const syncNotionPages = async (
 
     if (pageInput.archived === true) {
       if (existing !== null && existing.status === "archived") {
-        const comparison = compareEditedAt(existing.externalUpdatedAt, editedAt);
+        if (hasMatchingContentHash(existing, draft)) {
+          skippedUnchanged += 1;
+          continue;
+        }
 
-        if (comparison >= 0) {
+        if (existing.contentHash === null && shouldSkipLegacyDocument(existing, editedAt)) {
           skippedUnchanged += 1;
           continue;
         }
@@ -148,9 +167,12 @@ export const syncNotionPages = async (
     }
 
     if (existing !== null) {
-      const comparison = compareEditedAt(existing.externalUpdatedAt, editedAt);
+      if (existing.status === draft.status && hasMatchingContentHash(existing, draft)) {
+        skippedUnchanged += 1;
+        continue;
+      }
 
-      if (comparison >= 0) {
+      if (existing.contentHash === null && shouldSkipLegacyDocument(existing, editedAt)) {
         skippedUnchanged += 1;
         continue;
       }

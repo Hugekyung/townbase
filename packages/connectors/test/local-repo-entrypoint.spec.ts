@@ -5,6 +5,13 @@ import path from "node:path";
 import type { DatabaseRuntimeModule } from "../src/database-runtime";
 import { runLocalRepoSync, type LocalRepoDocumentDraft } from "../src";
 
+type LocalRepoUpsertInput = Readonly<{
+  create: LocalRepoDocumentDraft;
+}>;
+
+const isLocalRepoUpsertInput = (input: unknown): input is LocalRepoUpsertInput =>
+  typeof input === "object" && input !== null && "create" in input;
+
 describe("runLocalRepoSync", () => {
   it("syncs explicit selected repo names without LOCAL_REPO_NAMES", async () => {
     const previousRepoNames = process.env.LOCAL_REPO_NAMES;
@@ -35,7 +42,11 @@ describe("runLocalRepoSync", () => {
           async findUnique() {
             return null;
           },
-          async upsert(input: { readonly create: LocalRepoDocumentDraft }) {
+          async upsert(input: unknown) {
+            if (!isLocalRepoUpsertInput(input)) {
+              throw new Error("unexpected upsert input");
+            }
+
             upserts.push(input.create);
             return undefined;
           },

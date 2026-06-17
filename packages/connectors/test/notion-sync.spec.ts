@@ -1,14 +1,25 @@
+import { createHash } from "node:crypto";
+
 import {
   normalizeNotionSyncSummary,
   syncNotionPages,
   type NotionSyncStore,
 } from "../src";
 import type { DocumentStatus } from "../src/classification";
+import type { DocumentIndexStatus } from "../src/document-state";
 
 describe("syncNotionPages", () => {
-  it("skips unchanged pages, upserts changed pages once, and records failures", async () => {
-    const upserts: Array<{ externalId: string; status: string }> = [];
+  it("skips unchanged pages by hash, upserts changed pages once, and records failures", async () => {
+    const upserts: Array<{
+      externalId: string;
+      status: string;
+      contentHash: string;
+      indexStatus: string;
+    }> = [];
     const syncedAt = new Date("2024-01-10T00:00:00.000Z");
+    const unchangedHash = createHash("sha256").update("old").digest("hex");
+    const changedHash = createHash("sha256").update("new content").digest("hex");
+    const archivedHash = createHash("sha256").update("archived content").digest("hex");
     const logEntries: Array<{
       pageId: string;
       pageTitle?: string;
@@ -17,15 +28,30 @@ describe("syncNotionPages", () => {
     const store: NotionSyncStore & {
       documents: Map<
         string,
-        { externalUpdatedAt: Date | null; status: DocumentStatus }
+        {
+          externalUpdatedAt: Date | null;
+          status: DocumentStatus;
+          contentHash: string | null;
+          indexStatus: DocumentIndexStatus;
+        }
       >;
     } = {
-      documents: new Map<string, { externalUpdatedAt: Date | null; status: DocumentStatus }>([
+      documents: new Map<
+        string,
+        {
+          externalUpdatedAt: Date | null;
+          status: DocumentStatus;
+          contentHash: string | null;
+          indexStatus: DocumentIndexStatus;
+        }
+      >([
         [
           "unchanged",
           {
             externalUpdatedAt: new Date("2024-01-01T00:00:00.000Z"),
             status: "active",
+            contentHash: unchangedHash,
+            indexStatus: "pending",
           },
         ],
         [
@@ -33,6 +59,8 @@ describe("syncNotionPages", () => {
           {
             externalUpdatedAt: new Date("2024-01-01T00:00:00.000Z"),
             status: "active",
+            contentHash: null,
+            indexStatus: "pending",
           },
         ],
         [
@@ -40,6 +68,8 @@ describe("syncNotionPages", () => {
           {
             externalUpdatedAt: new Date("2024-01-01T00:00:00.000Z"),
             status: "active",
+            contentHash: archivedHash,
+            indexStatus: "pending",
           },
         ],
       ]),
@@ -47,10 +77,17 @@ describe("syncNotionPages", () => {
         return this.documents.get(externalId) ?? null;
       },
       async upsertDocument(input) {
-        upserts.push({ externalId: input.externalId, status: input.status });
+        upserts.push({
+          externalId: input.externalId,
+          status: input.status,
+          contentHash: input.contentHash,
+          indexStatus: input.indexStatus,
+        });
         this.documents.set(input.externalId, {
           externalUpdatedAt: input.externalUpdatedAt,
           status: input.status,
+          contentHash: input.contentHash,
+          indexStatus: input.indexStatus,
         });
       },
       async markLastSyncedAt() {
@@ -69,7 +106,7 @@ describe("syncNotionPages", () => {
               id: "unchanged",
               title: "Getting Started",
               url: "https://notion.so/unchanged",
-              lastEditedTime: "2024-01-01T00:00:00.000Z",
+              lastEditedTime: "2024-01-05T00:00:00.000Z",
             },
             content: "old",
             pathSegments: ["Onboarding"],
@@ -137,9 +174,24 @@ describe("syncNotionPages", () => {
       ],
     });
     expect(upserts).toEqual([
-      { externalId: "changed", status: "active" },
-      { externalId: "archived", status: "archived" },
-      { externalId: "new-page", status: "active" },
+      {
+        externalId: "changed",
+        status: "active",
+        contentHash: changedHash,
+        indexStatus: "pending",
+      },
+      {
+        externalId: "archived",
+        status: "archived",
+        contentHash: archivedHash,
+        indexStatus: "pending",
+      },
+      {
+        externalId: "new-page",
+        status: "active",
+        contentHash: createHash("sha256").update("brand new").digest("hex"),
+        indexStatus: "pending",
+      },
     ]);
     expect(logEntries).toEqual([
       { pageId: "error-page", pageTitle: "Broken Page", reason: "API error: 500" },
@@ -162,6 +214,8 @@ describe("syncNotionPages", () => {
         return {
           externalUpdatedAt: new Date("2024-01-10T00:00:00.000Z"),
           status: "active",
+          contentHash: null,
+          indexStatus: "pending",
         };
       },
       async upsertDocument() {

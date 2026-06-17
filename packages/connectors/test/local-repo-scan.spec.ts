@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -16,6 +17,10 @@ describe("local repo scanner", () => {
     await fs.mkdir(path.join(rootPath, "repo-a", "docs"), { recursive: true });
     await fs.mkdir(path.join(rootPath, "repo-a", "docs", "logs"), { recursive: true });
     await fs.mkdir(path.join(rootPath, "repo-a", "docs", "secrets"), { recursive: true });
+    await fs.mkdir(path.join(rootPath, "repo-a", "docs", "credentials"), { recursive: true });
+    await fs.mkdir(path.join(rootPath, "repo-a", "docs", "coverage"), { recursive: true });
+    await fs.mkdir(path.join(rootPath, "repo-a", "docs", "tmp"), { recursive: true });
+    await fs.mkdir(path.join(rootPath, "repo-a", "docs", "certs"), { recursive: true });
     await fs.mkdir(path.join(rootPath, "repo-a", "node_modules"), { recursive: true });
     await fs.mkdir(path.join(rootPath, "repo-a", ".git"), { recursive: true });
     await fs.mkdir(path.join(rootPath, "repo-a", "secrets"), { recursive: true });
@@ -25,6 +30,10 @@ describe("local repo scanner", () => {
     await fs.writeFile(path.join(rootPath, "repo-a", "docs", "guide.md"), "# Guide\n");
     await fs.writeFile(path.join(rootPath, "repo-a", "docs", "logs", "activity.md"), "# Ignore\n");
     await fs.writeFile(path.join(rootPath, "repo-a", "docs", "secrets", "keys.md"), "# Ignore\n");
+    await fs.writeFile(path.join(rootPath, "repo-a", "docs", "credentials", "keys.md"), "# Ignore\n");
+    await fs.writeFile(path.join(rootPath, "repo-a", "docs", "coverage", "report.md"), "# Ignore\n");
+    await fs.writeFile(path.join(rootPath, "repo-a", "docs", "tmp", "scratch.md"), "# Ignore\n");
+    await fs.writeFile(path.join(rootPath, "repo-a", "docs", "certs", "server.crt"), "crt\n");
     await fs.writeFile(path.join(rootPath, "repo-a", "node_modules", "ignored.md"), "# Ignore\n");
     await fs.writeFile(path.join(rootPath, "repo-a", ".git", "config"), "[core]\n");
     await fs.writeFile(path.join(rootPath, "repo-a", "secrets", "key.pem"), "secret\n");
@@ -55,6 +64,10 @@ describe("local repo scanner", () => {
     expect(isExcludedLocalRepoPath("node_modules/ignored.md")).toBe(true);
     expect(isExcludedLocalRepoPath("docs/logs/activity.md")).toBe(true);
     expect(isExcludedLocalRepoPath("docs/secrets/keys.md")).toBe(true);
+    expect(isExcludedLocalRepoPath("docs/credentials/keys.md")).toBe(true);
+    expect(isExcludedLocalRepoPath("docs/coverage/report.md")).toBe(true);
+    expect(isExcludedLocalRepoPath("docs/tmp/scratch.md")).toBe(true);
+    expect(isExcludedLocalRepoPath("docs/certs/server.crt")).toBe(true);
 
     await fs.rm(rootPath, { recursive: true, force: true });
   });
@@ -99,6 +112,8 @@ describe("local repo scanner", () => {
       domainTags: [],
       externalCreatedAt: new Date("2024-01-01T00:00:00.000Z"),
       externalUpdatedAt: new Date("2024-01-03T01:02:03.000Z"),
+      contentHash: createHash("sha256").update("# Platform\n").digest("hex"),
+      indexStatus: "pending",
     });
     expect(draft.metadata).toEqual({
       classifierVersion: "phase2-v1",

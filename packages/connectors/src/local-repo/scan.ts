@@ -19,10 +19,14 @@ const isExcludedLocalRepoPath = (relativePath: string): boolean => {
     hasExcludedSegment(segments, "dist") ||
     hasExcludedSegment(segments, "build") ||
     hasExcludedSegment(segments, "secrets") ||
+    hasExcludedSegment(segments, "credentials") ||
+    hasExcludedSegment(segments, "tmp") ||
+    hasExcludedSegment(segments, "coverage") ||
     hasExcludedSegment(segments, "logs") ||
     basename.startsWith(".env") ||
     basename.endsWith(".pem") ||
-    basename.endsWith(".key")
+    basename.endsWith(".key") ||
+    basename.endsWith(".crt")
   );
 };
 

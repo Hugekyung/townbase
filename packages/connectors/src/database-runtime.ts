@@ -5,18 +5,20 @@ export type DatabaseRuntimeModule = Readonly<{
   createPrismaClient: () => {
     $connect: () => Promise<void>;
     document: {
-      findUnique: (input: any) => Promise<{
+      findUnique: (input: unknown) => Promise<{
         externalUpdatedAt: Date | null;
+        contentHash: string | null;
         status: string;
+        indexStatus: string;
       } | null>;
-      upsert: (input: any) => Promise<unknown>;
+      upsert: (input: unknown) => Promise<unknown>;
     };
     workspace: {
-      upsert: (input: any) => Promise<{ id: string }>;
+      upsert: (input: unknown) => Promise<{ id: string }>;
     };
     dataSource: {
-      upsert: (input: any) => Promise<{ id: string }>;
-      update: (input: any) => Promise<unknown>;
+      upsert: (input: unknown) => Promise<{ id: string }>;
+      update: (input: unknown) => Promise<unknown>;
     };
     $disconnect?: () => Promise<void>;
   };

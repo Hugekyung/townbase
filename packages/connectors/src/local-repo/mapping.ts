@@ -5,6 +5,8 @@ import {
   classifyRepositoryPath,
   type ClassificationResult,
 } from "../classification";
+import { computeContentHash } from "../content-hash";
+import { DEFAULT_DOCUMENT_INDEX_STATUS } from "../document-state";
 
 import type { LocalRepoDocumentDraft, LocalRepoFileSnapshot } from "./types";
 
@@ -33,6 +35,8 @@ export const mapLocalRepoFileToDocumentDraft = (input: Readonly<{
     filePath: input.file.filePath,
     repoName: input.file.repoName,
     content: input.file.content,
+    contentHash: computeContentHash(input.file.content),
+    indexStatus: DEFAULT_DOCUMENT_INDEX_STATUS,
     status: classification.status,
     knowledgeTypes: classification.knowledgeTypes,
     domainTags: classification.domainTags,
