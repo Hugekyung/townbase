@@ -64,11 +64,6 @@ export const syncLocalRepoFiles = async (
         continue;
       }
 
-      if (existing.contentHash === null && shouldSkipStaleDocument(existing, draft.externalUpdatedAt)) {
-        skippedUnchanged += 1;
-        continue;
-      }
-
       await upsertDraft(store, input, file);
       updated += 1;
       continue;

@@ -9,7 +9,7 @@ import type { DocumentStatus } from "../src/classification";
 import type { DocumentIndexStatus } from "../src/document-state";
 
 describe("syncNotionPages", () => {
-  it("skips unchanged pages by hash, upserts changed pages once, and records failures", async () => {
+  it("skips unchanged pages by freshness, upserts changed pages once, and records failures", async () => {
     const upserts: Array<{
       externalId: string;
       status: string;

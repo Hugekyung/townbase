@@ -8,7 +8,7 @@ import {
 import type { DocumentIndexStatus } from "../src/document-state";
 
 describe("syncLocalRepoFiles", () => {
-  it("skips unchanged files by hash, updates changed files, and inserts new files", async () => {
+  it("skips unchanged files by freshness, updates changed files, and inserts new files", async () => {
     const upserts: Array<{
       externalId: string;
       status: DocumentStatus;
@@ -89,7 +89,7 @@ describe("syncLocalRepoFiles", () => {
             filePath: "README.md",
             content: "# Repo A\n",
             createdAt: new Date("2024-01-01T00:00:00.000Z"),
-            modifiedAt: new Date("2024-01-03T00:00:00.000Z"),
+            modifiedAt: new Date("2024-01-01T00:00:00.000Z"),
           },
           {
             repoName: "repo-a",

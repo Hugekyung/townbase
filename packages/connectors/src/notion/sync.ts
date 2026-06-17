@@ -162,11 +162,6 @@ export const syncNotionPages = async (
         continue;
       }
 
-      if (existing.contentHash === null && shouldSkipStaleDocument(existing, editedAt)) {
-        skippedUnchanged += 1;
-        continue;
-      }
-
       await upsertDraft(store, draft);
       updated += 1;
       continue;
