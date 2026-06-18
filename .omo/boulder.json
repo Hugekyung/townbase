@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "active_work_id": null,
+  "active_work_id": "townbase-phase12-draft-generator",
   "works": {
     "townbase-phase2-metadata-classification": {
       "work_id": "townbase-phase2-metadata-classification",
@@ -100,6 +100,16 @@
         "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
       ],
       "status": "completed",
+      "worktree_path": null
+    },
+    "townbase-phase12-draft-generator": {
+      "work_id": "townbase-phase12-draft-generator",
+      "active_plan": ".omo/plans/townbase-phase12-draft-generator.md",
+      "plan_name": "townbase-phase12-draft-generator",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "active",
       "worktree_path": null
     }
   }

@@ -1,8 +1,15 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Query } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
 
 import type { RetrievalMode } from "@townbase/database";
 
-import { type GapStatus, KnowledgeGapsService } from "./knowledge-gaps.service";
+import {
+  type DraftCreationResult,
+  type DraftListResult,
+  type DraftReadResult,
+  type GapStatus,
+  KnowledgeGapsService,
+} from "./knowledge-gaps.service";
+import type { DraftGenerationType } from "./draft-generator";
 
 const GAP_STATUSES: readonly GapStatus[] = ["open", "drafted", "resolved", "ignored"] as const;
 const RETRIEVAL_MODES: readonly RetrievalMode[] = [
@@ -11,6 +18,11 @@ const RETRIEVAL_MODES: readonly RetrievalMode[] = [
   "product_history",
   "documentation_gap",
   "change_impact",
+] as const;
+const DRAFT_TYPES: readonly DraftGenerationType[] = [
+  "github_issue",
+  "markdown_doc",
+  "notion_page_text",
 ] as const;
 
 const readOptionalString = (value: unknown, field: string): string | undefined => {
@@ -59,6 +71,20 @@ const readOptionalMode = (value: unknown): RetrievalMode | undefined => {
   return mode as RetrievalMode;
 };
 
+const readDraftType = (value: unknown): DraftGenerationType => {
+  const type = readOptionalString(value, "type");
+
+  if (type === undefined) {
+    throw new BadRequestException("type must be one of the supported draft types");
+  }
+
+  if (!DRAFT_TYPES.includes(type as DraftGenerationType)) {
+    throw new BadRequestException("type must be one of the supported draft types");
+  }
+
+  return type as DraftGenerationType;
+};
+
 @Controller("knowledge-gaps")
 export class KnowledgeGapsController {
   public constructor(private readonly knowledgeGapsService: KnowledgeGapsService) {}
@@ -102,5 +128,30 @@ export class KnowledgeGapsController {
     }
 
     return this.knowledgeGapsService.updateStatus(knowledgeGapId, status);
+  }
+
+  @Post(":knowledgeGapId/draft")
+  public createDraft(
+    @Param("knowledgeGapId") knowledgeGapId: string,
+    @Body() body: Readonly<Record<string, unknown>>,
+  ): Promise<DraftCreationResult> {
+    const type = readDraftType(body.type);
+
+    return this.knowledgeGapsService.createDraft(knowledgeGapId, type);
+  }
+
+  @Get(":knowledgeGapId/drafts")
+  public listDrafts(
+    @Param("knowledgeGapId") knowledgeGapId: string,
+  ): Promise<DraftListResult> {
+    return this.knowledgeGapsService.listDrafts(knowledgeGapId);
+  }
+
+  @Get(":knowledgeGapId/drafts/:draftId")
+  public getDraft(
+    @Param("knowledgeGapId") knowledgeGapId: string,
+    @Param("draftId") draftId: string,
+  ): Promise<DraftReadResult> {
+    return this.knowledgeGapsService.getDraft(knowledgeGapId, draftId);
   }
 }

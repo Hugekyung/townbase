@@ -85,12 +85,24 @@ export const CHAT_MCP_TOOLS = {
       type: "object",
       properties: {
         ...baseToolSchema.properties,
-        topic: {
+        action: {
+          type: "string",
+          enum: ["create", "query"],
+        },
+        knowledgeGapId: {
           type: "string",
           minLength: 1,
         },
+        draftId: {
+          type: "string",
+          minLength: 1,
+        },
+        type: {
+          type: "string",
+          enum: ["github_issue", "markdown_doc", "notion_page_text"],
+        },
       },
-      required: ["workspaceId", "topic"],
+      required: ["workspaceId", "action", "knowledgeGapId"],
     },
   } satisfies Tool,
 } as const;
