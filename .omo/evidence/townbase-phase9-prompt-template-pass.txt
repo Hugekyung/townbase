@@ -1,0 +1,20 @@
+Phase 9 evidence
+
+Commands:
+- pnpm --filter @townbase/agent-core test
+- pnpm --filter @townbase/agent-core build
+- node - <<'NODE'
+  const agent = require('./packages/agent-core/dist/index.js');
+  console.log(JSON.stringify({ name: agent.AGENT_CORE_PACKAGE_INFO.name, keys: Object.keys(agent).sort() }, null, 2));
+  NODE
+
+Observed:
+- test: PASS, 5 suites / 13 tests passed
+- build: PASS
+- manual QA: dist index export returned @townbase/agent-core and the expected prompt-shaping exports
+
+Manual QA artifact:
+- packages/agent-core/dist/index.js runtime export snapshot printed in terminal
+
+Notes:
+- ts-node is not installed in the root toolchain, so the runtime surface was validated against the compiled dist entrypoint instead of ts-node.
