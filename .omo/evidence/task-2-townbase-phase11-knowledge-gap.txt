@@ -1,0 +1,10 @@
+Phase 11 task 2 evidence
+
+Commands:
+- pnpm --filter @townbase/api test -- --runTestsByPath test/knowledge-gap-rules.spec.ts test/chat-service.spec.ts
+
+Result:
+- PASS
+
+Notes:
+- Gap candidacy rules are deterministic and driven by answerability, confidence, missing sources, and knowledge-gap text.

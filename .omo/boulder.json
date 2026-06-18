@@ -91,6 +91,16 @@
       ],
       "status": "completed",
       "worktree_path": null
+    },
+    "townbase-phase11-knowledge-gap": {
+      "work_id": "townbase-phase11-knowledge-gap",
+      "active_plan": ".omo/plans/townbase-phase11-knowledge-gap.md",
+      "plan_name": "townbase-phase11-knowledge-gap",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "completed",
+      "worktree_path": null
     }
   }
 }

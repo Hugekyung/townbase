@@ -50,12 +50,32 @@ export const CHAT_MCP_TOOLS = {
       type: "object",
       properties: {
         ...baseToolSchema.properties,
+        action: {
+          type: "string",
+          enum: ["query", "update_status"],
+        },
         query: {
           type: "string",
           minLength: 1,
         },
+        knowledgeGapId: {
+          type: "string",
+          minLength: 1,
+        },
+        status: {
+          type: "string",
+          enum: ["open", "drafted", "resolved", "ignored"],
+        },
+        mode: {
+          type: "string",
+          enum: ["auto", "onboarding", "product_history", "documentation_gap", "change_impact"],
+        },
+        category: {
+          type: "string",
+          minLength: 1,
+        },
       },
-      required: ["workspaceId", "query"],
+      required: ["workspaceId"],
     },
   } satisfies Tool,
   draft: {

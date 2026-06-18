@@ -168,7 +168,7 @@ describe("ChatQuestionService", () => {
       requestedMode: "auto",
       resolvedMode: "documentation_gap",
       isAnswerable: false,
-      knowledgeGapCreated: false,
+      knowledgeGapCreated: true,
       sources: [],
     });
   });

@@ -1,0 +1,15 @@
+Phase 11 task 3 evidence
+
+Commands:
+- pnpm --filter @townbase/api test -- --runTestsByPath test/knowledge-gaps.spec.ts
+- pnpm --filter @townbase/api test
+- pnpm --filter @townbase/api build
+- pnpm --filter @townbase/api lint
+- curl -i -sS 'http://127.0.0.1:43191/knowledge-gaps?mode=documentation_gap&category=database&status=open'
+- curl -i -sS -X PATCH 'http://127.0.0.1:43191/knowledge-gaps/cmqjshd1p0003f8udxscyz6n5/status' -H 'content-type: application/json' -d '{"status":"drafted"}'
+
+Result:
+- PASS
+
+Notes:
+- HTTP knowledge-gap list/status surfaces are live and filterable.

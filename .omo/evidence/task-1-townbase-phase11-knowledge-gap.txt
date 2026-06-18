@@ -1,0 +1,11 @@
+Phase 11 task 1 evidence
+
+Commands:
+- pnpm --filter @townbase/database test -- --runTestsByPath test/knowledge-gap.spec.ts
+- pnpm --filter @townbase/database test
+
+Result:
+- PASS
+
+Notes:
+- Shared knowledge-gap persistence helpers and regression coverage are present in packages/database/src/knowledge-gap.ts and packages/database/test/knowledge-gap.spec.ts.
