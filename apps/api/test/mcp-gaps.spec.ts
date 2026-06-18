@@ -1,8 +1,9 @@
 import { ChatToolRegistry } from "../src/chat";
+import { createMockQuestionService } from "./chat-test-helpers";
 
 describe("MCP knowledge-gap tool", () => {
   it("is discoverable and returns the deferred phase 11 contract", async () => {
-    const registry = new ChatToolRegistry();
+    const registry = new ChatToolRegistry(createMockQuestionService());
 
     expect(registry.listTools().map((tool) => tool.name)).toContain(
       "workspace_knowledge.knowledge_gap",

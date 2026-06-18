@@ -8,10 +8,28 @@ import {
   ChatModule,
 } from "../src/chat";
 import { ChatToolRegistry } from "../src/chat/chat.registry";
+import { createMockQuestionService } from "./chat-test-helpers";
 
 describe("Chat MCP scaffold", () => {
   it("describes the stdio MCP surface with the expected tool registry", () => {
-    const registry = new ChatToolRegistry();
+    const questionService = createMockQuestionService();
+    questionService.executeQuestion = jest.fn().mockResolvedValue({
+      questionId: "question-1",
+      answer: "",
+      requestedMode: "auto",
+      resolvedMode: "documentation_gap",
+      sources: [],
+      confidence: 0,
+      isAnswerable: false,
+      knowledgeGapCreated: false,
+      model: "chat-test",
+      latencyMs: 0,
+      tokenUsage: {
+        input: 0,
+        output: 0,
+      },
+    });
+    const registry = new ChatToolRegistry(questionService);
     const server = new ChatMcpServer(registry);
 
     expect(server.describeSurface()).toEqual({
@@ -34,7 +52,7 @@ describe("Chat MCP scaffold", () => {
   });
 
   it("returns a deterministic scaffold response for unsupported tools", async () => {
-    const registry = new ChatToolRegistry();
+    const registry = new ChatToolRegistry(createMockQuestionService());
 
     await expect(registry.callTool("workspace_knowledge.unknown", undefined)).resolves.toEqual({
       content: [

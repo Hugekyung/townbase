@@ -5,6 +5,24 @@ describe("chat observability helpers", () => {
     expect(() => parseChatQuestionResponse("{ not json }", 1)).toThrow("JSON");
   });
 
+  it("parses JSON wrapped in markdown fences deterministically", () => {
+    expect(
+      parseChatQuestionResponse(
+        "```json\n{\"answer\":\"ok\",\"isAnswerable\":true,\"confidence\":0.7,\"knowledgeGap\":null,\"suggestedFollowups\":[],\"tokenUsage\":{\"input\":1,\"output\":2}}\n```",
+        1,
+      ),
+    ).toMatchObject({
+      answer: "ok",
+      isAnswerable: true,
+      confidence: 0.7,
+      suggestedFollowups: [],
+      tokenUsage: {
+        input: 1,
+        output: 2,
+      },
+    });
+  });
+
   it("clamps confidence scores within the valid range", () => {
     expect(
       scoreQuestionConfidence({

@@ -84,9 +84,9 @@ export type ChatExecutionDependencies = Readonly<{
   transport: ChatTransportSurface;
 }>;
 
-const hashEmbedding = (text: string): readonly number[] => {
+const hashEmbedding = (text: string, dimension = 1536): readonly number[] => {
   const buffer = Buffer.from(text, "utf8");
-  const vector = Array.from({ length: 8 }, (_, index) => {
+  const vector = Array.from({ length: dimension }, (_, index) => {
     const byte = buffer[index % Math.max(buffer.length, 1)] ?? index;
     return Number(((byte % 97) / 97).toFixed(6));
   });
@@ -95,7 +95,7 @@ const hashEmbedding = (text: string): readonly number[] => {
 };
 
 export const createFallbackEmbeddingModel = (): EmbeddingModel => ({
-  model: "hash-embedding-8",
+  model: "hash-embedding-1536",
   async embedText(text: string): Promise<readonly number[]> {
     return hashEmbedding(text);
   },
@@ -103,6 +103,61 @@ export const createFallbackEmbeddingModel = (): EmbeddingModel => ({
     return texts.map((text) => hashEmbedding(text));
   },
 });
+
+export const createDefaultDocumentRetriever = (
+  prisma: PrismaClient,
+  searchChunks: typeof searchDocumentChunksByEmbedding = searchDocumentChunksByEmbedding,
+): ChatRetrievalExecutor["retrieve"] => {
+  return async (input) => {
+    const rows = await searchChunks(prisma, {
+      workspaceId: input.workspaceId,
+      embedding: input.embedding,
+      topK: input.strategy.topK,
+    });
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const chunkIds = rows.map((row) => row.id);
+    const chunks = await prisma.documentChunk.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        id: {
+          in: chunkIds,
+        },
+      },
+      include: {
+        document: true,
+      },
+    });
+
+    const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]));
+
+    return rows.flatMap((row, index) => {
+      const chunk = chunkById.get(row.id);
+
+      if (chunk === undefined) {
+        return [];
+      }
+
+      return [
+        {
+          documentId: chunk.documentId,
+          chunkId: chunk.id,
+          sourceType: chunk.sourceType,
+          title: chunk.document.title,
+          filePath: chunk.document.filePath,
+          sourceUrl: chunk.document.url,
+          sectionTitle: chunk.sectionTitle ?? null,
+          headingPath: Array.isArray(chunk.headingPath) ? chunk.headingPath.map(String) : [],
+          rank: index + 1,
+          score: row.score,
+        },
+      ] satisfies readonly PromptTraceSource[];
+    });
+  };
+};
 
 export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
   const prisma = createPrismaClient();
@@ -118,50 +173,7 @@ export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
         })
       : createFallbackEmbeddingModel(),
     retriever: {
-      async retrieve(input) {
-        const rows = await searchDocumentChunksByEmbedding(prisma, {
-          workspaceId: input.workspaceId,
-          embedding: input.embedding,
-          topK: input.strategy.topK,
-        });
-        const chunkIds = rows.map((row) => row.id);
-        const chunks = await prisma.documentChunk.findMany({
-          where: {
-            workspaceId: input.workspaceId,
-            id: {
-              in: chunkIds,
-            },
-          },
-          include: {
-            document: true,
-          },
-        });
-
-        const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]));
-
-        return rows.flatMap((row, index) => {
-          const chunk = chunkById.get(row.id);
-
-          if (chunk === undefined) {
-            return [];
-          }
-
-          return [
-            {
-              documentId: chunk.documentId,
-              chunkId: chunk.id,
-              sourceType: chunk.sourceType,
-              title: chunk.document.title,
-              filePath: chunk.document.filePath,
-              sourceUrl: chunk.document.url,
-              sectionTitle: chunk.sectionTitle ?? null,
-              headingPath: Array.isArray(chunk.headingPath) ? chunk.headingPath.map(String) : [],
-              rank: index + 1,
-              score: row.score,
-            },
-          ] satisfies readonly PromptTraceSource[];
-        });
-      },
+      retrieve: createDefaultDocumentRetriever(prisma),
     },
     completion: {
       model: process.env.OPENAI_CHAT_MODEL ?? "chat-scaffold",

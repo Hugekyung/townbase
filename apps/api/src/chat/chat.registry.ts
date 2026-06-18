@@ -40,9 +40,7 @@ const readRequiredString = (
 
 @Injectable()
 export class ChatToolRegistry {
-  public constructor(
-    private readonly questionService: ChatQuestionService = new ChatQuestionService(),
-  ) {}
+  public constructor(private readonly questionService: ChatQuestionService) {}
 
   public listTools(): readonly Tool[] {
     return [

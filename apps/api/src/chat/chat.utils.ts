@@ -26,11 +26,22 @@ const clampConfidence = (value: number): number => {
   return value;
 };
 
+const extractJsonObject = (rawResponse: string): string => {
+  const jsonStart = rawResponse.indexOf("{");
+  const jsonEnd = rawResponse.lastIndexOf("}");
+
+  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+    throw new Error("LLM response does not contain a valid JSON object");
+  }
+
+  return rawResponse.slice(jsonStart, jsonEnd + 1);
+};
+
 export const parseChatQuestionResponse = (
   rawResponse: string,
   sourceCount: number,
 ): ParsedChatResponse => {
-  const payload: unknown = JSON.parse(rawResponse);
+  const payload: unknown = JSON.parse(extractJsonObject(rawResponse));
 
   if (
     typeof payload !== "object" ||
