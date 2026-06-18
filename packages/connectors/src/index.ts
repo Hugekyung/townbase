@@ -43,6 +43,13 @@ export {
   type LocalRepoSyncSummary,
 } from "./local-repo";
 export {
+  buildQuestionRetrievalTrace,
+  selectQuestionRetrievalSources,
+  type ConnectorRetrievalSelectionInput,
+  type ConnectorRetrievalSelectionResult,
+  type QuestionRetrievalTrace,
+} from "./retrieval-mode";
+export {
   type NotionPageClassification,
   syncNotionPages,
   type NotionSyncFailure,

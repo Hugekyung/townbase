@@ -2,33 +2,14 @@ import type { NotionPageDraft } from "./mapping";
 import type { NotionSyncStore } from "./sync";
 import type { DocumentStatus } from "../classification";
 import type { DocumentIndexStatus } from "../document-state";
+import type { PrismaClientLike } from "../database-runtime";
 import { replaceDocumentChunksInTransaction, buildChunkingDocument } from "../document-chunks";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { EmbeddingModel } from "@townbase/rag-core";
 import { chunkDocument } from "@townbase/rag-core";
 import { indexDocumentChunks, type EmbeddableChunk } from "../embedding";
 
 type PrismaDocumentWriteTransactionClient = Prisma.TransactionClient;
-
-type PrismaClientLike = Readonly<{
-  $transaction: PrismaClient["$transaction"];
-  $queryRaw: PrismaClient["$queryRaw"];
-  $executeRaw: PrismaClient["$executeRaw"];
-  document: Readonly<{
-    findUnique: (input: unknown) => Promise<{
-      id?: string;
-      externalUpdatedAt: Date | null;
-      contentHash: string | null;
-      status: string;
-      indexStatus: string;
-    } | null>;
-    upsert: (input: unknown) => Promise<Readonly<{ id: string }>>;
-    update: (input: unknown) => Promise<unknown>;
-  }>;
-  dataSource: Readonly<{
-    update: (input: unknown) => Promise<unknown>;
-  }>;
-}>;
 
 type PrismaNotionStoreContext = Readonly<{
   workspaceId: string;

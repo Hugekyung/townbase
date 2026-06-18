@@ -1,38 +1,54 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { PrismaClient } from "@prisma/client";
+type PrismaRecord = Readonly<{
+  id: string;
+}>;
+
+type PrismaWorkspaceDelegate = Readonly<{
+  upsert: (input: unknown) => Promise<PrismaRecord>;
+}>;
+
+type PrismaTransactionDelegate = (arg: unknown, options?: unknown) => Promise<unknown>;
+
+type PrismaDataSourceDelegate = Readonly<{
+  upsert: (input: unknown) => Promise<PrismaRecord>;
+  update: (input: unknown) => Promise<unknown>;
+}>;
+
+type PrismaDocumentDelegate = Readonly<{
+  findUnique: (input: unknown) =>
+    Promise<
+      | {
+          readonly id?: string;
+          readonly externalUpdatedAt: Date | null;
+          readonly contentHash: string | null;
+          readonly status: string;
+          readonly indexStatus: string;
+        }
+      | null
+    >;
+  upsert: (input: unknown) => Promise<PrismaRecord>;
+  update: (input: unknown) => Promise<unknown>;
+}>;
+
+type PrismaDocumentChunkDelegate = Readonly<{
+  deleteMany: (input: unknown) => Promise<unknown>;
+  createMany: (input: unknown) => Promise<unknown>;
+}>;
+
+export type PrismaClientLike = Readonly<{
+  $connect: () => Promise<void>;
+  $disconnect?: () => Promise<void>;
+  $transaction: PrismaTransactionDelegate;
+  workspace: PrismaWorkspaceDelegate;
+  dataSource: PrismaDataSourceDelegate;
+  document: PrismaDocumentDelegate;
+  documentChunk: PrismaDocumentChunkDelegate;
+}>;
 
 export type DatabaseRuntimeModule = Readonly<{
-  createPrismaClient: () => {
-    $connect: () => Promise<void>;
-    $transaction: PrismaClient["$transaction"];
-    $queryRaw: PrismaClient["$queryRaw"];
-    $executeRaw: PrismaClient["$executeRaw"];
-    document: {
-      findUnique: (input: unknown) => Promise<{
-        id?: string;
-        externalUpdatedAt: Date | null;
-        contentHash: string | null;
-        status: string;
-        indexStatus: string;
-      } | null>;
-      upsert: (input: unknown) => Promise<{ id: string }>;
-      update: (input: unknown) => Promise<unknown>;
-    };
-    documentChunk: {
-      deleteMany: (input: unknown) => Promise<unknown>;
-      createMany: (input: unknown) => Promise<unknown>;
-    };
-    workspace: {
-      upsert: (input: unknown) => Promise<{ id: string }>;
-    };
-    dataSource: {
-      upsert: (input: unknown) => Promise<{ id: string }>;
-      update: (input: unknown) => Promise<unknown>;
-    };
-    $disconnect?: () => Promise<void>;
-  };
+  createPrismaClient: () => PrismaClientLike;
   disconnectPrismaClient: () => Promise<void>;
   DEFAULT_WORKSPACE_NAME: string;
 }>;

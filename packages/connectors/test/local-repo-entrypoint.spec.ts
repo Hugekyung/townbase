@@ -2,15 +2,83 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { DatabaseRuntimeModule } from "../src/database-runtime";
+import type { DatabaseRuntimeModule, PrismaClientLike } from "../src/database-runtime";
 import { runLocalRepoSync, type LocalRepoDocumentDraft } from "../src";
 
 type LocalRepoUpsertInput = Readonly<{
   create: LocalRepoDocumentDraft;
 }>;
 
+type MockPrismaClient = PrismaClientLike;
+
 const isLocalRepoUpsertInput = (input: unknown): input is LocalRepoUpsertInput =>
   typeof input === "object" && input !== null && "create" in input;
+
+const isTransactionCallback = (
+  input: unknown,
+): input is (client: MockPrismaClient) => Promise<unknown> => typeof input === "function";
+
+const createMockPrismaClient = (
+  upserts: LocalRepoDocumentDraft[] = [],
+  onDocumentUpsert?: (input: unknown) => void,
+): MockPrismaClient => {
+  let prismaClient: MockPrismaClient;
+  prismaClient = {
+    async $connect() {
+      return undefined;
+    },
+    async $transaction(input: unknown): Promise<unknown> {
+      if (isTransactionCallback(input)) {
+        return input(prismaClient);
+      }
+
+      return Promise.resolve(input);
+    },
+    workspace: {
+      async upsert() {
+        return { id: "workspace-1" };
+      },
+    },
+    dataSource: {
+      async upsert() {
+        return { id: "source-1" };
+      },
+      async update() {
+        return undefined;
+      },
+    },
+    document: {
+      async findUnique() {
+        return null;
+      },
+      async upsert(input: unknown) {
+        if (onDocumentUpsert !== undefined) {
+          onDocumentUpsert(input);
+        }
+
+        if (!isLocalRepoUpsertInput(input)) {
+          throw new Error("unexpected upsert input");
+        }
+
+        upserts.push(input.create);
+        return { id: "document-1" };
+      },
+      async update() {
+        return undefined;
+      },
+    },
+    documentChunk: {
+      async deleteMany() {
+        return undefined;
+      },
+      async createMany() {
+        return undefined;
+      },
+    },
+  } satisfies MockPrismaClient;
+
+  return prismaClient;
+};
 
 describe("runLocalRepoSync", () => {
   it("syncs explicit selected repo names without LOCAL_REPO_NAMES", async () => {
@@ -18,40 +86,11 @@ describe("runLocalRepoSync", () => {
     delete process.env.LOCAL_REPO_NAMES;
     const rootPath = await fs.mkdtemp(path.join(os.tmpdir(), "tmp-local-repo-sync-"));
     const upserts: LocalRepoDocumentDraft[] = [];
+    const prismaClient = createMockPrismaClient(upserts);
 
     const databaseRuntime: DatabaseRuntimeModule = {
       DEFAULT_WORKSPACE_NAME: "default-workspace",
-      createPrismaClient: () => ({
-        async $connect() {
-          return undefined;
-        },
-        workspace: {
-          async upsert() {
-            return { id: "workspace-1" };
-          },
-        },
-        dataSource: {
-          async upsert() {
-            return { id: "source-1" };
-          },
-          async update() {
-            return undefined;
-          },
-        },
-        document: {
-          async findUnique() {
-            return null;
-          },
-          async upsert(input: unknown) {
-            if (!isLocalRepoUpsertInput(input)) {
-              throw new Error("unexpected upsert input");
-            }
-
-            upserts.push(input.create);
-            return undefined;
-          },
-        },
-      }),
+      createPrismaClient: () => prismaClient,
       async disconnectPrismaClient() {
         return undefined;
       },
@@ -89,34 +128,12 @@ describe("runLocalRepoSync", () => {
   it("fails deterministically when selected repo names are missing", async () => {
     const previousRepoNames = process.env.LOCAL_REPO_NAMES;
     delete process.env.LOCAL_REPO_NAMES;
+    const prismaClient = createMockPrismaClient([], () => {
+      throw new Error("should not connect without selected repos");
+    });
     const databaseRuntime: DatabaseRuntimeModule = {
       DEFAULT_WORKSPACE_NAME: "default-workspace",
-      createPrismaClient: () => ({
-        async $connect() {
-          throw new Error("should not connect without selected repos");
-        },
-        workspace: {
-          async upsert() {
-            return { id: "workspace-1" };
-          },
-        },
-        dataSource: {
-          async upsert() {
-            return { id: "source-1" };
-          },
-          async update() {
-            return undefined;
-          },
-        },
-        document: {
-          async findUnique() {
-            return null;
-          },
-          async upsert() {
-            return undefined;
-          },
-        },
-      }),
+      createPrismaClient: () => prismaClient,
       async disconnectPrismaClient() {
         return undefined;
       },
