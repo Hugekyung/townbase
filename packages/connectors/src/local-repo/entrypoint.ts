@@ -4,6 +4,7 @@ import {
   loadDatabaseRuntime,
   type DatabaseRuntimeModule,
 } from "../database-runtime";
+import { createOptionalEmbeddingModel } from "../embedding-model";
 
 import { collectSelectedLocalRepoFiles } from "./scan";
 import { createPrismaLocalRepoSyncStore } from "./prisma-store";
@@ -198,6 +199,7 @@ export const runLocalRepoSync = async (
   const selectedRepoNames = readSelectedRepoNames(options.selectedRepoNames);
   const workspaceName = options.workspaceName ?? database.DEFAULT_WORKSPACE_NAME;
   const dataSourceName = options.dataSourceName ?? DEFAULT_LOCAL_REPO_DATA_SOURCE_NAME;
+  const embeddingModel = createOptionalEmbeddingModel();
 
   await prisma.$connect();
 
@@ -221,6 +223,7 @@ export const runLocalRepoSync = async (
       createPrismaLocalRepoSyncStore(prisma, {
         workspaceId,
         dataSourceId,
+        ...(embeddingModel === undefined ? {} : { embeddingModel }),
       }),
     );
 

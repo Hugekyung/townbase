@@ -100,6 +100,9 @@ const upsertDraft = async (
   await store.upsertDocument(draft);
 };
 
+const toFailureReason = (error: unknown): string =>
+  error instanceof Error ? error.message : "Unknown sync failure";
+
 export const syncNotionPages = async (
   input: NotionSyncInput,
   store: NotionSyncStore,
@@ -148,7 +151,17 @@ export const syncNotionPages = async (
         }
       }
 
-      await upsertDraft(store, draft);
+      try {
+        await upsertDraft(store, draft);
+      } catch (error: unknown) {
+        failed += 1;
+        recordFailure(failures, logger, {
+          pageId: pageInput.page.id,
+          pageTitle: pageInput.page.title,
+          reason: toFailureReason(error),
+        });
+        continue;
+      }
       archived += 1;
       continue;
     }
@@ -162,12 +175,32 @@ export const syncNotionPages = async (
         continue;
       }
 
-      await upsertDraft(store, draft);
+      try {
+        await upsertDraft(store, draft);
+      } catch (error: unknown) {
+        failed += 1;
+        recordFailure(failures, logger, {
+          pageId: pageInput.page.id,
+          pageTitle: pageInput.page.title,
+          reason: toFailureReason(error),
+        });
+        continue;
+      }
       updated += 1;
       continue;
     }
 
-    await upsertDraft(store, draft);
+    try {
+      await upsertDraft(store, draft);
+    } catch (error: unknown) {
+      failed += 1;
+      recordFailure(failures, logger, {
+        pageId: pageInput.page.id,
+        pageTitle: pageInput.page.title,
+        reason: toFailureReason(error),
+      });
+      continue;
+    }
     inserted += 1;
   }
 

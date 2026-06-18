@@ -2,6 +2,21 @@ export type { NotionConnectorEnv, LocalRepoConnectorEnv } from "./env";
 export { loadNotionConnectorEnv } from "./env";
 export { loadLocalRepoConnectorEnv } from "./env";
 export {
+  createEmbeddingModel,
+  loadEmbeddingModelEnv,
+  type EmbeddingModelEnv,
+} from "./embedding-model";
+export {
+  embedDocumentChunks,
+  embedQuestionText,
+  indexDocumentChunks,
+  searchSimilarChunksForQuestion,
+  type ChunkEmbeddingIndexResult,
+  type ChunkEmbeddingSearchInput,
+  type EmbeddableChunk,
+  type IndexedChunkEmbedding,
+} from "./embedding";
+export {
   buildChunkMetadata,
   classifyNotionPage,
   classifyRepositoryPath,

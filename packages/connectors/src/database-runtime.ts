@@ -7,14 +7,18 @@ export type DatabaseRuntimeModule = Readonly<{
   createPrismaClient: () => {
     $connect: () => Promise<void>;
     $transaction: PrismaClient["$transaction"];
+    $queryRaw: PrismaClient["$queryRaw"];
+    $executeRaw: PrismaClient["$executeRaw"];
     document: {
       findUnique: (input: unknown) => Promise<{
+        id?: string;
         externalUpdatedAt: Date | null;
         contentHash: string | null;
         status: string;
         indexStatus: string;
       } | null>;
       upsert: (input: unknown) => Promise<{ id: string }>;
+      update: (input: unknown) => Promise<unknown>;
     };
     documentChunk: {
       deleteMany: (input: unknown) => Promise<unknown>;
