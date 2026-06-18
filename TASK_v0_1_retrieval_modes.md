@@ -390,15 +390,18 @@ mode별 답변 형식을 분리한다.
 
 ---
 
-## Phase 10. Chat API 구현
+## Phase 10. MCP 기반 Chat 오케스트레이션
 
 ### 목표
 
-사용자 질문을 받아 mode 기반 RAG 답변을 생성한다.
+MCP 클라이언트를 통해 사용자 질문을 받아 mode 기반 RAG 답변을 생성한다.
 
 ### Tasks
 
-- [ ] `POST /chat` API 구현
+- [ ] MCP server 구현
+- [ ] MCP tool registry 및 transport 설정
+- [ ] MCP server-wide guidance 설정
+- [ ] question tool schema 작성
 - [ ] request schema 작성
   - [ ] workspaceId
   - [ ] question
@@ -417,11 +420,14 @@ mode별 답변 형식을 분리한다.
 - [ ] QuestionSource 저장
 - [ ] source list 반환
 - [ ] Knowledge Gap 생성 조건 연결
+- [ ] MCP response contract 직렬화
+- [ ] MCP client scenario 검증
 
 ### 완료 기준
 
-- 사용자가 질문하면 mode 기반 답변이 반환된다.
+- 사용자가 MCP 클라이언트로 질문하면 mode 기반 답변이 반환된다.
 - response에 requestedMode/resolvedMode/sources/confidence가 포함된다.
+- HTTP 기반 chat/web 앱은 v0.1 필수 범위가 아니다.
 
 ---
 
@@ -449,12 +455,14 @@ mode별 답변 형식을 분리한다.
 - [ ] `GET /knowledge-gaps` API 구현
 - [ ] mode/category/status filter 구현
 - [ ] `PATCH /knowledge-gaps/:id/status` 구현
+- [ ] MCP knowledge-gap query/status tool 추가
 
 ### 완료 기준
 
 - 답변 근거가 부족하면 Knowledge Gap이 생성된다.
 - Gap에 category, relatedMode, priority, suggested title/path가 저장된다.
 - Gap 목록을 mode/category별로 필터링할 수 있다.
+- MCP 클라이언트에서 Gap 조회와 상태 변경을 수행할 수 있다.
 
 ---
 
@@ -481,12 +489,14 @@ Knowledge Gap을 GitHub Issue 또는 Markdown 문서 초안으로 전환한다.
 - [ ] draft 저장
 - [ ] draft 조회 API 구현
 - [ ] copy-friendly format 반환
+- [ ] MCP draft generation tool 추가
 
 ### 완료 기준
 
 - Gap을 기반으로 GitHub Issue 초안이 생성된다.
 - Gap을 기반으로 Markdown 문서 초안이 생성된다.
 - 실제 외부 서비스 생성 없이 복사 가능한 텍스트로 제공된다.
+- MCP 클라이언트에서 Gap 기반 초안을 생성할 수 있다.
 
 ---
 
@@ -524,6 +534,7 @@ Knowledge Gap을 GitHub Issue 또는 Markdown 문서 초안으로 전환한다.
 
 - 브라우저에서 질문하고 mode별 답변을 확인할 수 있다.
 - 문서/질문/Gap/Draft를 확인할 수 있다.
+- 웹 UI는 MCP-first 사용성을 해치지 않는 보조 수단으로 유지된다.
 
 ---
 
@@ -614,6 +625,29 @@ Knowledge Gap을 GitHub Issue 또는 Markdown 문서 초안으로 전환한다.
 
 ---
 
+## Phase 17. MVP 이후 API/Web 확장
+
+### 목표
+
+MCP 중심 v0.1 이후에 별도 HTTP API와 웹앱 사용 경로를 추가한다.
+
+### Tasks
+
+- [ ] HTTP 기반 chat API 추가
+- [ ] 별도 web app 추가
+- [ ] browser-friendly 질문/답변 화면 추가
+- [ ] API key 기반 외부 호출 옵션 검토
+- [ ] ChatGPT/Codex MCP와 API/web 간 기능 정합성 유지
+- [ ] MCP 클라이언트와 API/web의 response contract 정합성 문서화
+
+### 완료 기준
+
+- MCP 없이도 웹앱으로 질문할 수 있다.
+- 별도 HTTP API를 통해 외부 서비스 연동이 가능하다.
+- MCP 경로와 API/web 경로의 결과 계약이 일관된다.
+
+---
+
 ## v0.1 완료 기준 요약
 
 ```text
@@ -627,6 +661,7 @@ Knowledge Gap을 GitHub Issue 또는 Markdown 문서 초안으로 전환한다.
 8. question/source logging
 9. Knowledge Gap 생성
 10. GitHub Issue/Markdown draft 생성
-11. 최소 UI
-12. README 기반 오픈소스 실행 가능
+11. MCP 기반 사용 가능
+12. 최소 UI
+13. README 기반 오픈소스 실행 가능
 ```

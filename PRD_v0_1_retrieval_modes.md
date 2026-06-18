@@ -602,11 +602,7 @@ Sync response examples should expose created / updated / skipped / failed counts
 
 ### 10.2 Chat
 
-```http
-POST /chat
-```
-
-Request:
+MCP tool contract:
 
 ```json
 {
@@ -623,7 +619,7 @@ Response:
   "answer": "...",
   "requestedMode": "auto",
   "resolvedMode": "product_history",
-  "confidence": "medium",
+  "confidence": 0.82,
   "isAnswerable": true,
   "sources": [
     {
@@ -677,6 +673,9 @@ GET /documents/:id
 - API/Web은 로컬에서 실행 또는 컨테이너 실행 가능
 - 외부 서버 없이 동작
 - LLM API와 Notion API는 외부 API 호출
+- v0.1의 기본 상호작용은 MCP 기반이어야 한다.
+- ChatGPT/Codex 같은 MCP 클라이언트가 로컬 knowledge agent의 질문/조회/초안 도구를 사용할 수 있어야 한다.
+- HTTP 기반 chat 전용 웹앱은 MVP 이후 확장으로 둔다.
 
 ### 11.2 Source-grounded Q&A
 
@@ -712,6 +711,13 @@ GET /documents/:id
 - GitHub Issue 초안
 - Markdown 문서 초안
 - Notion page 초안은 v0.1에서 텍스트 생성만 지원, 실제 생성은 제외
+
+### 11.7 MCP access path
+
+- 로컬 knowledge agent는 MCP server로 노출 가능해야 한다.
+- MCP tool 결과는 질문 응답, 출처, confidence, requestedMode/resolvedMode, Knowledge Gap 신호를 포함해야 한다.
+- ChatGPT/Codex 같은 MCP 클라이언트에서 동일한 retrieval pipeline을 재사용할 수 있어야 한다.
+- 별도 HTTP 기반 chat 웹앱은 MVP 이후에 추가한다.
 
 ---
 
@@ -768,9 +774,9 @@ v0.1은 디자인보다 기능 확인에 집중한다.
 4. ./repos 디렉터리에 sync할 팀의 Git repository를 clone
 5. sync 실행
 6. Notion 문서와 repo docs 색인
-7. 신규 개발자 관점 질문 테스트
-8. 제품/개발 히스토리 질문 테스트
-9. 답변 가능한 질문은 Q&A로 활용
+7. ChatGPT/Codex 같은 MCP 클라이언트에서 신규 개발자 관점 질문 테스트
+8. ChatGPT/Codex 같은 MCP 클라이언트에서 제품/개발 히스토리 질문 테스트
+9. 답변 가능한 질문은 MCP 기반 Q&A로 활용
 10. 답변하지 못한 질문은 Knowledge Gap으로 저장
 11. Gap을 GitHub Issue 또는 Markdown 문서 초안으로 변환
 12. 팀 문서화 개선에 반영
@@ -787,7 +793,7 @@ v0.1은 디자인보다 기능 확인에 집중한다.
 - local repo 문서성 파일 수집 가능
 - chunk/embedding 저장 가능
 - mode 기반 retrieval 가능
-- 질문에 출처 기반 답변 가능
+- MCP 기반 질문에 출처 기반 답변 가능
 - requestedMode/resolvedMode 저장 가능
 - Knowledge Gap 생성 가능
 - Gap 기반 draft 생성 가능
@@ -804,7 +810,7 @@ v0.1은 디자인보다 기능 확인에 집중한다.
 
 - README만 보고 실행 가능
 - 아키텍처와 trade-off가 명확함
-- local-first / open-source / RAG / metadata-based retrieval 전략을 설명 가능
+- local-first / open-source / RAG / metadata-based retrieval / MCP-first interaction 전략을 설명 가능
 - SaaS가 아닌 오픈소스 개발자 도구로서 방향성이 분명함
 
 ---
@@ -818,6 +824,8 @@ v0.1은 디자인보다 기능 확인에 집중한다.
 - hybrid search
 - reranking
 - change_impact mode 강화
+- HTTP 기반 chat/web app 추가
+- MCP tool set 확장
 - 실제 GitHub Issue 생성
 
 ### v0.3
