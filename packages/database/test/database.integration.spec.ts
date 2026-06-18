@@ -176,7 +176,6 @@ describe("database integration", () => {
         id: question.id,
       },
       include: {
-        questionSources: true,
         knowledgeGap: {
           include: {
             actionDrafts: true,
@@ -184,9 +183,14 @@ describe("database integration", () => {
         },
       },
     });
+    const questionSources = await prisma.questionSource.findMany({
+      where: {
+        questionId: question.id,
+      },
+    });
 
-    expect(loadedQuestion.questionSources).toHaveLength(1);
-    expect(loadedQuestion.questionSources[0]?.id).toBe(source.id);
+    expect(questionSources).toHaveLength(1);
+    expect(questionSources[0]?.id).toBe(source.id);
     expect(loadedQuestion.knowledgeGap?.id).toBe(gap.id);
     expect(loadedQuestion.knowledgeGap?.actionDrafts).toHaveLength(1);
     expect(loadedQuestion.knowledgeGap?.actionDrafts[0]?.id).toBe(draft.id);

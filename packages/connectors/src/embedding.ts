@@ -1,5 +1,3 @@
-import type { PrismaClient } from "@prisma/client";
-
 import {
   persistDocumentChunkEmbedding,
   searchDocumentChunksByEmbedding,
@@ -43,16 +41,19 @@ export type ChunkEmbeddingSearchInput = Readonly<{
 }>;
 
 type PrismaEmbeddingClient = Readonly<{
-  $transaction: PrismaClient["$transaction"];
-  $queryRaw: PrismaClient["$queryRaw"];
-  $executeRaw: PrismaClient["$executeRaw"];
+  $transaction: (arg: unknown, options?: unknown) => Promise<unknown>;
   document: Readonly<{
     update: (input: unknown) => Promise<unknown>;
   }>;
 }>;
 
 type PrismaEmbeddingTransactionClient = Readonly<{
-  $executeRaw: PrismaClient["$executeRaw"];
+  $executeRaw: (query: unknown) => Promise<number>;
+}>;
+
+type PrismaEmbeddingQueryClient = Readonly<{
+  $queryRaw: <T>(query: unknown) => Promise<T>;
+  $executeRaw: (query: unknown) => Promise<number>;
 }>;
 
 const embedTexts = async (
@@ -168,7 +169,7 @@ export const indexDocumentChunks = async (
 };
 
 export const searchSimilarChunksForQuestion = async (
-  prisma: PrismaEmbeddingClient,
+  prisma: PrismaEmbeddingQueryClient,
   model: EmbeddingModel,
   input: ChunkEmbeddingSearchInput,
 ): Promise<readonly VectorSearchRow[]> => {
