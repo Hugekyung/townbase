@@ -6,6 +6,22 @@ export {
   type EmbeddingModelConfig,
   type EmbeddingVector,
 } from "./embedding";
+export {
+  RETRIEVAL_MODES,
+  buildRetrievalStrategy,
+  classifyAutoRetrievalMode,
+  rankRetrievalCandidates,
+  resolveRetrievalMode,
+  scoreRetrievalCandidate,
+  selectRetrievalCandidates,
+  type RankedRetrievalCandidate,
+  type ResolvedRetrievalMode,
+  type RetrievalCandidate,
+  type RetrievalMode,
+  type RetrievalSelection,
+  type RetrievalStrategy,
+  type RetrievalStrategyContext,
+} from "./retrieval-mode";
 export type {
   ChunkType,
   ChunkingChunk,
