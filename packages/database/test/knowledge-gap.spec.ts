@@ -1,5 +1,6 @@
 import {
   listKnowledgeGaps,
+  persistKnowledgeGapCandidate,
   updateKnowledgeGapStatus,
   type KnowledgeGapListRow,
   type KnowledgeGapQueryClient,
@@ -101,6 +102,83 @@ describe("knowledge gap helpers", () => {
       },
       data: {
         status: "drafted",
+      },
+    });
+  });
+
+  it("persists a derived knowledge gap candidate idempotently by question", async () => {
+    const gapRow = {
+      id: "gap-1",
+      workspaceId: "workspace-1",
+      questionId: "question-1",
+      category: "database",
+      title: "Document Phase 1 schema",
+      description: "The schema foundation exists, but the implementation details are not yet documented.",
+      suggestedDocumentTitle: "Phase 1 Database Schema",
+      suggestedMarkdownPath: "docs/gaps/database-phase-1-schema.md",
+      suggestedGithubIssueTitle: "Document Phase 1 database schema",
+      priority: "high",
+      status: "open",
+      similarQuestionCount: 3,
+      relatedMode: "documentation_gap",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-03T00:00:00.000Z"),
+    } satisfies KnowledgeGapListRow;
+
+    const upsert = jest.fn(async () => gapRow);
+
+    const client = {
+      knowledgeGap: {
+        upsert,
+      },
+    };
+
+    await expect(
+      persistKnowledgeGapCandidate(client, {
+        workspaceId: "workspace-1",
+        questionId: "question-1",
+        category: "database",
+        title: "Document Phase 1 schema",
+        description: "The schema foundation exists, but the implementation details are not yet documented.",
+        suggestedDocumentTitle: "Phase 1 Database Schema",
+        suggestedMarkdownPath: "docs/gaps/database-phase-1-schema.md",
+        suggestedGithubIssueTitle: "Document Phase 1 database schema",
+        priority: "high",
+        relatedMode: "documentation_gap",
+        similarQuestionCount: 3,
+      }),
+    ).resolves.toEqual(gapRow);
+
+    expect(upsert).toHaveBeenCalledWith({
+      where: {
+        workspaceId_questionId: {
+          workspaceId: "workspace-1",
+          questionId: "question-1",
+        },
+      },
+      create: {
+        workspaceId: "workspace-1",
+        questionId: "question-1",
+        category: "database",
+        title: "Document Phase 1 schema",
+        description: "The schema foundation exists, but the implementation details are not yet documented.",
+        suggestedDocumentTitle: "Phase 1 Database Schema",
+        suggestedMarkdownPath: "docs/gaps/database-phase-1-schema.md",
+        suggestedGithubIssueTitle: "Document Phase 1 database schema",
+        priority: "high",
+        similarQuestionCount: 3,
+        relatedMode: "documentation_gap",
+      },
+      update: {
+        category: "database",
+        title: "Document Phase 1 schema",
+        description: "The schema foundation exists, but the implementation details are not yet documented.",
+        suggestedDocumentTitle: "Phase 1 Database Schema",
+        suggestedMarkdownPath: "docs/gaps/database-phase-1-schema.md",
+        suggestedGithubIssueTitle: "Document Phase 1 database schema",
+        priority: "high",
+        similarQuestionCount: 3,
+        relatedMode: "documentation_gap",
       },
     });
   });

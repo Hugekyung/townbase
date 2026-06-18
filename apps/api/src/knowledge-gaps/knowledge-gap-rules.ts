@@ -90,6 +90,8 @@ const detectCategory = (input: KnowledgeGapDerivationInput): KnowledgeGapCategor
       return "documentation";
     case "change_impact":
       return "general";
+    default:
+      return "general";
   }
 };
 

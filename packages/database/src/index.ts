@@ -20,10 +20,12 @@ export {
 } from "./retrieval-mode";
 export {
   buildKnowledgeGapWhere,
+  persistKnowledgeGapCandidate,
   listKnowledgeGaps,
   updateKnowledgeGapStatus,
   type KnowledgeGapListFilter,
   type KnowledgeGapListRow,
+  type KnowledgeGapPersistInput,
   type KnowledgeGapQueryClient,
   type KnowledgeGapStatusUpdateInput,
 } from "./knowledge-gap";

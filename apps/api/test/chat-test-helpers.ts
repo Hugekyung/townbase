@@ -25,6 +25,9 @@ export const createMockQuestionService = (): ChatQuestionService =>
     persistence: {
       persistQuestionTrace: jest.fn(),
     },
+    knowledgeGapPersistence: {
+      persistKnowledgeGapCandidate: jest.fn(),
+    },
     transport: {
       describeSurface: jest.fn().mockReturnValue({
         serverName: "@townbase/api-chat",

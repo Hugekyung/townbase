@@ -11,7 +11,7 @@ import {
 
 import type { ChatQuestionInput, ChatQuestionSelection } from "./chat-contract";
 import { parseChatQuestionInput, resolveChatQuestionSelection } from "./chat-contract";
-import { shouldCreateKnowledgeGap } from "../knowledge-gaps/knowledge-gap-rules";
+import { deriveKnowledgeGapCandidate } from "../knowledge-gaps/knowledge-gap-rules";
 import type { ChatMcpSurface } from "./chat.server";
 import { parseChatQuestionResponse, scoreQuestionConfidence } from "./chat.utils";
 import { createDefaultChatDependencies, type ChatExecutionDependencies } from "./chat.runtime";
@@ -76,16 +76,6 @@ export class ChatQuestionService {
       topScore: sources[0]?.score ?? 0,
       isAnswerable: parsedResponse.isAnswerable,
     });
-    const knowledgeGapCreated = shouldCreateKnowledgeGap({
-      questionId: "pending",
-      question: parsedInput.question,
-      requestedMode: parsedInput.mode,
-      resolvedMode: selection.resolvedMode,
-      confidence,
-      isAnswerable: parsedResponse.isAnswerable,
-      knowledgeGap: parsedResponse.knowledgeGap,
-      sources,
-    });
     const questionRecord = await this.deps.prisma.question.create({
       data: {
         workspaceId: parsedInput.workspaceId,
@@ -108,6 +98,33 @@ export class ChatQuestionService {
       sources,
     });
 
+    const knowledgeGapCandidate = deriveKnowledgeGapCandidate({
+      questionId: questionRecord.id,
+      question: parsedInput.question,
+      requestedMode: parsedInput.mode,
+      resolvedMode: selection.resolvedMode,
+      confidence,
+      isAnswerable: parsedResponse.isAnswerable,
+      knowledgeGap: parsedResponse.knowledgeGap,
+      sources,
+    });
+
+    if (knowledgeGapCandidate !== null) {
+      await this.deps.knowledgeGapPersistence.persistKnowledgeGapCandidate({
+        workspaceId: parsedInput.workspaceId,
+        category: knowledgeGapCandidate.category,
+        title: knowledgeGapCandidate.title,
+        description: knowledgeGapCandidate.description,
+        suggestedDocumentTitle: knowledgeGapCandidate.suggestedDocumentTitle,
+        suggestedMarkdownPath: knowledgeGapCandidate.suggestedMarkdownPath,
+        suggestedGithubIssueTitle: knowledgeGapCandidate.suggestedGithubIssueTitle,
+        priority: knowledgeGapCandidate.priority,
+        relatedMode: knowledgeGapCandidate.relatedMode,
+        similarQuestionCount: knowledgeGapCandidate.similarQuestionCount,
+        questionId: knowledgeGapCandidate.questionId,
+      });
+    }
+
     return {
       questionId: questionRecord.id,
       answer: parsedResponse.answer,
@@ -116,7 +133,7 @@ export class ChatQuestionService {
       sources,
       confidence,
       isAnswerable: parsedResponse.isAnswerable,
-      knowledgeGapCreated,
+      knowledgeGapCreated: knowledgeGapCandidate !== null,
       model: this.deps.completion.model,
       latencyMs: Date.now() - startedAt,
       tokenUsage: parsedResponse.tokenUsage,

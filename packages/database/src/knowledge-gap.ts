@@ -31,6 +31,20 @@ export type KnowledgeGapStatusUpdateInput = Readonly<{
   status: GapStatus;
 }>;
 
+export type KnowledgeGapPersistInput = Readonly<{
+  workspaceId: string;
+  questionId: string;
+  category: string;
+  title: string;
+  description: string | null;
+  suggestedDocumentTitle: string;
+  suggestedMarkdownPath: string;
+  suggestedGithubIssueTitle: string;
+  priority: GapPriority;
+  similarQuestionCount: number;
+  relatedMode: RetrievalMode;
+}>;
+
 export type KnowledgeGapQueryClient = Readonly<{
   knowledgeGap: Readonly<{
     findMany: (args: {
@@ -90,5 +104,50 @@ export const updateKnowledgeGapStatus = async (
     },
     data: {
       status: input.status,
+    },
+  });
+
+export const persistKnowledgeGapCandidate = async (
+  client: Readonly<{
+    knowledgeGap: Readonly<{
+      upsert: (args: {
+        where: Prisma.KnowledgeGapWhereUniqueInput;
+        create: Prisma.KnowledgeGapUncheckedCreateInput;
+        update: Prisma.KnowledgeGapUpdateInput;
+      }) => Promise<KnowledgeGapListRow>;
+    }>;
+  }>,
+  input: KnowledgeGapPersistInput,
+): Promise<KnowledgeGapListRow> =>
+  client.knowledgeGap.upsert({
+    where: {
+      workspaceId_questionId: {
+        workspaceId: input.workspaceId,
+        questionId: input.questionId,
+      },
+    },
+    create: {
+      workspaceId: input.workspaceId,
+      questionId: input.questionId,
+      category: input.category,
+      title: input.title,
+      description: input.description,
+      suggestedDocumentTitle: input.suggestedDocumentTitle,
+      suggestedMarkdownPath: input.suggestedMarkdownPath,
+      suggestedGithubIssueTitle: input.suggestedGithubIssueTitle,
+      priority: input.priority,
+      similarQuestionCount: input.similarQuestionCount,
+      relatedMode: input.relatedMode,
+    },
+    update: {
+      category: input.category,
+      title: input.title,
+      description: input.description,
+      suggestedDocumentTitle: input.suggestedDocumentTitle,
+      suggestedMarkdownPath: input.suggestedMarkdownPath,
+      suggestedGithubIssueTitle: input.suggestedGithubIssueTitle,
+      priority: input.priority,
+      similarQuestionCount: input.similarQuestionCount,
+      relatedMode: input.relatedMode,
     },
   });
