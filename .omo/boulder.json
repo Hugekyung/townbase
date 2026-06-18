@@ -71,6 +71,16 @@
       ],
       "status": "completed",
       "worktree_path": null
+    },
+    "townbase-phase9-prompt-template": {
+      "work_id": "townbase-phase9-prompt-template",
+      "active_plan": ".omo/plans/townbase-phase9-prompt-template.md",
+      "plan_name": "townbase-phase9-prompt-template",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "completed",
+      "worktree_path": null
     }
   }
 }

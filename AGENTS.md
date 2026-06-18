@@ -40,6 +40,12 @@
 - 근거 부족을 숨기는 조용한 대체 동작을 추가하지 않는다.
 - 향후 코드도 로컬 Docker 우선 실행과 충돌하지 않게 유지한다.
 
+## 반복 리뷰 주의
+
+- JSON, DB row, optional API payload처럼 `undefined`가 섞일 수 있는 값은 `=== null` / `!== null`만으로 분기하지 말고 nullish 기준(`== null`, `??`)으로 다룬다.
+- package.json의 `main`과 `types`는 런타임/소비 경로를 기준으로 둔다. 빌드가 존재하는 패키지는 TypeScript 원본(`./index.ts`)이 아니라 컴파일 산출물(`dist/...`)을 가리키는지 먼저 확인한다.
+- `switch`로 모드나 템플릿을 분기할 때는 미래 확장에 대비한 fallback을 둔다. 예약 모드는 명시적으로 fallback 처리하거나 exhaustiveness를 보장한다.
+
 ## 작업 완료 규칙
 
 - 코드 생성 또는 코드 수정 작업은 반드시 별도 작업 브랜치에서 진행한다.
