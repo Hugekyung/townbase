@@ -81,6 +81,16 @@
       ],
       "status": "completed",
       "worktree_path": null
+    },
+    "townbase-phase10-mcp-chat-orchestration": {
+      "work_id": "townbase-phase10-mcp-chat-orchestration",
+      "active_plan": ".omo/plans/townbase-phase10-mcp-chat-orchestration.md",
+      "plan_name": "townbase-phase10-mcp-chat-orchestration",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "completed",
+      "worktree_path": null
     }
   }
 }
