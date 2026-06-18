@@ -2,6 +2,7 @@ import {
   buildRetrievalStrategy,
   classifyAutoRetrievalMode,
   rankRetrievalCandidates,
+  scoreRetrievalCandidate,
   resolveRetrievalMode,
   type RetrievalCandidate,
 } from "../src/retrieval-mode";
@@ -20,6 +21,11 @@ describe("retrieval mode strategy", () => {
   it("classifies documentation gap questions deterministically", () => {
     expect(classifyAutoRetrievalMode("What is missing from the docs?")).toBe("documentation_gap");
     expect(classifyAutoRetrievalMode("Which part is undocumented?")).toBe("documentation_gap");
+  });
+
+  it("falls back safely for nullish questions", () => {
+    expect(classifyAutoRetrievalMode(undefined)).toBe("onboarding");
+    expect(classifyAutoRetrievalMode(null)).toBe("onboarding");
   });
 
   it("resolves explicit modes without auto classification", () => {
@@ -57,5 +63,20 @@ describe("retrieval mode strategy", () => {
     expect(ranked[1]?.id).toBe("chunk-1");
     expect(ranked[0]?.rank).toBe(1);
     expect(ranked[1]?.rank).toBe(2);
+  });
+
+  it("treats non-finite source priorities as zero in candidate scoring", () => {
+    const strategy = buildRetrievalStrategy("product_history");
+    const candidate: RetrievalCandidate = {
+      id: "chunk-3",
+      documentId: "doc-3",
+      sourceType: "prd",
+      knowledgeTypes: ["product_history"],
+      status: "active",
+      sourcePriority: Number.NaN,
+      score: 0.5,
+    };
+
+    expect(scoreRetrievalCandidate(strategy, candidate)).toBeCloseTo(0.69, 5);
   });
 });

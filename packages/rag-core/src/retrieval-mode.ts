@@ -41,6 +41,8 @@ export type RetrievalStrategyContext = Readonly<{
   resolvedMode: ResolvedRetrievalMode;
 }>;
 
+type ActiveResolvedRetrievalMode = Exclude<ResolvedRetrievalMode, "change_impact">;
+
 export type RetrievalSelection = Readonly<{
   requestedMode: RetrievalMode;
   resolvedMode: ResolvedRetrievalMode;
@@ -88,7 +90,7 @@ const DOCUMENTATION_GAP_KEYWORDS = [
   "what is not documented",
 ];
 
-const MODE_PROFILES: Readonly<Record<ResolvedRetrievalMode, RetrievalStrategy>> = {
+const MODE_PROFILES: Readonly<Record<ActiveResolvedRetrievalMode, RetrievalStrategy>> = {
   onboarding: {
     mode: "onboarding",
     topK: 8,
@@ -113,22 +115,17 @@ const MODE_PROFILES: Readonly<Record<ResolvedRetrievalMode, RetrievalStrategy>> 
     excludedStatuses: ["archived", "deprecated"],
     sourcePriorityWeight: 0.03,
   },
-  change_impact: {
-    mode: "change_impact",
-    topK: 6,
-    sourceTypes: ["prd", "adr", "notion_page"],
-    knowledgeTypes: ["change_impact", "architecture", "domain_policy"],
-    excludedStatuses: ["archived"],
-    sourcePriorityWeight: 0.03,
-  },
 };
 
-const normalizeQuestion = (question: string): string => question.trim().toLowerCase();
+const normalizeQuestion = (question: string | null | undefined): string =>
+  (question ?? "").trim().toLowerCase();
 
 const containsAny = (question: string, keywords: readonly string[]): boolean =>
   keywords.some((keyword) => question.includes(keyword));
 
-export const classifyAutoRetrievalMode = (question: string): Exclude<ResolvedRetrievalMode, "change_impact"> => {
+export const classifyAutoRetrievalMode = (
+  question: string | null | undefined,
+): Exclude<ResolvedRetrievalMode, "change_impact"> => {
   const normalizedQuestion = normalizeQuestion(question);
 
   if (containsAny(normalizedQuestion, DOCUMENTATION_GAP_KEYWORDS)) {
@@ -148,7 +145,7 @@ export const classifyAutoRetrievalMode = (question: string): Exclude<ResolvedRet
 
 export const resolveRetrievalMode = (
   requestedMode: RetrievalMode,
-  question: string,
+  question: string | null | undefined,
 ): ResolvedRetrievalMode => {
   if (requestedMode !== "auto") {
     return requestedMode;
@@ -159,7 +156,7 @@ export const resolveRetrievalMode = (
 
 export function buildRetrievalStrategy(mode: "change_impact"): null;
 export function buildRetrievalStrategy(
-  mode: Exclude<ResolvedRetrievalMode, "change_impact">,
+  mode: ActiveResolvedRetrievalMode,
 ): RetrievalStrategy;
 export function buildRetrievalStrategy(mode: ResolvedRetrievalMode): RetrievalStrategy | null {
   if (mode === "change_impact") {
@@ -212,7 +209,9 @@ export const scoreRetrievalCandidate = (
   candidate: RetrievalCandidate,
 ): number => {
   const baseScore = normalizeScore(candidate.score);
-  const sourcePriorityBoost = Math.min(Math.max(candidate.sourcePriority, 0), 10) * strategy.sourcePriorityWeight;
+  const normalizedSourcePriority = Number.isFinite(candidate.sourcePriority) ? candidate.sourcePriority : 0;
+  const sourcePriorityBoost =
+    Math.min(Math.max(normalizedSourcePriority, 0), 10) * strategy.sourcePriorityWeight;
   const knowledgeMatchBoost = countKnowledgeMatches(candidate.knowledgeTypes, strategy.knowledgeTypes) * 0.05;
   const sourceTypeBoost = strategy.sourceTypes.includes(candidate.sourceType) ? 0.08 : 0;
   const statusBoost =
