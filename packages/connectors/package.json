@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
-    "@townbase/database": "workspace:*"
+    "@townbase/database": "workspace:*",
+    "@townbase/rag-core": "workspace:*"
   },
   "devDependencies": {
     "@prisma/client": "^6.19.3",

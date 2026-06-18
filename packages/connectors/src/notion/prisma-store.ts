@@ -2,6 +2,7 @@ import type { NotionPageDraft } from "./mapping";
 import type { NotionSyncStore } from "./sync";
 import type { DocumentStatus } from "../classification";
 import type { DocumentIndexStatus } from "../document-state";
+import { replaceDocumentChunks } from "../document-chunks";
 
 type PrismaClientLike = Readonly<{
   document: Readonly<{
@@ -11,7 +12,11 @@ type PrismaClientLike = Readonly<{
       status: string;
       indexStatus: string;
     } | null>;
-    upsert: (input: unknown) => Promise<unknown>;
+    upsert: (input: unknown) => Promise<Readonly<{ id: string }>>;
+  }>;
+  documentChunk: Readonly<{
+    deleteMany: (input: unknown) => Promise<unknown>;
+    createMany: (input: unknown) => Promise<unknown>;
   }>;
   dataSource: Readonly<{
     update: (input: unknown) => Promise<unknown>;
@@ -61,7 +66,7 @@ export const createPrismaNotionSyncStore = (
     };
   },
   async upsertDocument(input: NotionPageDraft) {
-    await prisma.document.upsert({
+    const document = await prisma.document.upsert({
       where: {
         dataSourceId_externalId: {
           dataSourceId: context.dataSourceId,
@@ -99,7 +104,12 @@ export const createPrismaNotionSyncStore = (
         externalUpdatedAt: input.externalUpdatedAt,
         metadata: input.metadata,
       },
+      select: {
+        id: true,
+      },
     });
+
+    await replaceDocumentChunks(prisma, context.workspaceId, document.id, input);
   },
   async markLastSyncedAt(syncedAt: Date) {
     await prisma.dataSource.update({

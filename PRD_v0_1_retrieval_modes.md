@@ -256,11 +256,13 @@ v0.1의 ingestion/indexing은 문서 수집과 검색 품질을 분리해서 관
 - `DocumentChunk`는 `headingPath`, `chunkIndex`, `tokenCount`, `contentHash`를 저장한다.
 - `DocumentChunk`는 원본 문서의 `documentId`와 source URL 또는 `filePath`를 추적할 수 있어야 한다.
 - embedding 생성 실패는 `indexStatus=failed`로 기록되고 sync summary에서 확인 가능해야 한다.
+- v0.1 chunking은 `heading-aware → recursive/token fallback → sourceType routing` 순서의 우선순위를 따른다.
 - Markdown과 Notion 문서는 heading hierarchy를 우선으로 section 단위 chunking을 수행한다.
 - chunk는 `sectionTitle`과 `headingPath`를 보존한다.
 - chunk size는 기본 500~1,000 tokens를 목표로 한다.
 - 인접 chunk 간 100~150 tokens overlap을 허용한다.
 - README, ADR, PRD, schema, migration은 sourceType에 따라 chunking 전략을 다르게 둘 수 있다.
+- `semantic chunking`, `late chunking`, `hierarchical parent-child retrieval`는 v0.1 MVP에서 제외하고 MVP 이후 후보로 둔다.
 
 ### 6.8 Confidence and Feedback Policy
 

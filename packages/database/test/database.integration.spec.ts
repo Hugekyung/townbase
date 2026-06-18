@@ -104,6 +104,12 @@ describe("database integration", () => {
         content: "Phase 1 defines the Prisma-backed database foundation.",
         sourceType: "repo_docs" satisfies SourceType,
         chunkType: "markdown",
+        chunkIndex: 0,
+        sectionTitle: "Phase 1 schema notes",
+        headingPath: ["Phase 1 schema notes"],
+        contentHash: createHash("sha256")
+          .update("Phase 1 defines the Prisma-backed database foundation.")
+          .digest("hex"),
         knowledgeTypes: ["architecture", "database"] satisfies KnowledgeType[],
         domainTags: ["phase-1", "database"],
         sourcePriority: 1,

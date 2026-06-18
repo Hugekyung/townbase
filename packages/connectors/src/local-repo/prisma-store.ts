@@ -1,5 +1,6 @@
 import type { DocumentStatus } from "../classification";
 import type { DocumentIndexStatus } from "../document-state";
+import { replaceDocumentChunks } from "../document-chunks";
 import type { LocalRepoDocumentDraft, LocalRepoSyncStore } from "./types";
 
 type PrismaClientLike = Readonly<{
@@ -10,7 +11,11 @@ type PrismaClientLike = Readonly<{
       status: string;
       indexStatus: string;
     } | null>;
-    upsert: (input: unknown) => Promise<unknown>;
+    upsert: (input: unknown) => Promise<Readonly<{ id: string }>>;
+  }>;
+  documentChunk: Readonly<{
+    deleteMany: (input: unknown) => Promise<unknown>;
+    createMany: (input: unknown) => Promise<unknown>;
   }>;
   dataSource: Readonly<{
     update: (input: unknown) => Promise<unknown>;
@@ -60,7 +65,7 @@ export const createPrismaLocalRepoSyncStore = (
     };
   },
   async upsertDocument(input: LocalRepoDocumentDraft) {
-    await prisma.document.upsert({
+    const document = await prisma.document.upsert({
       where: {
         dataSourceId_externalId: {
           dataSourceId: context.dataSourceId,
@@ -102,7 +107,12 @@ export const createPrismaLocalRepoSyncStore = (
         externalUpdatedAt: input.externalUpdatedAt,
         metadata: input.metadata,
       },
+      select: {
+        id: true,
+      },
     });
+
+    await replaceDocumentChunks(prisma, context.workspaceId, document.id, input);
   },
   async markLastSyncedAt(syncedAt: Date) {
     await prisma.dataSource.update({

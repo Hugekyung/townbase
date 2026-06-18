@@ -84,6 +84,9 @@ importers:
       '@townbase/database':
         specifier: workspace:*
         version: link:../database
+      '@townbase/rag-core':
+        specifier: workspace:*
+        version: link:../rag-core
     devDependencies:
       '@prisma/client':
         specifier: ^6.19.3
