@@ -1,0 +1,26 @@
+Phase 11 task 4 evidence
+
+Commands:
+- pnpm --filter @townbase/api test -- --runTestsByPath test/mcp-gaps.spec.ts test/mcp-drafts.spec.ts test/chat.spec.ts
+- pnpm --filter @townbase/api build
+- pnpm --filter @townbase/api test
+- pnpm exec ts-node --transpile-only --project tsconfig.json <<'NODE'
+  import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+  import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+  async function main(): Promise<void> {
+    const transport = new StdioClientTransport({ command: 'pnpm', args: ['mcp:stdio'], cwd: process.cwd(), stderr: 'pipe' });
+    const client = new Client({ name: 'phase11-qa', version: '0.1.0' }, { capabilities: {} });
+    await client.connect(transport);
+    await client.listTools();
+    await client.callTool({ name: 'workspace_knowledge.knowledge_gap', arguments: { workspaceId: 'workspace-1', query: 'schema' } });
+    await client.callTool({ name: 'workspace_knowledge.knowledge_gap', arguments: { workspaceId: 'workspace-1', action: 'update_status', knowledgeGapId: 'cmqjshd1p0003f8udxscyz6n5', status: 'resolved' } });
+    await client.close();
+  }
+  void main();
+  NODE
+
+Result:
+- PASS
+
+Notes:
+- MCP knowledge-gap query/status tool is discoverable and functional.

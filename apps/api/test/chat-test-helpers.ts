@@ -1,4 +1,5 @@
 import { ChatQuestionService } from "../src/chat";
+import { KnowledgeGapsService } from "../src/knowledge-gaps/knowledge-gaps.service";
 
 export const createMockQuestionService = (): ChatQuestionService =>
   new ChatQuestionService({
@@ -24,6 +25,9 @@ export const createMockQuestionService = (): ChatQuestionService =>
     persistence: {
       persistQuestionTrace: jest.fn(),
     },
+    knowledgeGapPersistence: {
+      persistKnowledgeGapCandidate: jest.fn(),
+    },
     transport: {
       describeSurface: jest.fn().mockReturnValue({
         serverName: "@townbase/api-chat",
@@ -32,5 +36,20 @@ export const createMockQuestionService = (): ChatQuestionService =>
         transportKind: "stdio",
         tools: [],
       }),
+    },
+  } as never);
+
+export const createMockKnowledgeGapsService = (): KnowledgeGapsService =>
+  new KnowledgeGapsService({
+    workspace: {
+      async findUniqueOrThrow() {
+        return {
+          id: "workspace-1",
+        };
+      },
+    },
+    knowledgeGap: {
+      findMany: jest.fn(),
+      update: jest.fn(),
     },
   } as never);

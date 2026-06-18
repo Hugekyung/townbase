@@ -1,8 +1,10 @@
 import {
   createPrismaClient,
+  persistKnowledgeGapCandidate,
   persistQuestionRetrievalSelection,
   searchDocumentChunksByEmbedding,
   type PrismaClient,
+  type KnowledgeGapPersistInput,
 } from "@townbase/database";
 import {
   createOpenAIEmbeddingModel,
@@ -71,16 +73,21 @@ export type ChatPersistence = Readonly<{
   }) => Promise<void>;
 }>;
 
+export type KnowledgeGapPersistence = Readonly<{
+  persistKnowledgeGapCandidate: (input: KnowledgeGapPersistInput) => Promise<void>;
+}>;
+
 export type ChatTransportSurface = Readonly<{
   describeSurface: () => ChatMcpSurface;
 }>;
 
 export type ChatExecutionDependencies = Readonly<{
-  prisma: Pick<PrismaClient, "question" | "questionSource" | "documentChunk" | "$transaction">;
+  prisma: Pick<PrismaClient, "question" | "questionSource" | "knowledgeGap" | "documentChunk" | "$transaction">;
   embedding: EmbeddingModel;
   retriever: ChatRetrievalExecutor;
   completion: ChatCompletionClient;
   persistence: ChatPersistence;
+  knowledgeGapPersistence: KnowledgeGapPersistence;
   transport: ChatTransportSurface;
 }>;
 
@@ -207,6 +214,11 @@ export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
             score: source.score,
           })),
         });
+      },
+    },
+    knowledgeGapPersistence: {
+      async persistKnowledgeGapCandidate(input) {
+        await persistKnowledgeGapCandidate(prisma, input);
       },
     },
     transport: {

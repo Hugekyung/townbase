@@ -1,9 +1,12 @@
 import { ChatToolRegistry } from "../src/chat";
-import { createMockQuestionService } from "./chat-test-helpers";
+import { createMockKnowledgeGapsService, createMockQuestionService } from "./chat-test-helpers";
 
 describe("MCP draft tool", () => {
   it("is discoverable and returns the deferred phase 12 contract", async () => {
-    const registry = new ChatToolRegistry(createMockQuestionService());
+    const registry = new ChatToolRegistry(
+      createMockQuestionService(),
+      createMockKnowledgeGapsService(),
+    );
 
     expect(registry.listTools().map((tool) => tool.name)).toContain(
       "workspace_knowledge.draft",

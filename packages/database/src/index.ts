@@ -18,4 +18,15 @@ export {
   type PersistQuestionRetrievalSelectionSourceInput,
   type RetrievalMode,
 } from "./retrieval-mode";
+export {
+  buildKnowledgeGapWhere,
+  persistKnowledgeGapCandidate,
+  listKnowledgeGaps,
+  updateKnowledgeGapStatus,
+  type KnowledgeGapListFilter,
+  type KnowledgeGapListRow,
+  type KnowledgeGapPersistInput,
+  type KnowledgeGapQueryClient,
+  type KnowledgeGapStatusUpdateInput,
+} from "./knowledge-gap";
 export type { PrismaClient } from "@prisma/client";
