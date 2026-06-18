@@ -1,4 +1,5 @@
 import { chunkDocument, type ChunkingDocument, type ChunkingMetadata } from "@townbase/rag-core";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import type { KnowledgeType, SourceType, DocumentStatus } from "./classification";
 
@@ -13,11 +14,10 @@ type ChunkableDocumentDraft = Readonly<{
   status: DocumentStatus;
 }>;
 
+type PrismaDocumentChunkWriteClient = Pick<Prisma.TransactionClient, "documentChunk">;
+
 type PrismaDocumentChunkClient = Readonly<{
-  documentChunk: Readonly<{
-    deleteMany: (input: Readonly<{ where: Readonly<{ workspaceId: string; documentId: string }> }>) => Promise<unknown>;
-    createMany: (input: Readonly<{ data: readonly unknown[] }>) => Promise<unknown>;
-  }>;
+  $transaction: PrismaClient["$transaction"];
 }>;
 
 export const buildChunkingDocument = (
@@ -39,8 +39,8 @@ export const buildChunkingDocument = (
   resolvedMode: null,
 });
 
-export const replaceDocumentChunks = async (
-  prisma: PrismaDocumentChunkClient,
+export const replaceDocumentChunksInTransaction = async (
+  prisma: PrismaDocumentChunkWriteClient,
   workspaceId: string,
   documentId: string,
   draft: ChunkableDocumentDraft,
@@ -74,6 +74,16 @@ export const replaceDocumentChunks = async (
       sourcePriority: chunk.sourcePriority,
       tokenCount: chunk.tokenCount,
       metadata: chunk.metadata,
-    })),
+    }) as Prisma.DocumentChunkCreateManyInput),
   });
 };
+
+export const replaceDocumentChunks = async (
+  prisma: PrismaDocumentChunkClient,
+  workspaceId: string,
+  documentId: string,
+  draft: ChunkableDocumentDraft,
+): Promise<void> =>
+  prisma.$transaction(async (transactionClient: Prisma.TransactionClient) =>
+    replaceDocumentChunksInTransaction(transactionClient, workspaceId, documentId, draft),
+  );

@@ -1,13 +1,11 @@
-import { normalizeWhitespace } from "./tokenizer";
-
 export type MarkdownSection = Readonly<{
   headingPath: readonly string[];
   sectionTitle: string | null;
   content: string;
 }>;
 
-const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/;
-const FENCE_RE = /^```/;
+const HEADING_RE = /^ {0,3}(#{1,6})\s+(.+?)\s*$/;
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
 
 export const parseMarkdownSections = (content: string): readonly MarkdownSection[] => {
   const lines = content.split(/\r?\n/);
@@ -18,8 +16,8 @@ export const parseMarkdownSections = (content: string): readonly MarkdownSection
   let inFence = false;
 
   const flushSection = (path: readonly string[]): void => {
-    const normalized = normalizeWhitespace(bodyLines.join("\n"));
-    if (normalized.length === 0) {
+    const raw = bodyLines.join("\n");
+    if (raw.trim().length === 0) {
       bodyLines = [];
       return;
     }
@@ -27,13 +25,13 @@ export const parseMarkdownSections = (content: string): readonly MarkdownSection
     sections.push({
       headingPath: [...path],
       sectionTitle: path.length === 0 ? null : path[path.length - 1] ?? null,
-      content: normalized,
+      content: raw,
     });
     bodyLines = [];
   };
 
   for (const line of lines) {
-    if (FENCE_RE.test(line.trim())) {
+    if (FENCE_RE.test(line)) {
       inFence = !inFence;
       bodyLines.push(line);
       continue;

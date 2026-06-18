@@ -1,9 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import type { PrismaClient } from "@prisma/client";
+
 export type DatabaseRuntimeModule = Readonly<{
   createPrismaClient: () => {
     $connect: () => Promise<void>;
+    $transaction: PrismaClient["$transaction"];
     document: {
       findUnique: (input: unknown) => Promise<{
         externalUpdatedAt: Date | null;

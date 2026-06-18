@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { replaceDocumentChunks, buildChunkingDocument } from "../src/document-chunks";
 
 describe("document chunk persistence", () => {
@@ -34,15 +36,26 @@ describe("document chunk persistence", () => {
     });
   });
 
-  it("replaces stale chunks before writing the new chunk set", async () => {
+  it("replaces stale chunks inside a transaction before writing the new chunk set", async () => {
     const deleteMany = jest.fn().mockResolvedValue(undefined);
     const createMany = jest.fn().mockResolvedValue(undefined);
+    const operations: string[] = [];
     const prisma = {
-      documentChunk: {
-        deleteMany,
-        createMany,
-      },
-    };
+      $transaction: jest.fn(async (transactionClient: (value: Prisma.TransactionClient) => Promise<unknown>) =>
+        transactionClient({
+            documentChunk: {
+              deleteMany: async (input: unknown) => {
+                operations.push("delete");
+                return deleteMany(input);
+              },
+              createMany: async (input: unknown) => {
+                operations.push("create");
+                return createMany(input);
+              },
+            },
+        } as unknown as Prisma.TransactionClient),
+      ),
+    } as unknown as Parameters<typeof replaceDocumentChunks>[0];
 
     await replaceDocumentChunks(prisma, "workspace-1", "document-1", {
       sourceType: "repo_docs",
@@ -68,6 +81,8 @@ describe("document chunk persistence", () => {
       status: "active",
     });
 
+    expect(operations).toEqual(["delete", "create", "delete", "create"]);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
     expect(deleteMany).toHaveBeenCalledTimes(2);
     expect(deleteMany).toHaveBeenNthCalledWith(1, {
       where: {
