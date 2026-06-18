@@ -1,4 +1,11 @@
 export { chunkDocument, countTokens } from "./chunker";
+export {
+  createOpenAIEmbeddingModel,
+  DEFAULT_OPENAI_EMBEDDING_MODEL_NAME,
+  type EmbeddingModel,
+  type EmbeddingModelConfig,
+  type EmbeddingVector,
+} from "./embedding";
 export type {
   ChunkType,
   ChunkingChunk,

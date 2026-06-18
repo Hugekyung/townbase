@@ -2,21 +2,28 @@ import type { NotionPageDraft } from "./mapping";
 import type { NotionSyncStore } from "./sync";
 import type { DocumentStatus } from "../classification";
 import type { DocumentIndexStatus } from "../document-state";
-import { replaceDocumentChunksInTransaction } from "../document-chunks";
+import { replaceDocumentChunksInTransaction, buildChunkingDocument } from "../document-chunks";
 import type { Prisma, PrismaClient } from "@prisma/client";
+import type { EmbeddingModel } from "@townbase/rag-core";
+import { chunkDocument } from "@townbase/rag-core";
+import { indexDocumentChunks, type EmbeddableChunk } from "../embedding";
 
 type PrismaDocumentWriteTransactionClient = Prisma.TransactionClient;
 
 type PrismaClientLike = Readonly<{
   $transaction: PrismaClient["$transaction"];
+  $queryRaw: PrismaClient["$queryRaw"];
+  $executeRaw: PrismaClient["$executeRaw"];
   document: Readonly<{
     findUnique: (input: unknown) => Promise<{
+      id?: string;
       externalUpdatedAt: Date | null;
       contentHash: string | null;
       status: string;
       indexStatus: string;
     } | null>;
     upsert: (input: unknown) => Promise<Readonly<{ id: string }>>;
+    update: (input: unknown) => Promise<unknown>;
   }>;
   dataSource: Readonly<{
     update: (input: unknown) => Promise<unknown>;
@@ -26,6 +33,7 @@ type PrismaClientLike = Readonly<{
 type PrismaNotionStoreContext = Readonly<{
   workspaceId: string;
   dataSourceId: string;
+  embeddingModel?: EmbeddingModel;
 }>;
 
 const normalizeStatus = (status: string): DocumentStatus =>
@@ -112,6 +120,50 @@ export const createPrismaNotionSyncStore = (
 
       await replaceDocumentChunksInTransaction(transactionClient, context.workspaceId, document.id, input);
     });
+
+    if (context.embeddingModel === undefined) {
+      return;
+    }
+
+    const document = await prisma.document.findUnique({
+      where: {
+        dataSourceId_externalId: {
+          dataSourceId: context.dataSourceId,
+          externalId: input.externalId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (document === null) {
+      throw new Error(`Missing persisted document for external ID ${input.externalId}`);
+    }
+
+    if (document.id === undefined) {
+      throw new Error(`Persisted document ${input.externalId} is missing an id`);
+    }
+
+    const chunks: readonly EmbeddableChunk[] = chunkDocument(buildChunkingDocument(document.id, input)).map(
+      (chunk) => ({
+        chunkId: chunk.chunkId,
+        documentId: chunk.documentId,
+        content: chunk.content,
+      }),
+    );
+
+    const result = await indexDocumentChunks(
+      prisma,
+      context.embeddingModel,
+      context.workspaceId,
+      document.id,
+      chunks,
+    );
+
+    if (result.kind === "failed") {
+      throw new Error(`Embedding failed for document ${document.id}: ${result.reason}`);
+    }
   },
   async markLastSyncedAt(syncedAt: Date) {
     await prisma.dataSource.update({

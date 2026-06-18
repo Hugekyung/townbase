@@ -51,6 +51,26 @@
       ],
       "status": "completed",
       "worktree_path": null
+    },
+    "townbase-phase6-chunking": {
+      "work_id": "townbase-phase6-chunking",
+      "active_plan": ".omo/plans/townbase-phase6-chunking.md",
+      "plan_name": "townbase-phase6-chunking",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "completed",
+      "worktree_path": null
+    },
+    "townbase-phase7-embedding-vector-search": {
+      "work_id": "townbase-phase7-embedding-vector-search",
+      "active_plan": ".omo/plans/townbase-phase7-embedding-vector-search.md",
+      "plan_name": "townbase-phase7-embedding-vector-search",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "completed",
+      "worktree_path": null
     }
   }
 }

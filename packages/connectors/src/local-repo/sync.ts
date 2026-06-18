@@ -1,5 +1,10 @@
 import { mapLocalRepoFileToDocumentDraft } from "./mapping";
-import type { LocalRepoSyncInput, LocalRepoSyncStore, LocalRepoSyncSummary } from "./types";
+import type {
+  LocalRepoSyncFailure,
+  LocalRepoSyncInput,
+  LocalRepoSyncStore,
+  LocalRepoSyncSummary,
+} from "./types";
 
 const compareModifiedAt = (left: Date | null, right: Date | null): number => {
   if (left === null || right === null) {
@@ -28,6 +33,9 @@ const upsertDraft = async (
   );
 };
 
+const toFailureReason = (error: unknown): string =>
+  error instanceof Error ? error.message : "Unknown sync failure";
+
 export const syncLocalRepoFiles = async (
   input: LocalRepoSyncInput,
   store: LocalRepoSyncStore,
@@ -36,6 +44,8 @@ export const syncLocalRepoFiles = async (
   let updated = 0;
   let archived = 0;
   let skippedUnchanged = 0;
+  let failed = 0;
+  const failures: LocalRepoSyncFailure[] = [];
 
   for (const file of input.files) {
     const existing = await store.findDocumentByExternalId(`${file.repoName}:${file.filePath}`);
@@ -53,7 +63,17 @@ export const syncLocalRepoFiles = async (
         }
       }
 
-      await store.upsertDocument(draft);
+      try {
+        await store.upsertDocument(draft);
+      } catch (error: unknown) {
+        failed += 1;
+        failures.push({
+          repoName: file.repoName,
+          filePath: file.filePath,
+          reason: toFailureReason(error),
+        });
+        continue;
+      }
       archived += 1;
       continue;
     }
@@ -64,12 +84,32 @@ export const syncLocalRepoFiles = async (
         continue;
       }
 
-      await upsertDraft(store, input, file);
+      try {
+        await upsertDraft(store, input, file);
+      } catch (error: unknown) {
+        failed += 1;
+        failures.push({
+          repoName: file.repoName,
+          filePath: file.filePath,
+          reason: toFailureReason(error),
+        });
+        continue;
+      }
       updated += 1;
       continue;
     }
 
-    await upsertDraft(store, input, file);
+    try {
+      await upsertDraft(store, input, file);
+    } catch (error: unknown) {
+      failed += 1;
+      failures.push({
+        repoName: file.repoName,
+        filePath: file.filePath,
+        reason: toFailureReason(error),
+      });
+      continue;
+    }
     inserted += 1;
   }
 
@@ -80,7 +120,7 @@ export const syncLocalRepoFiles = async (
     updated,
     archived,
     skippedUnchanged,
-    failed: 0,
-    failures: [],
+    failed,
+    failures,
   };
 };
