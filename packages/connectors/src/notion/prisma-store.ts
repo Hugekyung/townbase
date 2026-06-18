@@ -2,8 +2,13 @@ import type { NotionPageDraft } from "./mapping";
 import type { NotionSyncStore } from "./sync";
 import type { DocumentStatus } from "../classification";
 import type { DocumentIndexStatus } from "../document-state";
+import { replaceDocumentChunksInTransaction } from "../document-chunks";
+import type { Prisma, PrismaClient } from "@prisma/client";
+
+type PrismaDocumentWriteTransactionClient = Prisma.TransactionClient;
 
 type PrismaClientLike = Readonly<{
+  $transaction: PrismaClient["$transaction"];
   document: Readonly<{
     findUnique: (input: unknown) => Promise<{
       externalUpdatedAt: Date | null;
@@ -11,7 +16,7 @@ type PrismaClientLike = Readonly<{
       status: string;
       indexStatus: string;
     } | null>;
-    upsert: (input: unknown) => Promise<unknown>;
+    upsert: (input: unknown) => Promise<Readonly<{ id: string }>>;
   }>;
   dataSource: Readonly<{
     update: (input: unknown) => Promise<unknown>;
@@ -61,44 +66,51 @@ export const createPrismaNotionSyncStore = (
     };
   },
   async upsertDocument(input: NotionPageDraft) {
-    await prisma.document.upsert({
-      where: {
-        dataSourceId_externalId: {
+    await prisma.$transaction(async (transactionClient: PrismaDocumentWriteTransactionClient) => {
+      const document = await transactionClient.document.upsert({
+        where: {
+          dataSourceId_externalId: {
+            dataSourceId: context.dataSourceId,
+            externalId: input.externalId,
+          },
+        },
+        create: {
+          workspaceId: context.workspaceId,
           dataSourceId: context.dataSourceId,
           externalId: input.externalId,
+          sourceType: input.sourceType,
+          title: input.title,
+          url: input.url,
+          content: input.content,
+          contentHash: input.contentHash,
+          indexStatus: input.indexStatus,
+          status: input.status,
+          knowledgeTypes: [...input.knowledgeTypes],
+          domainTags: [...input.domainTags],
+          externalCreatedAt: input.externalCreatedAt,
+          externalUpdatedAt: input.externalUpdatedAt,
+          metadata: input.metadata,
         },
-      },
-      create: {
-        workspaceId: context.workspaceId,
-        dataSourceId: context.dataSourceId,
-        externalId: input.externalId,
-        sourceType: input.sourceType,
-        title: input.title,
-        url: input.url,
-        content: input.content,
-        contentHash: input.contentHash,
-        indexStatus: input.indexStatus,
-        status: input.status,
-        knowledgeTypes: [...input.knowledgeTypes],
-        domainTags: [...input.domainTags],
-        externalCreatedAt: input.externalCreatedAt,
-        externalUpdatedAt: input.externalUpdatedAt,
-        metadata: input.metadata,
-      },
-      update: {
-        sourceType: input.sourceType,
-        title: input.title,
-        url: input.url,
-        content: input.content,
-        contentHash: input.contentHash,
-        indexStatus: input.indexStatus,
-        status: input.status,
-        knowledgeTypes: [...input.knowledgeTypes],
-        domainTags: [...input.domainTags],
-        externalCreatedAt: input.externalCreatedAt,
-        externalUpdatedAt: input.externalUpdatedAt,
-        metadata: input.metadata,
-      },
+        update: {
+          sourceType: input.sourceType,
+          title: input.title,
+          url: input.url,
+          content: input.content,
+          contentHash: input.contentHash,
+          indexStatus: input.indexStatus,
+          status: input.status,
+          knowledgeTypes: [...input.knowledgeTypes],
+          domainTags: [...input.domainTags],
+          externalCreatedAt: input.externalCreatedAt,
+          externalUpdatedAt: input.externalUpdatedAt,
+          metadata: input.metadata,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      await replaceDocumentChunksInTransaction(transactionClient, context.workspaceId, document.id, input);
     });
   },
   async markLastSyncedAt(syncedAt: Date) {

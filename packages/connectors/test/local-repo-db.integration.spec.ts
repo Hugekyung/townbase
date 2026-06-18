@@ -45,7 +45,8 @@ describe("local repo connector database integration", () => {
       await fs.mkdir(path.join(rootPath, "repo-a", "docs"), { recursive: true });
       await fs.mkdir(path.join(rootPath, "repo-b", "docs"), { recursive: true });
 
-      await fs.writeFile(path.join(rootPath, "repo-a", "README.md"), "# Repo A\n");
+      const initialReadme = "# Repo A\nintro text\n";
+      await fs.writeFile(path.join(rootPath, "repo-a", "README.md"), initialReadme);
       await fs.writeFile(path.join(rootPath, "repo-a", "docs", "guide.md"), "# Guide\n");
       await fs.writeFile(path.join(rootPath, "repo-b", "README.md"), "# Repo B\n");
 
@@ -85,6 +86,96 @@ describe("local repo connector database integration", () => {
       });
 
       const files = await collectSelectedLocalRepoFiles(rootPath, ["repo-a"]);
+      const store: Parameters<typeof syncLocalRepoFiles>[1] = {
+        async findDocumentByExternalId(externalId: string) {
+          const document = await prisma.document.findUnique({
+            where: {
+              dataSourceId_externalId: {
+                dataSourceId: dataSource.id,
+                externalId,
+              },
+            },
+            select: {
+              externalUpdatedAt: true,
+              contentHash: true,
+              status: true,
+              indexStatus: true,
+            },
+          });
+
+          if (document === null) {
+            return null;
+          }
+
+          return {
+            externalUpdatedAt: document.externalUpdatedAt,
+            contentHash: document.contentHash,
+            status: document.status === "archived" ? "archived" : "active",
+            indexStatus:
+              document.indexStatus === "failed" || document.indexStatus === "indexed"
+                ? document.indexStatus
+                : "pending",
+          };
+        },
+        async upsertDocument(input) {
+          await prisma.document.upsert({
+            where: {
+              dataSourceId_externalId: {
+                dataSourceId: dataSource.id,
+                externalId: input.externalId,
+              },
+            },
+            create: {
+              workspaceId: workspace.id,
+              dataSourceId: dataSource.id,
+              externalId: input.externalId,
+              sourceType: input.sourceType,
+              title: input.title,
+              url: input.url,
+              filePath: input.filePath,
+              repoName: input.repoName,
+              content: input.content,
+              contentHash: input.contentHash,
+              indexStatus: input.indexStatus,
+              status: input.status,
+              knowledgeTypes: [...input.knowledgeTypes],
+              domainTags: [...input.domainTags],
+              externalCreatedAt: input.externalCreatedAt,
+              externalUpdatedAt: input.externalUpdatedAt,
+              metadata: input.metadata,
+            },
+            update: {
+              sourceType: input.sourceType,
+              title: input.title,
+              url: input.url,
+              filePath: input.filePath,
+              repoName: input.repoName,
+              content: input.content,
+              contentHash: input.contentHash,
+              indexStatus: input.indexStatus,
+              status: input.status,
+              knowledgeTypes: [...input.knowledgeTypes],
+              domainTags: [...input.domainTags],
+              externalCreatedAt: input.externalCreatedAt,
+              externalUpdatedAt: input.externalUpdatedAt,
+              metadata: input.metadata,
+            },
+            select: {
+              id: true,
+            },
+          });
+        },
+        async markLastSyncedAt(syncedAtValue: Date) {
+          await prisma.dataSource.update({
+            where: {
+              id: dataSource.id,
+            },
+            data: {
+              lastSyncedAt: syncedAtValue,
+            },
+          });
+        },
+      };
       const result = await syncLocalRepoFiles(
         {
           workspaceId: workspace.id,
@@ -92,93 +183,7 @@ describe("local repo connector database integration", () => {
           syncedAt: new Date("2024-01-10T00:00:00.000Z"),
           files,
         },
-        {
-          async findDocumentByExternalId(externalId: string) {
-            const document = await prisma.document.findUnique({
-              where: {
-                dataSourceId_externalId: {
-                  dataSourceId: dataSource.id,
-                  externalId,
-                },
-              },
-              select: {
-                externalUpdatedAt: true,
-                contentHash: true,
-                status: true,
-                indexStatus: true,
-              },
-            });
-
-            if (document === null) {
-              return null;
-            }
-
-            return {
-              externalUpdatedAt: document.externalUpdatedAt,
-              contentHash: document.contentHash,
-              status: document.status === "archived" ? "archived" : "active",
-              indexStatus:
-                document.indexStatus === "failed" || document.indexStatus === "indexed"
-                  ? document.indexStatus
-                  : "pending",
-            };
-          },
-          async upsertDocument(input) {
-            await prisma.document.upsert({
-              where: {
-                dataSourceId_externalId: {
-                  dataSourceId: dataSource.id,
-                  externalId: input.externalId,
-                },
-              },
-              create: {
-                workspaceId: workspace.id,
-                dataSourceId: dataSource.id,
-                externalId: input.externalId,
-                sourceType: input.sourceType,
-                title: input.title,
-                url: input.url,
-                filePath: input.filePath,
-                repoName: input.repoName,
-                content: input.content,
-                contentHash: input.contentHash,
-                indexStatus: input.indexStatus,
-                status: input.status,
-                knowledgeTypes: [...input.knowledgeTypes],
-                domainTags: [...input.domainTags],
-                externalCreatedAt: input.externalCreatedAt,
-                externalUpdatedAt: input.externalUpdatedAt,
-                metadata: input.metadata,
-              },
-              update: {
-                sourceType: input.sourceType,
-                title: input.title,
-                url: input.url,
-                filePath: input.filePath,
-                repoName: input.repoName,
-                content: input.content,
-                contentHash: input.contentHash,
-                indexStatus: input.indexStatus,
-                status: input.status,
-                knowledgeTypes: [...input.knowledgeTypes],
-                domainTags: [...input.domainTags],
-                externalCreatedAt: input.externalCreatedAt,
-                externalUpdatedAt: input.externalUpdatedAt,
-                metadata: input.metadata,
-              },
-            });
-          },
-          async markLastSyncedAt(syncedAtValue: Date) {
-            await prisma.dataSource.update({
-              where: {
-                id: dataSource.id,
-              },
-              data: {
-                lastSyncedAt: syncedAtValue,
-              },
-            });
-          },
-        },
+        store,
       );
 
       const persistedDataSource = await prisma.dataSource.findUniqueOrThrow({
@@ -220,9 +225,60 @@ describe("local repo connector database integration", () => {
       expect(repoADocument.repoName).toBe("repo-a");
       expect(repoADocument.sourceType).toBe("repo_readme");
       expect(repoADocument.knowledgeTypes).toEqual(["onboarding"]);
-      expect(repoADocument.contentHash).toBe(createHash("sha256").update("# Repo A\n").digest("hex"));
+      expect(repoADocument.contentHash).toBe(createHash("sha256").update(initialReadme).digest("hex"));
       expect(repoADocument.indexStatus).toBe("pending");
       expect(repoBDocument).toBeNull();
+
+      const persistedChunks = await prisma.documentChunk.findMany({
+        where: {
+          documentId: repoADocument.id,
+        },
+        orderBy: {
+          chunkIndex: "asc",
+        },
+      });
+
+      expect(persistedChunks).toHaveLength(1);
+      expect(persistedChunks[0]).toMatchObject({
+        documentId: repoADocument.id,
+        chunkIndex: 0,
+        sectionTitle: "Repo A",
+        headingPath: ["Repo A"],
+        sourceType: "repo_readme",
+        chunkType: "markdown_section",
+        content: "intro text",
+        tokenCount: 2,
+        sourcePriority: 1,
+      });
+
+      await fs.writeFile(path.join(rootPath, "repo-a", "README.md"), "# Repo A updated\nupdated text\n");
+
+      const updatedFiles = await collectSelectedLocalRepoFiles(rootPath, ["repo-a"]);
+      await syncLocalRepoFiles(
+        {
+          workspaceId: workspace.id,
+          dataSourceId: dataSource.id,
+          syncedAt: new Date("2024-01-11T00:00:00.000Z"),
+          files: updatedFiles,
+        },
+        store,
+      );
+
+      const updatedChunks = await prisma.documentChunk.findMany({
+        where: {
+          documentId: repoADocument.id,
+        },
+        orderBy: {
+          chunkIndex: "asc",
+        },
+      });
+
+      expect(updatedChunks).toHaveLength(1);
+      expect(updatedChunks[0]?.id).not.toBe(persistedChunks[0]?.id);
+      expect(updatedChunks[0]).toMatchObject({
+        content: "updated text",
+        chunkIndex: 0,
+      });
     } finally {
       await fs.rm(rootPath, { recursive: true, force: true });
     }

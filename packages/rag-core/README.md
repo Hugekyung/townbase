@@ -1,3 +1,8 @@
 # packages/rag-core
 
-Planned chunking, retrieval, and scoring logic live here in later phases.
+Pure chunking core for Phase 6 lives here.
+
+Exports:
+
+- `chunkDocument(document, options?)`
+- `countTokens(text)`

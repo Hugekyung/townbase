@@ -9,6 +9,7 @@ import {
 import { syncNotionPages } from "../src/notion/sync";
 
 const clearDatabase = async (prisma: ReturnType<typeof createPrismaClient>): Promise<void> => {
+  await prisma.documentChunk.deleteMany();
   await prisma.document.deleteMany();
   await prisma.dataSource.deleteMany();
 };
@@ -69,6 +70,93 @@ describe("notion connector database integration", () => {
     });
 
     const syncedAt = new Date("2024-01-10T00:00:00.000Z");
+    const store: Parameters<typeof syncNotionPages>[1] = {
+      async findDocumentByExternalId(externalId: string) {
+        const document = await prisma.document.findUnique({
+          where: {
+            dataSourceId_externalId: {
+              dataSourceId: dataSource.id,
+              externalId,
+            },
+          },
+          select: {
+            externalUpdatedAt: true,
+            status: true,
+            contentHash: true,
+            indexStatus: true,
+          },
+        });
+
+        if (document === null) {
+          return null;
+        }
+
+        return {
+          externalUpdatedAt: document.externalUpdatedAt,
+          status: document.status === "archived" ? "archived" : "active",
+          contentHash: document.contentHash,
+          indexStatus:
+            document.indexStatus === "failed" || document.indexStatus === "indexed"
+              ? document.indexStatus
+              : "pending",
+        };
+      },
+      async upsertDocument(input) {
+        await prisma.document.upsert({
+          where: {
+            dataSourceId_externalId: {
+              dataSourceId: dataSource.id,
+              externalId: input.externalId,
+            },
+          },
+          create: {
+            workspaceId: workspace.id,
+            dataSourceId: dataSource.id,
+            externalId: input.externalId,
+            sourceType: input.sourceType,
+            title: input.title,
+            url: input.url,
+            content: input.content,
+            contentHash: input.contentHash,
+            status: input.status,
+            indexStatus: input.indexStatus,
+            knowledgeTypes: [...input.knowledgeTypes],
+            domainTags: [...input.domainTags],
+            externalCreatedAt: input.externalCreatedAt,
+            externalUpdatedAt: input.externalUpdatedAt,
+            metadata: input.metadata,
+          },
+          update: {
+            sourceType: input.sourceType,
+            title: input.title,
+            url: input.url,
+            content: input.content,
+            contentHash: input.contentHash,
+            status: input.status,
+            indexStatus: input.indexStatus,
+            knowledgeTypes: [...input.knowledgeTypes],
+            domainTags: [...input.domainTags],
+            externalCreatedAt: input.externalCreatedAt,
+            externalUpdatedAt: input.externalUpdatedAt,
+            metadata: input.metadata,
+          },
+          select: {
+            id: true,
+          },
+        });
+      },
+      async markLastSyncedAt(syncedAtValue: Date) {
+        await prisma.dataSource.update({
+          where: {
+            id: dataSource.id,
+          },
+          data: {
+            lastSyncedAt: syncedAtValue,
+          },
+        });
+      },
+    };
+
     const result = await syncNotionPages(
       {
         workspaceId: workspace.id,
@@ -88,88 +176,7 @@ describe("notion connector database integration", () => {
           },
         ],
       },
-      {
-        async findDocumentByExternalId(externalId: string) {
-          const document = await prisma.document.findUnique({
-            where: {
-              dataSourceId_externalId: {
-                dataSourceId: dataSource.id,
-                externalId,
-              },
-            },
-            select: {
-              externalUpdatedAt: true,
-              status: true,
-              contentHash: true,
-              indexStatus: true,
-            },
-          });
-
-          if (document === null) {
-            return null;
-          }
-
-          return {
-            externalUpdatedAt: document.externalUpdatedAt,
-            status: document.status === "archived" ? "archived" : "active",
-            contentHash: document.contentHash,
-            indexStatus: document.indexStatus === "failed" || document.indexStatus === "indexed"
-              ? document.indexStatus
-              : "pending",
-          };
-        },
-        async upsertDocument(input) {
-          await prisma.document.upsert({
-            where: {
-              dataSourceId_externalId: {
-                dataSourceId: dataSource.id,
-                externalId: input.externalId,
-              },
-            },
-            create: {
-              workspaceId: workspace.id,
-              dataSourceId: dataSource.id,
-              externalId: input.externalId,
-              sourceType: input.sourceType,
-              title: input.title,
-              url: input.url,
-              content: input.content,
-              contentHash: input.contentHash,
-              status: input.status,
-              indexStatus: input.indexStatus,
-              knowledgeTypes: [...input.knowledgeTypes],
-              domainTags: [...input.domainTags],
-              externalCreatedAt: input.externalCreatedAt,
-              externalUpdatedAt: input.externalUpdatedAt,
-              metadata: input.metadata,
-            },
-            update: {
-              sourceType: input.sourceType,
-              title: input.title,
-              url: input.url,
-              content: input.content,
-              contentHash: input.contentHash,
-              status: input.status,
-              indexStatus: input.indexStatus,
-              knowledgeTypes: [...input.knowledgeTypes],
-              domainTags: [...input.domainTags],
-              externalCreatedAt: input.externalCreatedAt,
-              externalUpdatedAt: input.externalUpdatedAt,
-              metadata: input.metadata,
-            },
-          });
-        },
-        async markLastSyncedAt(syncedAtValue: Date) {
-          await prisma.dataSource.update({
-            where: {
-              id: dataSource.id,
-            },
-            data: {
-              lastSyncedAt: syncedAtValue,
-            },
-          });
-        },
-      },
+      store,
       {
         warn: () => undefined,
       },
@@ -214,5 +221,73 @@ describe("notion connector database integration", () => {
     expect(persistedDocument.indexStatus).toBe("pending");
     expect(persistedDocument.knowledgeTypes).toEqual(["onboarding"]);
     expect(persistedDocument.domainTags).toEqual(["payment", "onboarding"]);
+
+    const persistedChunks = await prisma.documentChunk.findMany({
+      where: {
+        documentId: persistedDocument.id,
+      },
+      orderBy: {
+        chunkIndex: "asc",
+      },
+    });
+
+    expect(persistedChunks).toHaveLength(1);
+    expect(persistedChunks[0]).toMatchObject({
+      documentId: persistedDocument.id,
+      chunkIndex: 0,
+      sectionTitle: null,
+      headingPath: [],
+      content: "Hello world",
+      sourceType: "notion_page",
+      chunkType: "plain_text",
+      tokenCount: 2,
+      contentHash: createHash("sha256").update("Hello world").digest("hex"),
+      knowledgeTypes: ["onboarding"],
+      domainTags: ["payment", "onboarding"],
+      sourcePriority: 1,
+    });
+
+    await syncNotionPages(
+      {
+        workspaceId: workspace.id,
+        dataSourceId: dataSource.id,
+        syncedAt: new Date("2024-01-11T00:00:00.000Z"),
+        pages: [
+          {
+            page: {
+              id: "page-1",
+              title: "Getting Started with Payments",
+              url: "https://notion.so/page-1",
+              createdTime: "2024-01-01T00:00:00.000Z",
+              lastEditedTime: "2024-01-04T01:02:03.000Z",
+            },
+            content: "Hello updated world",
+            pathSegments: ["Engineering", "Onboarding"],
+          },
+        ],
+      },
+      store,
+      {
+        warn: () => undefined,
+      },
+    );
+
+    const updatedChunks = await prisma.documentChunk.findMany({
+      where: {
+        documentId: persistedDocument.id,
+      },
+      orderBy: {
+        chunkIndex: "asc",
+      },
+    });
+
+    expect(updatedChunks).toHaveLength(1);
+    expect(updatedChunks[0]?.id).not.toBe(persistedChunks[0]?.id);
+    expect(updatedChunks[0]).toMatchObject({
+      content: "Hello updated world",
+      chunkIndex: 0,
+      sectionTitle: null,
+      headingPath: [],
+    });
   });
 });

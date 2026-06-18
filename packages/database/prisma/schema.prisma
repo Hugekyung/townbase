@@ -157,6 +157,10 @@ model DocumentChunk {
   content         String
   sourceType      SourceType
   chunkType       String
+  chunkIndex      Int
+  sectionTitle    String?
+  headingPath     Json
+  contentHash     String
   knowledgeTypes  KnowledgeType[]
   domainTags      String[]
   sourcePriority  Int
@@ -169,6 +173,7 @@ model DocumentChunk {
   questionSources QuestionSource[]
 
   @@unique([workspaceId, id])
+  @@unique([workspaceId, documentId, chunkIndex])
   @@index([workspaceId, documentId])
   @@index([workspaceId])
   @@index([documentId])
