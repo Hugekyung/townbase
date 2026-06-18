@@ -1,4 +1,5 @@
 import { buildPromptContext } from "../src/context-builder";
+import type { PromptTraceSource } from "../src/prompt-contract";
 
 describe("prompt context builder", () => {
   it("converts traced sources into prompt-ready context", () => {
@@ -33,5 +34,29 @@ describe("prompt context builder", () => {
     expect(context.sourceCitations).toEqual([
       "1. Phase 7 PRD — https://example.com/prd — Decision",
     ]);
+  });
+
+  it("omits undefined filePath and sourceUrl from source citations at runtime", () => {
+    const runtimeSource = {
+      documentId: "doc-2",
+      chunkId: "chunk-2",
+      sourceType: "notion_page",
+      title: "Planning Note",
+      filePath: undefined,
+      sourceUrl: undefined,
+      sectionTitle: null,
+      headingPath: [],
+      rank: 2,
+      score: 0.84,
+    } as unknown as PromptTraceSource;
+
+    const context = buildPromptContext({
+      question: "What changed?",
+      requestedMode: "onboarding",
+      resolvedMode: "onboarding",
+      sources: [runtimeSource],
+    });
+
+    expect(context.sourceCitations).toEqual(["2. Planning Note"]);
   });
 });

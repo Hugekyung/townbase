@@ -13,11 +13,6 @@ export const buildCitations = (sources: readonly PromptTraceSource[]): readonly 
     rank: source.rank,
     title: source.title,
     sourceType: source.sourceType,
-    sourceReference:
-      source.filePath !== null
-        ? source.filePath
-        : source.sourceUrl !== null
-          ? source.sourceUrl
-          : source.documentId,
+    sourceReference: source.filePath ?? source.sourceUrl ?? source.documentId,
     score: source.score,
   }));

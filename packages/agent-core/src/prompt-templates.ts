@@ -30,7 +30,7 @@ export const resolvePromptTemplate = (
   mode: PromptResolvedMode,
   sourceCount: number,
 ): string => {
-  if (mode === "change_impact" || sourceCount === 0) {
+  if (sourceCount === 0) {
     return FALLBACK_PROMPT;
   }
 
@@ -41,6 +41,8 @@ export const resolvePromptTemplate = (
       return PRODUCT_HISTORY_PROMPT;
     case "documentation_gap":
       return DOCUMENTATION_GAP_PROMPT;
+    default:
+      return FALLBACK_PROMPT;
   }
 };
 

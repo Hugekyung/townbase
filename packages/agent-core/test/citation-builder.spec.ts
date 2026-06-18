@@ -1,4 +1,5 @@
 import { buildCitations } from "../src/citation-builder";
+import type { PromptTraceSource } from "../src/prompt-contract";
 
 describe("citation builder", () => {
   it("formats traced sources into stable citations", () => {
@@ -43,6 +44,31 @@ describe("citation builder", () => {
         sourceType: "notion_page",
         sourceReference: "https://notion.example/page",
         score: 0.84,
+      },
+    ]);
+  });
+
+  it("falls back to document id when filePath and sourceUrl are undefined at runtime", () => {
+    const runtimeSource = {
+      documentId: "doc-3",
+      chunkId: "chunk-3",
+      sourceType: "repo_docs",
+      title: "Fallback Source",
+      filePath: undefined,
+      sourceUrl: undefined,
+      sectionTitle: null,
+      headingPath: [],
+      rank: 3,
+      score: 0.77,
+    } as unknown as PromptTraceSource;
+
+    expect(buildCitations([runtimeSource])).toEqual([
+      {
+        rank: 3,
+        title: "Fallback Source",
+        sourceType: "repo_docs",
+        sourceReference: "doc-3",
+        score: 0.77,
       },
     ]);
   });

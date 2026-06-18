@@ -10,8 +10,8 @@ export const buildPromptContext = (input: PromptContextInput): PromptContext => 
   sourceCitations: input.sources.map(
     (source) =>
       `${source.rank}. ${source.title}` +
-      `${source.filePath === null ? "" : ` — ${source.filePath}`}` +
-      `${source.sourceUrl === null ? "" : ` — ${source.sourceUrl}`}` +
+      `${source.filePath == null ? "" : ` — ${source.filePath}`}` +
+      `${source.sourceUrl == null ? "" : ` — ${source.sourceUrl}`}` +
       `${source.headingPath.length === 0 ? "" : ` — ${source.headingPath.join(" > ")}`}`,
   ),
 });
