@@ -12,4 +12,10 @@ export {
   type DocumentChunkVectorSearchInput,
   type VectorSearchRow,
 } from "./embedding";
+export {
+  persistQuestionRetrievalSelection,
+  type PersistQuestionRetrievalSelectionInput,
+  type PersistQuestionRetrievalSelectionSourceInput,
+  type RetrievalMode,
+} from "./retrieval-mode";
 export type { PrismaClient } from "@prisma/client";
