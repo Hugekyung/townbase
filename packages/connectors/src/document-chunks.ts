@@ -60,6 +60,7 @@ export const replaceDocumentChunksInTransaction = async (
 
   await prisma.documentChunk.createMany({
     data: chunks.map((chunk) => ({
+      id: chunk.chunkId,
       workspaceId,
       documentId,
       content: chunk.content,

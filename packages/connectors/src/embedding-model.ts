@@ -23,16 +23,18 @@ const normalizeOptional = (value: string | undefined): string | undefined => {
   return trimmed.length === 0 ? undefined : trimmed;
 };
 
-export const loadEmbeddingModelEnv = (): EmbeddingModelEnv => {
-  const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
+const readEmbeddingModelEnv = (
+  env: NodeJS.ProcessEnv,
+): EmbeddingModelEnv | undefined => {
+  const openaiApiKey = env.OPENAI_API_KEY?.trim();
 
   if (openaiApiKey === undefined || openaiApiKey.length === 0) {
-    throw new Error("Missing required environment variable: OPENAI_API_KEY");
+    return undefined;
   }
 
-  const openaiEmbeddingModel = normalizeOptional(process.env.OPENAI_EMBEDDING_MODEL);
+  const openaiEmbeddingModel = normalizeOptional(env.OPENAI_EMBEDDING_MODEL);
   const openaiEmbeddingBaseUrl =
-    normalizeOptional(process.env.OPENAI_EMBEDDING_BASE_URL) ??
+    normalizeOptional(env.OPENAI_EMBEDDING_BASE_URL) ??
     DEFAULT_OPENAI_EMBEDDING_BASE_URL;
 
   return {
@@ -44,6 +46,16 @@ export const loadEmbeddingModelEnv = (): EmbeddingModelEnv => {
   };
 };
 
+export const loadEmbeddingModelEnv = (): EmbeddingModelEnv => {
+  const env = readEmbeddingModelEnv(process.env);
+
+  if (env === undefined) {
+    throw new Error("Missing required environment variable: OPENAI_API_KEY");
+  }
+
+  return env;
+};
+
 export const createEmbeddingModel = (
   env: EmbeddingModelEnv,
 ): EmbeddingModel =>
@@ -53,3 +65,19 @@ export const createEmbeddingModel = (
     baseUrl: env.openaiEmbeddingBaseUrl ?? DEFAULT_OPENAI_EMBEDDING_BASE_URL,
     ...(env.fetchImpl === undefined ? {} : { fetchImpl: env.fetchImpl }),
   });
+
+export const createOptionalEmbeddingModel = (
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl?: typeof fetch,
+): EmbeddingModel | undefined => {
+  const embeddingModelEnv = readEmbeddingModelEnv(env);
+
+  if (embeddingModelEnv === undefined) {
+    return undefined;
+  }
+
+  return createEmbeddingModel({
+    ...embeddingModelEnv,
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
+  });
+};

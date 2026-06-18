@@ -207,4 +207,69 @@ describe("embedding service", () => {
       },
     });
   });
+
+  it("marks the document failed when an embedding write affects zero rows", async () => {
+    const documentUpdate = jest.fn(async () => undefined);
+    const model: EmbeddingModel = {
+      model: "test-embedding-model",
+      async embedText() {
+        return [0.11, 0.12, 0.13];
+      },
+      async embedTexts(texts: readonly string[]) {
+        expect(texts).toEqual(["alpha beta"]);
+        return [[0.11, 0.12, 0.13]];
+      },
+    };
+    const prisma = {
+      async $queryRaw() {
+        return [];
+      },
+      async $executeRaw() {
+        return 0;
+      },
+      async $transaction<T>(
+        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number> }) => Promise<T>,
+      ): Promise<T> {
+        return callback({
+          async $executeRaw() {
+            return 0;
+          },
+        });
+      },
+      document: {
+        update: documentUpdate,
+      },
+    } as unknown as Parameters<typeof indexDocumentChunks>[0];
+
+    const result = await indexDocumentChunks(
+      prisma,
+      model,
+      "workspace-1",
+      "document-1",
+      [
+        {
+          chunkId: "chunk-1",
+          documentId: "document-1",
+          content: "alpha beta",
+        },
+      ],
+    );
+
+    expect(result).toEqual({
+      kind: "failed",
+      documentId: "document-1",
+      reason: "Failed to persist embedding for chunk chunk-1",
+    });
+    expect(documentUpdate).toHaveBeenCalledWith({
+      where: {
+        workspaceId_id: {
+          workspaceId: "workspace-1",
+          id: "document-1",
+        },
+      },
+      data: {
+        indexStatus: "failed",
+      },
+    });
+  });
 });

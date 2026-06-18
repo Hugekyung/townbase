@@ -4,7 +4,7 @@ import {
   loadDatabaseRuntime,
   type DatabaseRuntimeModule,
 } from "../database-runtime";
-import { createEmbeddingModel, loadEmbeddingModelEnv } from "../embedding-model";
+import { createOptionalEmbeddingModel } from "../embedding-model";
 
 import { collectSelectedLocalRepoFiles } from "./scan";
 import { createPrismaLocalRepoSyncStore } from "./prisma-store";
@@ -188,16 +188,6 @@ const upsertDataSource = async (
   return dataSource.id;
 };
 
-const loadOptionalEmbeddingModel = () => {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-
-  if (apiKey === undefined || apiKey.length === 0) {
-    return undefined;
-  }
-
-  return createEmbeddingModel(loadEmbeddingModelEnv());
-};
-
 export const runLocalRepoSync = async (
   options: RunLocalRepoSyncOptions = {},
 ): Promise<LocalRepoSyncSummary> => {
@@ -209,7 +199,7 @@ export const runLocalRepoSync = async (
   const selectedRepoNames = readSelectedRepoNames(options.selectedRepoNames);
   const workspaceName = options.workspaceName ?? database.DEFAULT_WORKSPACE_NAME;
   const dataSourceName = options.dataSourceName ?? DEFAULT_LOCAL_REPO_DATA_SOURCE_NAME;
-  const embeddingModel = loadOptionalEmbeddingModel();
+  const embeddingModel = createOptionalEmbeddingModel();
 
   await prisma.$connect();
 

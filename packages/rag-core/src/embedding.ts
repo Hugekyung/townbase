@@ -27,6 +27,18 @@ const assertNonEmpty = (value: string, label: string): string => {
   return trimmed;
 };
 
+const normalizeDimensions = (dimensions: number | undefined): number | undefined => {
+  if (dimensions === undefined) {
+    return undefined;
+  }
+
+  if (!Number.isInteger(dimensions) || dimensions <= 0) {
+    throw new Error("dimensions must be a positive integer");
+  }
+
+  return dimensions;
+};
+
 const parseEmbeddingResponse = async (response: Response): Promise<readonly EmbeddingVector[]> => {
   const payload: unknown = await response.json();
 
@@ -63,19 +75,23 @@ const postEmbeddings = async (
       model: string;
       baseUrl: string;
       fetchImpl: typeof fetch;
+      dimensions?: number;
     }>,
   input: readonly string[],
 ): Promise<readonly EmbeddingVector[]> => {
+  const body = {
+    model: config.model,
+    input,
+    ...(config.dimensions === undefined ? {} : { dimensions: config.dimensions }),
+  };
+
   const response = await config.fetchImpl(`${config.baseUrl}/embeddings`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: config.model,
-      input,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -92,6 +108,7 @@ export const createOpenAIEmbeddingModel = (
   const model = config.model?.trim() || DEFAULT_OPENAI_EMBEDDING_MODEL;
   const baseUrl = config.baseUrl?.trim() || DEFAULT_OPENAI_BASE_URL;
   const fetchImpl = config.fetchImpl ?? fetch;
+  const dimensions = normalizeDimensions(config.dimensions);
 
   if (typeof fetchImpl !== "function") {
     throw new Error("fetch implementation is required");
@@ -106,6 +123,7 @@ export const createOpenAIEmbeddingModel = (
           model,
           baseUrl,
           fetchImpl,
+          ...(dimensions === undefined ? {} : { dimensions }),
         },
         [assertNonEmpty(text, "text")],
       );
@@ -128,6 +146,7 @@ export const createOpenAIEmbeddingModel = (
           model,
           baseUrl,
           fetchImpl,
+          ...(dimensions === undefined ? {} : { dimensions }),
         },
         normalizedTexts,
       );

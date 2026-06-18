@@ -100,6 +100,7 @@ describe("document chunk persistence", () => {
     expect(createMany.mock.calls[0]?.[0]).toMatchObject({
       data: [
         {
+          id: expect.any(String),
           workspaceId: "workspace-1",
           documentId: "document-1",
           chunkIndex: 0,
@@ -113,6 +114,7 @@ describe("document chunk persistence", () => {
     expect(createMany.mock.calls[1]?.[0]).toMatchObject({
       data: [
         {
+          id: expect.any(String),
           workspaceId: "workspace-1",
           documentId: "document-1",
           chunkIndex: 0,

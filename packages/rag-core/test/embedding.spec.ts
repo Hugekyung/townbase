@@ -61,6 +61,47 @@ describe("createOpenAIEmbeddingModel", () => {
     );
   });
 
+  it("includes configured dimensions in the OpenAI request body", async () => {
+    const fetchImpl = jest.fn(async () =>
+      new Response(JSON.stringify({ data: [{ embedding: [0.1, 0.2, 0.3] }] }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+    );
+
+    const model = createOpenAIEmbeddingModel({
+      apiKey: "test-key",
+      fetchImpl,
+      model: "text-embedding-3-small",
+      baseUrl: "https://api.openai.com/v1",
+      dimensions: 1536,
+    });
+
+    await expect(model.embedText("hello world")).resolves.toEqual([0.1, 0.2, 0.3]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/embeddings",
+      expect.objectContaining({
+        body: JSON.stringify({
+          model: "text-embedding-3-small",
+          input: ["hello world"],
+          dimensions: 1536,
+        }),
+      }),
+    );
+  });
+
+  it("rejects invalid embedding dimensions before making a request", () => {
+    expect(() =>
+      createOpenAIEmbeddingModel({
+        apiKey: "test-key",
+        fetchImpl: jest.fn(),
+        dimensions: 0,
+      }),
+    ).toThrow("dimensions must be a positive integer");
+  });
+
   it("rejects empty api keys and empty texts before making a request", async () => {
     const fetchImpl = jest.fn();
 

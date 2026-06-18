@@ -139,11 +139,15 @@ export const indexDocumentChunks = async (
 
     await prisma.$transaction(async (transactionClient: PrismaEmbeddingTransactionClient) => {
       for (const indexedChunk of indexedChunks) {
-        await persistDocumentChunkEmbedding(transactionClient, {
+        const affectedRows = await persistDocumentChunkEmbedding(transactionClient, {
           workspaceId,
           chunkId: indexedChunk.chunkId,
           embedding: indexedChunk.embedding,
         } satisfies DocumentChunkEmbeddingUpsertInput);
+
+        if (affectedRows !== 1) {
+          throw new Error(`Failed to persist embedding for chunk ${indexedChunk.chunkId}`);
+        }
       }
     });
 

@@ -1,4 +1,8 @@
-import { createEmbeddingModel, loadEmbeddingModelEnv } from "../src/embedding-model";
+import {
+  createEmbeddingModel,
+  createOptionalEmbeddingModel,
+  loadEmbeddingModelEnv,
+} from "../src/embedding-model";
 
 describe("embedding model config", () => {
   const originalEnv = process.env;
@@ -39,5 +43,39 @@ describe("embedding model config", () => {
 
     await expect(model.embedText("hello")).resolves.toEqual([1, 2, 3]);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns undefined when the embedding API key is not configured", () => {
+    const originalEnv = process.env;
+    process.env = {
+      ...originalEnv,
+      OPENAI_API_KEY: "",
+    };
+
+    expect(createOptionalEmbeddingModel()).toBeUndefined();
+  });
+
+  it("creates an optional embedding model when the embedding API key is configured", async () => {
+    const originalEnv = process.env;
+    const fetchImpl = jest.fn(async () =>
+      new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3] }] }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+    );
+
+    process.env = {
+      ...originalEnv,
+      OPENAI_API_KEY: "secret",
+      OPENAI_EMBEDDING_MODEL: "text-embedding-3-small",
+      OPENAI_EMBEDDING_BASE_URL: "https://api.openai.com/v1",
+    };
+
+    const model = createOptionalEmbeddingModel(process.env, fetchImpl);
+
+    expect(model?.model).toBe("text-embedding-3-small");
+    await expect(model?.embedText("hello")).resolves.toEqual([1, 2, 3]);
   });
 });

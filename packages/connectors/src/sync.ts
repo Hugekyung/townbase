@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { loadNotionConnectorEnv } from "./env";
 import { loadDatabaseRuntime } from "./database-runtime";
-import { createEmbeddingModel, loadEmbeddingModelEnv } from "./embedding-model";
+import { createOptionalEmbeddingModel } from "./embedding-model";
 import { loadNotionSyncFixture } from "./notion/fixture";
 import { createPrismaNotionSyncStore } from "./notion/prisma-store";
 import { syncNotionPages, type NotionSyncSummary } from "./notion/sync";
@@ -70,16 +70,6 @@ const upsertDataSource = async (
   return dataSource.id;
 };
 
-const loadOptionalEmbeddingModel = () => {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-
-  if (apiKey === undefined || apiKey.length === 0) {
-    return undefined;
-  }
-
-  return createEmbeddingModel(loadEmbeddingModelEnv());
-};
-
 export const runNotionSync = async (
   options: RunNotionSyncOptions = {},
 ): Promise<NotionSyncSummary> => {
@@ -87,7 +77,7 @@ export const runNotionSync = async (
   const database = loadDatabaseRuntime(path.resolve(__dirname, "..", "..", "database"));
   const prisma = database.createPrismaClient();
   const fixture = await loadNotionSyncFixture(resolveFixturePath(options.fixturePath));
-  const embeddingModel = loadOptionalEmbeddingModel();
+  const embeddingModel = createOptionalEmbeddingModel();
 
   await prisma.$connect();
 
