@@ -721,9 +721,9 @@ GET /documents/:id
 
 ---
 
-## 12. Admin / Web UI 요구사항
+## 12. Admin / Web UI 요구사항 (MVP 이후)
 
-v0.1은 디자인보다 기능 확인에 집중한다.
+v0.1에서는 필수 범위가 아니며, MCP-first 운영 이후의 확장 경로로 둔다.
 
 ### 필수 화면
 
@@ -761,6 +761,8 @@ v0.1은 디자인보다 기능 확인에 집중한다.
   - 생성된 GitHub Issue/Markdown 초안 확인
   - Copy 버튼
 
+MVP 이후 확장에서는 위 화면들을 웹앱으로 제공하되, v0.1의 주 사용 경로를 대체하지 않는다.
+
 ---
 
 ## 13. Open Source Adoption Flow
@@ -781,6 +783,8 @@ v0.1은 디자인보다 기능 확인에 집중한다.
 11. Gap을 GitHub Issue 또는 Markdown 문서 초안으로 변환
 12. 팀 문서화 개선에 반영
 ```
+
+v0.1은 위 흐름을 MCP 클라이언트 중심으로 수행하고, Admin / Web UI는 이후 확장으로 둔다.
 
 ---
 
@@ -825,6 +829,7 @@ v0.1은 디자인보다 기능 확인에 집중한다.
 - reranking
 - change_impact mode 강화
 - HTTP 기반 chat/web app 추가
+- Admin / Web UI 추가
 - MCP tool set 확장
 - 실제 GitHub Issue 생성
 

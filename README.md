@@ -2,19 +2,49 @@
 
 townbase is a local-first knowledge agent for onboarding and product-history exploration across Notion and Git repositories.
 
-## Phase 0 status
+## What this repo supports
 
-- NestJS API scaffold: done
-- PostgreSQL + pgvector compose setup: done
-- Package workspace scaffolding: done
-- Web UI: intentionally deferred for later phases
+- MCP-first question answering against local Notion and repository content
+- Knowledge Gap tracking and copy-friendly draft generation
+- Local ingestion of Notion pages and selected repository documentation
 
-## Local development
+Web UI and HTTP chat/web app paths are deferred to later phases.
+
+## Local-first quickstart
+
+1. Copy `.env.example` and fill in the required values.
+2. Start PostgreSQL with Docker:
+
+```bash
+docker compose up -d
+```
+
+3. Apply database migrations:
+
+```bash
+DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public pnpm --filter @townbase/database prisma:migrate:deploy
+```
+
+4. Install dependencies:
 
 ```bash
 pnpm install
+```
+
+5. Run the API in development mode:
+
+```bash
 pnpm --filter @townbase/api dev
 ```
+
+6. Run connectors when you want to ingest Notion or selected local repos:
+
+```bash
+NOTION_API_KEY=... NOTION_ROOT_PAGE_ID=... pnpm --filter @townbase/connectors notion:sync
+REPO_ROOT_PATH=./repos LOCAL_REPO_NAMES=workspace-knowledge-agent pnpm --filter @townbase/connectors local-repo:sync
+```
+
+7. Use an MCP client such as ChatGPT or Codex to ask questions against the running server.
 
 Health check:
 
@@ -22,26 +52,13 @@ Health check:
 curl http://localhost:3000/health
 ```
 
-## Docker
+## Execution guide
 
-```bash
-docker compose up -d
-```
+For the full local-first setup, sample structures, sample questions, troubleshooting, security notes, and exclude rules, read [docs/local-first-execution.md](docs/local-first-execution.md).
 
-## Phase 3 connector workflow
+## Connector details
 
-The Notion connector lives in `packages/connectors` and uses the local PostgreSQL container.
-
-```bash
-docker compose up -d postgres
-DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public pnpm --filter @townbase/database prisma:migrate:deploy
-pnpm --filter @townbase/connectors test
-NOTION_API_KEY=... NOTION_ROOT_PAGE_ID=... pnpm --filter @townbase/connectors notion:sync
-```
-
-`pnpm --filter @townbase/connectors test` covers fixture-based parsing/sync tests and Prisma/PostgreSQL-backed verification.
-The connector package also exposes the shared metadata classifier used for Notion and repository path rules in Phase 2.
-`pnpm --filter @townbase/connectors notion:sync` consumes `packages/connectors/fixtures/notion-sync.fixture.json` unless `NOTION_SYNC_FIXTURE_PATH` overrides it.
+The connector package documents its runtime commands and environment in [packages/connectors/README.md](packages/connectors/README.md).
 
 ## Repository layout
 
