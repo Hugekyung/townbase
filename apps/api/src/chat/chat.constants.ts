@@ -1,5 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { CHAT_QUESTION_MODES } from "./chat-contract";
+import { DRAFT_GENERATION_TYPES } from "../knowledge-gaps/draft-generator";
 
 export const CHAT_MCP_SERVER_NAME = "@townbase/api-chat" as const;
 
@@ -85,12 +86,24 @@ export const CHAT_MCP_TOOLS = {
       type: "object",
       properties: {
         ...baseToolSchema.properties,
-        topic: {
+        action: {
+          type: "string",
+          enum: ["create", "query"],
+        },
+        knowledgeGapId: {
           type: "string",
           minLength: 1,
         },
+        draftId: {
+          type: "string",
+          minLength: 1,
+        },
+        type: {
+          type: "string",
+          enum: [...DRAFT_GENERATION_TYPES],
+        },
       },
-      required: ["workspaceId", "topic"],
+      required: ["workspaceId", "action", "knowledgeGapId"],
     },
   } satisfies Tool,
 } as const;

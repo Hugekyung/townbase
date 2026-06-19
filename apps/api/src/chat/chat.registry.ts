@@ -6,6 +6,7 @@ import { CHAT_MCP_TOOLS } from "./chat.constants";
 import { parseChatQuestionInput, resolveChatQuestionSelection } from "./chat-contract";
 import { ChatQuestionService } from "./chat.service";
 import { KnowledgeGapsService, type GapStatus } from "../knowledge-gaps/knowledge-gaps.service";
+import { DRAFT_GENERATION_TYPES, type DraftGenerationType } from "../knowledge-gaps/draft-generator";
 
 const toolContent = (message: string): CallToolResult => ({
   content: [
@@ -76,6 +77,34 @@ const readOptionalMode = (
   }
 
   return mode as RetrievalMode;
+};
+
+const readOptionalDraftType = (
+  value: Readonly<Record<string, unknown>> | undefined,
+): DraftGenerationType | undefined => {
+  const type = readOptionalString(value, "type");
+
+  if (type === undefined) {
+    return undefined;
+  }
+
+  if (!DRAFT_GENERATION_TYPES.includes(type as DraftGenerationType)) {
+    throw new Error("type must be one of the supported draft types");
+  }
+
+  return type as DraftGenerationType;
+};
+
+const readOptionalDraftAction = (
+  value: Readonly<Record<string, unknown>> | undefined,
+): "create" | "query" => {
+  const action = readOptionalString(value, "action") ?? "query";
+
+  if (action !== "create" && action !== "query") {
+    throw new Error("action must be one of the supported draft actions");
+  }
+
+  return action;
 };
 
 const readOptionalStatus = (
@@ -203,14 +232,57 @@ export class ChatToolRegistry {
       case CHAT_MCP_TOOLS.draft.name:
         try {
           const workspaceId = readRequiredString(arguments_, "workspaceId");
-          const topic = readRequiredString(arguments_, "topic");
+          const knowledgeGapId = readRequiredString(arguments_, "knowledgeGapId");
+          const action = readOptionalDraftAction(arguments_);
+
+          if (action === "create") {
+            const type = readOptionalDraftType(arguments_);
+
+            if (type === undefined) {
+              throw new Error("type must be one of the supported draft types");
+            }
+
+            const result = await this.knowledgeGapsService.createDraft(knowledgeGapId, type, workspaceId);
+
+            return serialize({
+              workspaceId,
+              knowledgeGapId,
+              action,
+              status: "ok",
+              draftCreated: true,
+              requestedType: result.requestedType,
+              persistedType: result.persistedType,
+              title: result.title,
+              body: result.body,
+              acceptanceCriteria: result.acceptanceCriteria,
+              requiredContent: result.requiredContent,
+              relatedSources: result.relatedSources,
+              draft: result.draft,
+            });
+          }
+
+          const draftId = readOptionalString(arguments_, "draftId");
+
+          if (draftId !== undefined) {
+            const result = await this.knowledgeGapsService.getDraft(knowledgeGapId, draftId, workspaceId);
+
+            return serialize({
+              workspaceId,
+              knowledgeGapId,
+              action,
+              status: "ok",
+              draft: result.draft,
+            });
+          }
+
+          const result = await this.knowledgeGapsService.listDrafts(knowledgeGapId, workspaceId);
 
           return serialize({
             workspaceId,
-            topic,
-            status: "deferred_phase12",
-            draftCreated: false,
-            draft: null,
+            knowledgeGapId,
+            action,
+            status: "ok",
+            drafts: result.drafts,
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : "Invalid MCP draft input";

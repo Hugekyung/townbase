@@ -1,16 +1,48 @@
 import { Injectable } from "@nestjs/common";
+import type {
+  ActionDraftListRow,
+  KnowledgeGapListRow,
+  PrismaClient,
+} from "@townbase/database";
 
 import {
   createPrismaClient,
   DEFAULT_WORKSPACE_NAME,
+  listActionDrafts,
   type KnowledgeGapListFilter,
-  type KnowledgeGapListRow,
   listKnowledgeGaps,
-  type PrismaClient,
+  persistActionDraft,
   updateKnowledgeGapStatus,
 } from "@townbase/database";
+import type { PromptTraceSource } from "@townbase/agent-core";
+
+import {
+  generateDraftCandidate,
+  type DraftGenerationCandidate,
+  type DraftGenerationType,
+} from "./draft-generator";
 
 export type GapStatus = "open" | "drafted" | "resolved" | "ignored";
+
+export type DraftCreationResult = Readonly<
+  DraftGenerationCandidate & {
+    workspaceId: string;
+    knowledgeGapId: string;
+    draft: ActionDraftListRow;
+  }
+>;
+
+export type DraftListResult = Readonly<{
+  workspaceId: string;
+  knowledgeGapId: string;
+  drafts: readonly ActionDraftListRow[];
+}>;
+
+export type DraftReadResult = Readonly<{
+  workspaceId: string;
+  knowledgeGapId: string;
+  draft: ActionDraftListRow;
+}>;
 
 @Injectable()
 export class KnowledgeGapsService {
@@ -56,4 +88,152 @@ export class KnowledgeGapsService {
       status,
     });
   }
+
+  public async listDrafts(
+    knowledgeGapId: string,
+    workspaceId?: string,
+  ): Promise<DraftListResult> {
+    const resolvedWorkspaceId = workspaceId ?? (await this.getWorkspaceId());
+    const drafts = await listActionDrafts(this.prisma, {
+      workspaceId: resolvedWorkspaceId,
+      knowledgeGapId,
+    });
+
+    return {
+      workspaceId: resolvedWorkspaceId,
+      knowledgeGapId,
+      drafts,
+    };
+  }
+
+  public async getDraft(
+    knowledgeGapId: string,
+    draftId: string,
+    workspaceId?: string,
+  ): Promise<DraftReadResult> {
+    const resolvedWorkspaceId = workspaceId ?? (await this.getWorkspaceId());
+    const draft = await this.prisma.actionDraft.findFirstOrThrow({
+      where: {
+        workspaceId: resolvedWorkspaceId,
+        knowledgeGapId,
+        id: draftId,
+      },
+    });
+
+    return {
+      workspaceId: resolvedWorkspaceId,
+      knowledgeGapId,
+      draft,
+    };
+  }
+
+  public async createDraft(
+    knowledgeGapId: string,
+    type: DraftGenerationType,
+    workspaceId?: string,
+  ): Promise<DraftCreationResult> {
+    const resolvedWorkspaceId = workspaceId ?? (await this.getWorkspaceId());
+    const gap = await this.prisma.knowledgeGap.findUniqueOrThrow({
+      where: {
+        workspaceId_id: {
+          workspaceId: resolvedWorkspaceId,
+          id: knowledgeGapId,
+        },
+      },
+      include: {
+        question: {
+          include: {
+            questionSources: {
+              orderBy: {
+                rank: "asc",
+              },
+              include: {
+                chunk: {
+                  include: {
+                    document: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const sources = gap.question.questionSources.map((source) =>
+      toPromptTraceSource(source),
+    );
+    const candidate = generateDraftCandidate({
+      gap: {
+        id: gap.id,
+        workspaceId: gap.workspaceId,
+        questionId: gap.questionId,
+        category: gap.category,
+        title: gap.title,
+        description: gap.description,
+        suggestedDocumentTitle: gap.suggestedDocumentTitle,
+        suggestedMarkdownPath: gap.suggestedMarkdownPath,
+        suggestedGithubIssueTitle: gap.suggestedGithubIssueTitle,
+        priority: gap.priority,
+        status: gap.status,
+        similarQuestionCount: gap.similarQuestionCount,
+        relatedMode: gap.relatedMode,
+        createdAt: gap.createdAt,
+        updatedAt: gap.updatedAt,
+      },
+      type,
+      sources,
+    });
+    const draft = await persistActionDraft(this.prisma, {
+      workspaceId: resolvedWorkspaceId,
+      knowledgeGapId: gap.id,
+      type: candidate.persistedType,
+      title: candidate.title,
+      body: candidate.body,
+    });
+
+    return {
+      ...candidate,
+      workspaceId: resolvedWorkspaceId,
+      knowledgeGapId: gap.id,
+      draft,
+    };
+  }
 }
+
+type QuestionSourceWithChunk = Readonly<{
+  rank: number;
+  score: number;
+  chunk?: Readonly<{
+    documentId: string;
+    id: string;
+    sourceType: string;
+    sectionTitle: string | null;
+    headingPath: unknown;
+    document?: Readonly<{
+      title: string;
+      filePath: string | null;
+      url: string | null;
+    }> | null;
+  }> | null;
+}>;
+
+const toPromptTraceSource = (source: QuestionSourceWithChunk): PromptTraceSource => {
+  const chunk = source.chunk;
+  const headingPath = Array.isArray(chunk?.headingPath)
+    ? chunk.headingPath.map((value: unknown) => String(value))
+    : [];
+
+  return {
+    documentId: chunk?.documentId ?? "unknown",
+    chunkId: chunk?.id ?? "unknown",
+    sourceType: chunk?.sourceType ?? "unknown",
+    title: chunk?.document?.title ?? "Untitled",
+    filePath: chunk?.document?.filePath ?? null,
+    sourceUrl: chunk?.document?.url ?? null,
+    sectionTitle: chunk?.sectionTitle ?? null,
+    headingPath,
+    rank: source.rank,
+    score: source.score,
+  };
+};

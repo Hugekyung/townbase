@@ -29,4 +29,15 @@ export {
   type KnowledgeGapQueryClient,
   type KnowledgeGapStatusUpdateInput,
 } from "./knowledge-gap";
+export {
+  buildActionDraftWhere,
+  listActionDrafts,
+  persistActionDraft,
+  updateActionDraftStatus,
+  type ActionDraftListFilter,
+  type ActionDraftListRow,
+  type ActionDraftPersistInput,
+  type ActionDraftQueryClient,
+  type ActionDraftStatusUpdateInput,
+} from "./action-draft";
 export type { PrismaClient } from "@prisma/client";

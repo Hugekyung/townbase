@@ -260,6 +260,6 @@ model ActionDraft {
   knowledgeGap   KnowledgeGap      @relation(fields: [workspaceId, knowledgeGapId], references: [workspaceId, id], onDelete: Cascade)
 
   @@index([workspaceId])
-  @@index([workspaceId, knowledgeGapId, type])
+  @@unique([workspaceId, knowledgeGapId, type])
   @@index([knowledgeGapId])
 }
