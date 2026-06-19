@@ -43,13 +43,13 @@ pnpm --filter @townbase/connectors test
 4. Ingest Notion pages:
 
 ```bash
-NOTION_API_KEY=... NOTION_ROOT_PAGE_ID=... pnpm --filter @townbase/connectors notion:sync
+pnpm --filter @townbase/connectors notion:sync
 ```
 
 5. Ingest selected local repositories:
 
 ```bash
-REPO_ROOT_PATH=./repos LOCAL_REPO_NAMES=workspace-knowledge-agent pnpm --filter @townbase/connectors local-repo:sync
+pnpm --filter @townbase/connectors local-repo:sync
 ```
 
 ## Notes

@@ -33,14 +33,14 @@ Use `.env.example` as the starting point. The main variables are:
 ```bash
 docker compose up -d
 pnpm install
-DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public pnpm --filter @townbase/database prisma:migrate:deploy
+pnpm --filter @townbase/database prisma:migrate:deploy
 pnpm --filter @townbase/api dev
 ```
 
 ## 4. Ingest Notion
 
 ```bash
-NOTION_API_KEY=... NOTION_ROOT_PAGE_ID=... pnpm --filter @townbase/connectors notion:sync
+pnpm --filter @townbase/connectors notion:sync
 ```
 
 If you are only validating parsing or a fixture-backed path, the bundled fixture is used unless `NOTION_SYNC_FIXTURE_PATH` overrides it.
@@ -48,7 +48,7 @@ If you are only validating parsing or a fixture-backed path, the bundled fixture
 ## 5. Ingest selected local repositories
 
 ```bash
-REPO_ROOT_PATH=./repos LOCAL_REPO_NAMES=workspace-knowledge-agent pnpm --filter @townbase/connectors local-repo:sync
+pnpm --filter @townbase/connectors local-repo:sync
 ```
 
 Only the explicitly selected repositories are ingested.

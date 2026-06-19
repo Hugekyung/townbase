@@ -22,7 +22,7 @@ docker compose up -d
 3. Apply database migrations:
 
 ```bash
-DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public pnpm --filter @townbase/database prisma:migrate:deploy
+pnpm --filter @townbase/database prisma:migrate:deploy
 ```
 
 4. Install dependencies:
@@ -40,8 +40,8 @@ pnpm --filter @townbase/api dev
 6. Run connectors when you want to ingest Notion or selected local repos:
 
 ```bash
-NOTION_API_KEY=... NOTION_ROOT_PAGE_ID=... pnpm --filter @townbase/connectors notion:sync
-REPO_ROOT_PATH=./repos LOCAL_REPO_NAMES=workspace-knowledge-agent pnpm --filter @townbase/connectors local-repo:sync
+pnpm --filter @townbase/connectors notion:sync
+pnpm --filter @townbase/connectors local-repo:sync
 ```
 
 7. Use an MCP client such as ChatGPT or Codex to ask questions against the running server.
