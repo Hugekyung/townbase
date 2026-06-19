@@ -2,9 +2,17 @@ import type { PromptTraceSource } from "@townbase/agent-core";
 
 import type { KnowledgeGapListRow } from "@townbase/database";
 
-export type DraftGenerationType = "github_issue" | "markdown_doc" | "notion_page_text";
+export const DRAFT_GENERATION_TYPES = [
+  "github_issue",
+  "markdown_doc",
+  "notion_page_text",
+] as const;
 
-export type DraftPersistedType = "github_issue" | "markdown_doc" | "notion_page";
+export type DraftGenerationType = (typeof DRAFT_GENERATION_TYPES)[number];
+
+export const DRAFT_PERSISTED_TYPES = ["github_issue", "markdown_doc", "notion_page"] as const;
+
+export type DraftPersistedType = (typeof DRAFT_PERSISTED_TYPES)[number];
 
 export type DraftGenerationCandidate = Readonly<{
   requestedType: DraftGenerationType;

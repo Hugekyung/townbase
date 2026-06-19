@@ -9,7 +9,7 @@ import {
   type GapStatus,
   KnowledgeGapsService,
 } from "./knowledge-gaps.service";
-import type { DraftGenerationType } from "./draft-generator";
+import { DRAFT_GENERATION_TYPES, type DraftGenerationType } from "./draft-generator";
 
 const GAP_STATUSES: readonly GapStatus[] = ["open", "drafted", "resolved", "ignored"] as const;
 const RETRIEVAL_MODES: readonly RetrievalMode[] = [
@@ -19,12 +19,6 @@ const RETRIEVAL_MODES: readonly RetrievalMode[] = [
   "documentation_gap",
   "change_impact",
 ] as const;
-const DRAFT_TYPES: readonly DraftGenerationType[] = [
-  "github_issue",
-  "markdown_doc",
-  "notion_page_text",
-] as const;
-
 const readOptionalString = (value: unknown, field: string): string | undefined => {
   if (value === undefined) {
     return undefined;
@@ -78,7 +72,7 @@ const readDraftType = (value: unknown): DraftGenerationType => {
     throw new BadRequestException("type must be one of the supported draft types");
   }
 
-  if (!DRAFT_TYPES.includes(type as DraftGenerationType)) {
+  if (!DRAFT_GENERATION_TYPES.includes(type as DraftGenerationType)) {
     throw new BadRequestException("type must be one of the supported draft types");
   }
 
@@ -119,9 +113,9 @@ export class KnowledgeGapsController {
   @Patch(":knowledgeGapId/status")
   public updateStatus(
     @Param("knowledgeGapId") knowledgeGapId: string,
-    @Body() body: Readonly<Record<string, unknown>>,
+    @Body() body: Readonly<Record<string, unknown>> | undefined,
   ): Promise<unknown> {
-    const status = readOptionalStatus(body.status);
+    const status = readOptionalStatus(body?.status);
 
     if (status === undefined) {
       throw new BadRequestException("status must be a non-empty string");
@@ -133,9 +127,9 @@ export class KnowledgeGapsController {
   @Post(":knowledgeGapId/draft")
   public createDraft(
     @Param("knowledgeGapId") knowledgeGapId: string,
-    @Body() body: Readonly<Record<string, unknown>>,
+    @Body() body: Readonly<Record<string, unknown>> | undefined,
   ): Promise<DraftCreationResult> {
-    const type = readDraftType(body.type);
+    const type = readDraftType(body?.type);
 
     return this.knowledgeGapsService.createDraft(knowledgeGapId, type);
   }

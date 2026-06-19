@@ -40,11 +40,10 @@ export type ActionDraftQueryClient = Readonly<{
       where: Prisma.ActionDraftWhereInput;
       orderBy: Prisma.ActionDraftOrderByWithRelationInput;
     }) => Promise<readonly ActionDraftListRow[]>;
-    deleteMany: (args: {
-      where: Prisma.ActionDraftWhereInput;
-    }) => Promise<{ count: number }>;
-    create: (args: {
-      data: Prisma.ActionDraftUncheckedCreateInput;
+    upsert: (args: {
+      where: Prisma.ActionDraftWhereUniqueInput;
+      create: Prisma.ActionDraftUncheckedCreateInput;
+      update: Prisma.ActionDraftUpdateInput;
     }) => Promise<ActionDraftListRow>;
     updateMany: (args: {
       where: Prisma.ActionDraftWhereInput;
@@ -92,25 +91,27 @@ export const persistActionDraft = async (
   client: ActionDraftQueryClient,
   input: ActionDraftPersistInput,
 ): Promise<ActionDraftListRow> =>
-  client.$transaction(async (transactionClient) => {
-    await transactionClient.actionDraft.deleteMany({
-      where: {
+  client.actionDraft.upsert({
+    where: {
+      workspaceId_knowledgeGapId_type: {
         workspaceId: input.workspaceId,
         knowledgeGapId: input.knowledgeGapId,
         type: input.type,
       },
-    });
-
-    return transactionClient.actionDraft.create({
-      data: {
-        workspaceId: input.workspaceId,
-        knowledgeGapId: input.knowledgeGapId,
-        type: input.type,
-        title: input.title,
-        body: input.body,
-        status: input.status ?? "draft",
-      },
-    });
+    },
+    create: {
+      workspaceId: input.workspaceId,
+      knowledgeGapId: input.knowledgeGapId,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      status: input.status ?? "draft",
+    },
+    update: {
+      title: input.title,
+      body: input.body,
+      status: input.status ?? "draft",
+    },
   });
 
 export const updateActionDraftStatus = async (

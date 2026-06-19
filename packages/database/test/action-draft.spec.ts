@@ -19,8 +19,7 @@ describe("action draft helpers", () => {
     const client: ActionDraftQueryClient = {
       actionDraft: {
         findMany,
-        deleteMany: jest.fn(),
-        create: jest.fn(),
+        upsert: jest.fn(),
         updateMany: jest.fn(),
         findFirstOrThrow: jest.fn(),
       },
@@ -62,29 +61,16 @@ describe("action draft helpers", () => {
       updatedAt: new Date("2026-01-02T00:00:00.000Z"),
     } satisfies ActionDraftListRow;
 
-    const deleteMany = jest.fn(async () => ({ count: 1 }));
-    const create = jest.fn(async () => draftRow);
-    const transaction = jest.fn(async (callback) =>
-      callback({
-        actionDraft: {
-          findMany: jest.fn(),
-          deleteMany,
-          create,
-          updateMany: jest.fn(),
-          findFirstOrThrow: jest.fn(),
-        },
-      } as never),
-    );
+    const upsert = jest.fn(async () => draftRow);
 
     const client: ActionDraftQueryClient = {
       actionDraft: {
         findMany: jest.fn(),
-        deleteMany,
-        create,
+        upsert,
         updateMany: jest.fn(),
         findFirstOrThrow: jest.fn(),
       },
-      $transaction: transaction,
+      $transaction: jest.fn(),
     };
 
     await expect(
@@ -97,18 +83,23 @@ describe("action draft helpers", () => {
       }),
     ).resolves.toEqual(draftRow);
 
-    expect(deleteMany).toHaveBeenCalledWith({
+    expect(upsert).toHaveBeenCalledWith({
       where: {
-        workspaceId: "workspace-1",
-        knowledgeGapId: "gap-1",
-        type: "markdown_doc",
+        workspaceId_knowledgeGapId_type: {
+          workspaceId: "workspace-1",
+          knowledgeGapId: "gap-1",
+          type: "markdown_doc",
+        },
       },
-    });
-    expect(create).toHaveBeenCalledWith({
-      data: {
+      create: {
         workspaceId: "workspace-1",
         knowledgeGapId: "gap-1",
         type: "markdown_doc",
+        title: "Document the schema flow",
+        body: "Updated draft body",
+        status: "draft",
+      },
+      update: {
         title: "Document the schema flow",
         body: "Updated draft body",
         status: "draft",
@@ -133,8 +124,7 @@ describe("action draft helpers", () => {
     const client: ActionDraftQueryClient = {
       actionDraft: {
         findMany: jest.fn(),
-        deleteMany: jest.fn(),
-        create: jest.fn(),
+        upsert: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findFirstOrThrow: update,
       },

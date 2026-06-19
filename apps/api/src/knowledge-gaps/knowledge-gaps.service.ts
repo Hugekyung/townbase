@@ -204,31 +204,36 @@ export class KnowledgeGapsService {
 type QuestionSourceWithChunk = Readonly<{
   rank: number;
   score: number;
-  chunk: Readonly<{
+  chunk?: Readonly<{
     documentId: string;
     id: string;
     sourceType: string;
     sectionTitle: string | null;
     headingPath: unknown;
-    document: Readonly<{
+    document?: Readonly<{
       title: string;
       filePath: string | null;
       url: string | null;
-    }>;
-  }>;
+    }> | null;
+  }> | null;
 }>;
 
-const toPromptTraceSource = (source: QuestionSourceWithChunk): PromptTraceSource => ({
-  documentId: source.chunk.documentId,
-  chunkId: source.chunk.id,
-  sourceType: source.chunk.sourceType,
-  title: source.chunk.document.title,
-  filePath: source.chunk.document.filePath,
-  sourceUrl: source.chunk.document.url,
-  sectionTitle: source.chunk.sectionTitle ?? null,
-  headingPath: Array.isArray(source.chunk.headingPath)
-    ? source.chunk.headingPath.map((value: unknown) => String(value))
-    : [],
-  rank: source.rank,
-  score: source.score,
-});
+const toPromptTraceSource = (source: QuestionSourceWithChunk): PromptTraceSource => {
+  const chunk = source.chunk;
+  const headingPath = Array.isArray(chunk?.headingPath)
+    ? chunk.headingPath.map((value: unknown) => String(value))
+    : [];
+
+  return {
+    documentId: chunk?.documentId ?? "unknown",
+    chunkId: chunk?.id ?? "unknown",
+    sourceType: chunk?.sourceType ?? "unknown",
+    title: chunk?.document?.title ?? "Untitled",
+    filePath: chunk?.document?.filePath ?? null,
+    sourceUrl: chunk?.document?.url ?? null,
+    sectionTitle: chunk?.sectionTitle ?? null,
+    headingPath,
+    rank: source.rank,
+    score: source.score,
+  };
+};

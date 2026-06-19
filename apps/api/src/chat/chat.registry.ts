@@ -6,7 +6,7 @@ import { CHAT_MCP_TOOLS } from "./chat.constants";
 import { parseChatQuestionInput, resolveChatQuestionSelection } from "./chat-contract";
 import { ChatQuestionService } from "./chat.service";
 import { KnowledgeGapsService, type GapStatus } from "../knowledge-gaps/knowledge-gaps.service";
-import type { DraftGenerationType } from "../knowledge-gaps/draft-generator";
+import { DRAFT_GENERATION_TYPES, type DraftGenerationType } from "../knowledge-gaps/draft-generator";
 
 const toolContent = (message: string): CallToolResult => ({
   content: [
@@ -88,7 +88,7 @@ const readOptionalDraftType = (
     return undefined;
   }
 
-  if (!["github_issue", "markdown_doc", "notion_page_text"].includes(type)) {
+  if (!DRAFT_GENERATION_TYPES.includes(type as DraftGenerationType)) {
     throw new Error("type must be one of the supported draft types");
   }
 

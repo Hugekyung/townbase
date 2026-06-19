@@ -186,4 +186,27 @@ describe("draft endpoints", () => {
 
     expect(service.createDraft).not.toHaveBeenCalled();
   });
+
+  it("rejects a missing draft type in the request body", async () => {
+    const service: MockKnowledgeGapsService = {
+      list: jest.fn(),
+      updateStatus: jest.fn(),
+      createDraft: jest.fn(),
+      listDrafts: jest.fn(),
+      getDraft: jest.fn(),
+    };
+    app = await createApp(service);
+
+    await request(app.getHttpServer())
+      .post("/knowledge-gaps/gap-1/draft")
+      .send({})
+      .expect(400)
+      .expect({
+        statusCode: 400,
+        message: "type must be one of the supported draft types",
+        error: "Bad Request",
+      });
+
+    expect(service.createDraft).not.toHaveBeenCalled();
+  });
 });
