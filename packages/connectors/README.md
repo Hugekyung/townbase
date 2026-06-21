@@ -59,6 +59,6 @@ pnpm --filter @townbase/connectors local-repo:sync
 - `buildChunkMetadata` exposes the chunk metadata shape that later chunk writers consume.
 - Phase 5 API orchestration can normalize Notion and local-repo results with `normalizeNotionSyncSummary` and `normalizeLocalRepoSyncSummary`, which expose `created`, `updated`, `skipped`, `failed`, `archived`, `failures`, and a `phase6_chunking_deferred` index boundary.
 - Local repo sync only ingests repositories that are explicitly selected on the command line.
-- `notion:sync` consumes the bundled fixture at `packages/connectors/fixtures/notion-sync.fixture.json` unless `NOTION_SYNC_FIXTURE_PATH` overrides it, then writes into PostgreSQL through Prisma.
+- `notion:sync` reads the live Notion root page configured in `.env`, then writes into PostgreSQL through Prisma. The root page must be shared with the integration token.
 - `local-repo:sync` reads the selected repos under `./repos`, applies the Phase 4 include/exclude rules, and writes `Document` rows through Prisma.
 - For the full local-first execution guide, sample structures, troubleshooting, security notes, and exclude rules, read [docs/local-first-execution.md](../../docs/local-first-execution.md).

@@ -564,6 +564,30 @@ Knowledge Gap을 GitHub Issue 또는 Markdown 문서 초안으로 전환한다.
 
 ---
 
+## Phase 15-2. Notion Database Root Support
+
+### 목표
+
+Notion sync가 page root뿐 아니라 database root도 받아서 동일한 ingestion pipeline으로 수집한다.
+
+### Tasks
+
+- [ ] root kind(page/database) 판별
+- [ ] database root 조회
+- [ ] database row를 page snapshot으로 정규화
+- [ ] database root의 pathSegments 정책 정의
+- [ ] database root를 기존 page traversal pipeline에 연결
+- [ ] database root 회귀 테스트 추가
+- [ ] database root sync 실패 로그 처리
+
+### 완료 기준
+
+- Notion root가 page 또는 database여도 sync가 동작한다.
+- database root의 row page가 Document로 저장된다.
+- 기존 page root sync 동작은 유지된다.
+
+---
+
 ## Phase 16. v0.1 Release
 
 ### 목표
