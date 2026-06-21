@@ -15,6 +15,31 @@ type RunNotionSyncOptions = Readonly<{
 type DatabaseRuntimeModule = ReturnType<typeof loadDatabaseRuntime>;
 type PrismaClientLike = ReturnType<DatabaseRuntimeModule["createPrismaClient"]>;
 
+export const resolveNotionSyncFixturePath = (
+  argv: ReadonlyArray<string>,
+): string | undefined => {
+  const normalizeFixturePath = (value: string | undefined): string | undefined => {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  };
+
+  const longFormIndex = argv.findIndex((arg) => arg === "--fixture-path");
+  if (longFormIndex !== -1) {
+    return normalizeFixturePath(argv[longFormIndex + 1]);
+  }
+
+  const inlineArg = argv.find((arg) => arg.startsWith("--fixture-path="));
+  if (inlineArg !== undefined) {
+    return normalizeFixturePath(inlineArg.slice("--fixture-path=".length));
+  }
+
+  return undefined;
+};
+
 const resolveFixturePath = (fixturePath: string | undefined): string =>
   fixturePath === undefined
     ? path.resolve(__dirname, "..", "fixtures", "notion-sync.fixture.json")
@@ -133,11 +158,10 @@ export const runNotionSync = async (
 };
 
 const main = async (): Promise<void> => {
-  await runNotionSync({
-    ...(process.env.NOTION_SYNC_FIXTURE_PATH === undefined
-      ? {}
-      : { fixturePath: process.env.NOTION_SYNC_FIXTURE_PATH }),
-  });
+  const fixturePath = resolveNotionSyncFixturePath(process.argv.slice(2));
+  await runNotionSync(
+    fixturePath === undefined ? {} : { fixturePath },
+  );
 };
 
 if (require.main === module) {
