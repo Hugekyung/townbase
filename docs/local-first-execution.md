@@ -33,11 +33,18 @@ Use `.env.example` as the starting point. The main variables are:
 ```bash
 docker compose up -d
 pnpm install
-pnpm --filter @townbase/database prisma:migrate:deploy
+DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public pnpm --filter @townbase/database prisma:migrate:deploy
 pnpm --filter @townbase/api dev
 ```
 
-## 4. Ingest Notion
+## 4. Prepare local repository corpus
+
+```bash
+mkdir -p /absolute/path/to/repos
+git clone --local . /absolute/path/to/repos/workspace-knowledge-agent
+```
+
+## 5. Ingest Notion
 
 ```bash
 pnpm --filter @townbase/connectors notion:sync
@@ -45,7 +52,7 @@ pnpm --filter @townbase/connectors notion:sync
 
 If you are only validating parsing or a fixture-backed path, the bundled fixture is used unless `NOTION_SYNC_FIXTURE_PATH` overrides it.
 
-## 5. Ingest selected local repositories
+## 6. Ingest selected local repositories
 
 ```bash
 pnpm --filter @townbase/connectors local-repo:sync
@@ -53,7 +60,7 @@ pnpm --filter @townbase/connectors local-repo:sync
 
 Only the explicitly selected repositories are ingested.
 
-## 6. Sample repository structure
+## 7. Sample repository structure
 
 ```text
 repos/
@@ -67,7 +74,7 @@ repos/
     migrations/
 ```
 
-## 7. Sample Notion page structure
+## 8. Sample Notion page structure
 
 - Product overview page
 - Architecture note page
@@ -76,13 +83,13 @@ repos/
 
 Keep the content source-grounded and avoid pages that are primarily generated output.
 
-## 8. Sample questions
+## 9. Sample questions
 
 - Onboarding: "Where do I start when I join this project?"
 - Product history: "Why was the local repository connector added?"
 - Documentation gap: "What documentation is still missing for the local repo sync flow?"
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 - If sync fails, verify the environment variables first.
 - If `local-repo:sync` finds nothing, confirm that `LOCAL_REPO_NAMES` points to real directories under `REPO_ROOT_PATH`.
@@ -90,7 +97,7 @@ Keep the content source-grounded and avoid pages that are primarily generated ou
 - If embeddings are unavailable, confirm `OPENAI_API_KEY` or expect fallback/local behavior where supported.
 - If PostgreSQL is not reachable, start Docker and rerun the migration command.
 
-## 10. Security and exclude rules
+## 11. Security and exclude rules
 
 Do not index or sync generated files, secrets, dependency artifacts, build output, or obvious credential files.
 
