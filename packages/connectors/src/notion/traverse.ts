@@ -2,18 +2,75 @@ import { renderSupportedBlock } from "./render";
 import type {
   NotionBlockRecord,
   NotionClientLike,
+  NotionDatabaseRecord,
+  NotionDatabaseRowRecord,
   NotionPageSnapshot,
   NotionPageRecord,
 } from "./types";
 export type {
   NotionBlockRecord,
   NotionClientLike,
+  NotionDatabaseRecord,
+  NotionDatabaseRowRecord,
   NotionPageSnapshot,
   NotionPageRecord,
 } from "./types";
 
-const extractPageTitle = (page: NotionPageRecord): string =>
-  page.properties.title.map((segment) => segment.plain_text).join("");
+type RichTextSegment = Readonly<{
+  plain_text: string;
+}>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const normalizeTitle = (value: string): string => {
+  const title = value.trim();
+
+  return title === "" ? "Untitled" : title;
+};
+
+const extractRichText = (
+  value: ReadonlyArray<RichTextSegment> | undefined,
+): string => {
+  if (value === undefined) {
+    return "";
+  }
+
+  return value.map((segment) => segment.plain_text).join("");
+};
+
+const extractPageTitle = (page: Pick<NotionPageRecord, "properties">): string =>
+  normalizeTitle(extractRichText(page.properties.title));
+
+const extractDatabaseTitleKey = (database: NotionDatabaseRecord): string => {
+  const titleEntry = Object.entries(database.properties).find(
+    ([, property]) => property.type === "title",
+  );
+
+  return titleEntry?.[0] ?? "title";
+};
+
+const extractDatabaseRowTitle = (
+  database: NotionDatabaseRecord,
+  row: NotionDatabaseRowRecord,
+): string => {
+  const titleKey = extractDatabaseTitleKey(database);
+  const property = row.properties[titleKey];
+
+  if (!isRecord(property) || !("title" in property) || !Array.isArray(property.title)) {
+    return "Untitled";
+  }
+
+  return normalizeTitle(
+    property.title
+      .filter(
+        (segment): segment is RichTextSegment =>
+          isRecord(segment) && typeof segment.plain_text === "string",
+      )
+      .map((segment) => segment.plain_text)
+      .join(""),
+  );
+};
 
 const listAllChildBlocks = async (
   client: NotionClientLike,
@@ -80,12 +137,11 @@ const collectPageChildren = async (
   };
 };
 
-export const loadNotionPageSnapshot = async (
+const buildPageSnapshot = async (
   client: NotionClientLike,
-  pageId: string,
+  page: NotionPageRecord,
 ): Promise<NotionPageSnapshot> => {
-  const page = await client.pages.retrieve({ page_id: pageId });
-  const children = await collectPageChildren(client, pageId);
+  const children = await collectPageChildren(client, page.id);
 
   return {
     page: {
@@ -98,5 +154,80 @@ export const loadNotionPageSnapshot = async (
     content: children.contentLines.join("\n"),
     childPages: children.childPages,
     unsupportedBlockIds: children.unsupportedBlockIds,
+  };
+};
+
+const listAllDatabaseRows = async (
+  client: NotionClientLike,
+  databaseId: string,
+): Promise<ReadonlyArray<NotionDatabaseRowRecord>> => {
+  if (client.databases === undefined) {
+    throw new Error("Notion database operations are not supported by this client");
+  }
+
+  const rows: NotionDatabaseRowRecord[] = [];
+  let cursor: string | undefined;
+
+  while (true) {
+    const response = await client.databases.query({
+      database_id: databaseId,
+      ...(cursor === undefined ? {} : { start_cursor: cursor }),
+    });
+
+    rows.push(...response.results);
+
+    if (!response.has_more || response.next_cursor === null) {
+      return rows;
+    }
+
+    cursor = response.next_cursor;
+  }
+};
+
+const normalizeDatabaseRowToPageRecord = (
+  database: NotionDatabaseRecord,
+  row: NotionDatabaseRowRecord,
+): NotionPageRecord => ({
+  id: row.id,
+  url: row.url,
+  created_time: row.created_time,
+  last_edited_time: row.last_edited_time,
+  properties: {
+    title: [{ plain_text: extractDatabaseRowTitle(database, row) }],
+  },
+});
+
+export const loadNotionPageSnapshot = async (
+  client: NotionClientLike,
+  pageId: string,
+): Promise<NotionPageSnapshot> => {
+  const page = await client.pages.retrieve({ page_id: pageId });
+  return buildPageSnapshot(client, page);
+};
+
+export const loadNotionDatabaseRootSnapshots = async (
+  client: NotionClientLike,
+  databaseId: string,
+): Promise<{
+  databaseTitle: string;
+  rowSnapshots: ReadonlyArray<NotionPageSnapshot>;
+}> => {
+  if (client.databases === undefined) {
+    throw new Error("Notion database operations are not supported by this client");
+  }
+
+  const database = await client.databases.retrieve({ database_id: databaseId });
+  const databaseTitle = extractPageTitle({ properties: { title: database.title } });
+  const rows = await listAllDatabaseRows(client, databaseId);
+  const rowSnapshots = await Promise.all(
+    rows.map(async (row) => {
+      const rowPage = normalizeDatabaseRowToPageRecord(database, row);
+      return buildPageSnapshot(client, rowPage);
+    }),
+  );
+
+  return {
+    databaseTitle,
+    rowSnapshots,
   };
 };
