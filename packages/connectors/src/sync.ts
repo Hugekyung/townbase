@@ -18,23 +18,40 @@ type PrismaClientLike = ReturnType<DatabaseRuntimeModule["createPrismaClient"]>;
 export const resolveNotionSyncFixturePath = (
   argv: ReadonlyArray<string>,
 ): string | undefined => {
-  const normalizeFixturePath = (value: string | undefined): string | undefined => {
+  const normalizeFixturePath = (
+    value: string | undefined,
+    errorMessage: string,
+  ): string | undefined => {
     if (value === undefined) {
-      return undefined;
+      throw new Error(errorMessage);
     }
 
     const trimmed = value.trim();
-    return trimmed === "" ? undefined : trimmed;
+    if (trimmed === "") {
+      throw new Error(errorMessage);
+    }
+
+    if (trimmed.startsWith("-")) {
+      throw new Error(errorMessage);
+    }
+
+    return trimmed;
   };
 
   const longFormIndex = argv.findIndex((arg) => arg === "--fixture-path");
   if (longFormIndex !== -1) {
-    return normalizeFixturePath(argv[longFormIndex + 1]);
+    return normalizeFixturePath(
+      argv[longFormIndex + 1],
+      "A valid fixture path must be specified after --fixture-path",
+    );
   }
 
   const inlineArg = argv.find((arg) => arg.startsWith("--fixture-path="));
   if (inlineArg !== undefined) {
-    return normalizeFixturePath(inlineArg.slice("--fixture-path=".length));
+    return normalizeFixturePath(
+      inlineArg.slice("--fixture-path=".length),
+      "A valid fixture path must be specified for --fixture-path=",
+    );
   }
 
   return undefined;
