@@ -10,9 +10,7 @@ type LiveNotionPage = Readonly<{
   url: string;
   created_time: string;
   last_edited_time: string;
-  properties: Readonly<{
-    title?: unknown;
-  }>;
+  properties: Readonly<Record<string, unknown>>;
 }>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -20,6 +18,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isTitleSegment = (value: unknown): value is LiveNotionPageTitleSegment =>
   isRecord(value) && typeof value.plain_text === "string";
+
+const isTitleProperty = (
+  value: unknown,
+): value is Readonly<{
+  type: "title";
+  title: unknown;
+}> =>
+  isRecord(value) &&
+  value.type === "title" &&
+  "title" in value;
 
 const normalizeTitleSegments = (
   value: unknown,
@@ -37,6 +45,18 @@ const normalizeTitleSegments = (
   return value.map((segment) => ({ plain_text: segment.plain_text }));
 };
 
+const extractTitleSegments = (page: LiveNotionPage): unknown => {
+  const directTitle = page.properties.title;
+
+  if (directTitle !== undefined) {
+    return directTitle;
+  }
+
+  return Object.values(page.properties).find((property): property is Readonly<{ title: unknown }> =>
+    isTitleProperty(property) && Array.isArray(property.title),
+  )?.title;
+};
+
 export const normalizeLiveNotionPageRecord = (
   page: LiveNotionPage,
 ): NotionPageRecord => ({
@@ -45,6 +65,6 @@ export const normalizeLiveNotionPageRecord = (
   created_time: page.created_time,
   last_edited_time: page.last_edited_time,
   properties: {
-    title: normalizeTitleSegments(page.properties.title),
+    title: normalizeTitleSegments(extractTitleSegments(page)),
   },
 });

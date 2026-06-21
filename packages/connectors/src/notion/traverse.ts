@@ -219,12 +219,12 @@ export const loadNotionDatabaseRootSnapshots = async (
   const database = await client.databases.retrieve({ database_id: databaseId });
   const databaseTitle = extractPageTitle({ properties: { title: database.title } });
   const rows = await listAllDatabaseRows(client, databaseId);
-  const rowSnapshots = await Promise.all(
-    rows.map(async (row) => {
-      const rowPage = normalizeDatabaseRowToPageRecord(database, row);
-      return buildPageSnapshot(client, rowPage);
-    }),
-  );
+  const rowSnapshots: NotionPageSnapshot[] = [];
+
+  for (const row of rows) {
+    const rowPage = normalizeDatabaseRowToPageRecord(database, row);
+    rowSnapshots.push(await buildPageSnapshot(client, rowPage));
+  }
 
   return {
     databaseTitle,
