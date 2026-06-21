@@ -51,6 +51,12 @@ pnpm --filter @townbase/connectors notion:sync
 
 `notion:sync` reads the live Notion root page configured in `.env`. Make sure the root page is shared with the integration token before you run it.
 
+If you need fixture replay for local smoke tests, run:
+
+```bash
+pnpm --filter @townbase/connectors notion:sync:fixture
+```
+
 ## 6. Ingest selected local repositories
 
 ```bash
@@ -94,6 +100,7 @@ Keep the content source-grounded and avoid pages that are primarily generated ou
 - If `local-repo:sync` finds nothing, confirm that `LOCAL_REPO_NAMES` points to real directories under `REPO_ROOT_PATH`.
 - If `notion:sync` cannot run, check `NOTION_API_KEY` and `NOTION_ROOT_PAGE_ID`.
 - If `notion:sync` returns `object_not_found`, share the configured root page with the Notion integration or verify that the token has access to that workspace.
+- If `notion:sync:fixture` fails, confirm that the fixture file path exists relative to the repository root.
 - If embeddings are unavailable, confirm `OPENAI_API_KEY` or expect fallback/local behavior where supported.
 - If PostgreSQL is not reachable, start Docker and rerun the migration command.
 

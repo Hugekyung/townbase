@@ -18,6 +18,7 @@ Local repository sync also uses:
 - `pnpm --filter @townbase/connectors build`
 - `pnpm --filter @townbase/connectors test`
 - `pnpm --filter @townbase/connectors notion:sync`
+- `pnpm --filter @townbase/connectors notion:sync:fixture`
 - `REPO_ROOT_PATH=./repos LOCAL_REPO_NAMES=<repo-name> pnpm --filter @townbase/connectors local-repo:sync`
 
 ## Workflow
@@ -44,6 +45,15 @@ pnpm --filter @townbase/connectors test
 
 ```bash
 pnpm --filter @townbase/connectors notion:sync
+```
+
+`notion:sync` reads the live Notion root page configured in `.env`, not the fixture replay path.
+Make sure the root page is shared with the integration token before you run it.
+
+If you need fixture replay, use:
+
+```bash
+pnpm --filter @townbase/connectors notion:sync:fixture
 ```
 
 5. Ingest selected local repositories:
