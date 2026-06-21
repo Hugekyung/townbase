@@ -24,7 +24,6 @@ Use `.env.example` as the starting point. The main variables are:
 - `OPENAI_EMBEDDING_BASE_URL`
 - `NOTION_API_KEY`
 - `NOTION_ROOT_PAGE_ID`
-- `NOTION_SYNC_FIXTURE_PATH`
 - `REPO_ROOT_PATH`
 - `LOCAL_REPO_NAMES`
 
@@ -43,7 +42,7 @@ pnpm --filter @townbase/api dev
 pnpm --filter @townbase/connectors notion:sync
 ```
 
-If you are only validating parsing or a fixture-backed path, the bundled fixture is used unless `NOTION_SYNC_FIXTURE_PATH` overrides it.
+`notion:sync` reads the live Notion root page configured in `.env`. Make sure the root page is shared with the integration token before you run it.
 
 ## 5. Ingest selected local repositories
 
@@ -87,6 +86,7 @@ Keep the content source-grounded and avoid pages that are primarily generated ou
 - If sync fails, verify the environment variables first.
 - If `local-repo:sync` finds nothing, confirm that `LOCAL_REPO_NAMES` points to real directories under `REPO_ROOT_PATH`.
 - If `notion:sync` cannot run, check `NOTION_API_KEY` and `NOTION_ROOT_PAGE_ID`.
+- If `notion:sync` returns `object_not_found`, share the configured root page with the Notion integration or verify that the token has access to that workspace.
 - If embeddings are unavailable, confirm `OPENAI_API_KEY` or expect fallback/local behavior where supported.
 - If PostgreSQL is not reachable, start Docker and rerun the migration command.
 
