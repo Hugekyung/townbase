@@ -4,6 +4,7 @@ import path from "node:path";
 import { loadNotionConnectorEnv } from "./env";
 import { loadDatabaseRuntime } from "./database-runtime";
 import { createOptionalEmbeddingModel } from "./embedding-model";
+import { normalizeLiveNotionPageRecord } from "./notion/live-page";
 import { createPrismaNotionSyncStore } from "./notion/prisma-store";
 import { loadNotionPageSnapshot, type NotionPageSnapshot } from "./notion/traverse";
 import { loadNotionSyncFixture } from "./notion/fixture";
@@ -51,31 +52,7 @@ const createLiveNotionClient = (auth: string): NotionClientLike => {
           throw new Error(`Notion page ${page_id} did not resolve to a page object`);
         }
 
-        const titleProperty = page.properties.title as
-          | {
-              title?: ReadonlyArray<{
-                plain_text: string;
-              }>;
-            }
-          | undefined;
-
-        if (titleProperty === undefined || titleProperty.title === undefined) {
-          throw new Error(`Notion page ${page_id} is missing a title property`);
-        }
-
-        const record: NotionPageRecord = {
-          id: page.id,
-          url: page.url,
-          created_time: page.created_time,
-          last_edited_time: page.last_edited_time,
-          properties: {
-            title: titleProperty.title.map((segment) => ({
-              plain_text: segment.plain_text,
-            })),
-          },
-        };
-
-        return record;
+        return normalizeLiveNotionPageRecord(page);
       },
     },
     blocks: {
