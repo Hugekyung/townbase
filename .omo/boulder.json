@@ -131,6 +131,16 @@
       ],
       "status": "completed",
       "worktree_path": null
+    },
+    "townbase-phase15-2-notion-database-root-support": {
+      "work_id": "townbase-phase15-2-notion-database-root-support",
+      "active_plan": ".omo/plans/townbase-phase15-2-notion-database-root-support.md",
+      "plan_name": "townbase-phase15-2-notion-database-root-support",
+      "session_ids": [
+        "codex:019ed10f-1937-7fd2-92c8-edc33f04e800"
+      ],
+      "status": "completed",
+      "worktree_path": null
     }
   }
 }

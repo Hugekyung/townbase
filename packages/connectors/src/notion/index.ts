@@ -17,6 +17,9 @@ export type {
   NotionBlockChildrenResponse,
   NotionBlockRecord,
   NotionClientLike,
+  NotionDatabaseQueryResponse,
+  NotionDatabaseRecord,
+  NotionDatabaseRowRecord,
   NotionPageRecord,
   NotionPageSnapshot,
 } from "./types";
