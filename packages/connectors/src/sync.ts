@@ -125,7 +125,11 @@ export const runNotionSync = async (
   const prisma = database.createPrismaClient();
   const embeddingModel = createOptionalEmbeddingModel();
   const livePages = options.fixturePath === undefined
-    ? await loadLiveNotionSyncPages(env.notionApiKey, env.notionRootPageId)
+    ? await loadLiveNotionSyncPages(env.notionApiKey, env.notionRootPageId, {
+      info: (message) => {
+        process.stdout.write(`${message}\n`);
+      },
+    })
     : undefined;
   const fixture = options.fixturePath === undefined
     ? undefined

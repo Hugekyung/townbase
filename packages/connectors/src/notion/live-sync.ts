@@ -1,4 +1,5 @@
 import { Client } from "@notionhq/client";
+import type { Logger } from "@notionhq/client/build/src/logging";
 
 import { normalizeLiveNotionPageRecord } from "./live-page";
 import {
@@ -42,8 +43,17 @@ const shouldFallbackToDatabase = (error: unknown): boolean => {
   );
 };
 
-const createLiveNotionClient = (auth: string): NotionClientLike => {
-  const notionClient = new Client({ auth });
+const silentNotionLogger: Logger = () => {};
+
+type SyncProgressLogger = Readonly<{
+  info: (message: string) => void;
+}>;
+
+const createLiveNotionClient = (auth: string, silent: boolean): NotionClientLike => {
+  const notionClient = new Client({
+    auth,
+    ...(silent ? { logger: silentNotionLogger } : {}),
+  });
 
   return {
     pages: {
@@ -179,7 +189,25 @@ export const loadNotionSyncPagesFromClient = async (
 export const loadLiveNotionSyncPages = async (
   notionApiKey: string,
   rootPageId: string,
+  logger: SyncProgressLogger = {
+    info: (message: string) => {
+      process.stdout.write(`${message}\n`);
+    },
+  },
 ): Promise<ReadonlyArray<NotionSyncPageInput>> => {
-  const client = createLiveNotionClient(notionApiKey);
-  return loadNotionSyncPagesFromClient(client, rootPageId);
+  const detectionClient = createLiveNotionClient(notionApiKey, true);
+  const client = createLiveNotionClient(notionApiKey, false);
+  const rootKind = await detectLiveNotionRootKind(detectionClient, rootPageId);
+
+  if (rootKind === "page") {
+    logger.info(`Notion sync: reading page root ${rootPageId}`);
+    const snapshot = await loadNotionPageSnapshot(client, rootPageId, new Set<string>(), logger);
+    logger.info(`Notion sync: flattened page root ${snapshot.page.title}`);
+    return flattenNotionPageSnapshots(snapshot);
+  }
+
+  logger.info(`Notion sync: reading database root ${rootPageId}`);
+  const { databaseTitle, rowSnapshots } = await loadNotionDatabaseRootSnapshots(client, rootPageId, logger);
+  logger.info(`Notion sync: database root ${databaseTitle} returned ${rowSnapshots.length} rows`);
+  return rowSnapshots.flatMap((snapshot) => flattenNotionPageSnapshots(snapshot, [databaseTitle]));
 };

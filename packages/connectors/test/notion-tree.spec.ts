@@ -1,4 +1,7 @@
-import { loadNotionPageSnapshot, type NotionClientLike } from "../src/notion/traverse";
+import {
+  loadNotionPageSnapshot,
+  type NotionClientLike,
+} from "../src/notion/traverse";
 
 type BlockRecord = Readonly<{
   id: string;
@@ -102,6 +105,13 @@ const createMockClient = (): NotionClientLike => {
               id: "child-unsupported",
               type: "unsupported",
             },
+            {
+              id: "root",
+              type: "child_page",
+              child_page: {
+                title: "Root Page",
+              },
+            },
           ],
           next_cursor: null,
           has_more: false,
@@ -169,5 +179,29 @@ describe("loadNotionPageSnapshot", () => {
 
     expect(snapshot.content).toBe("Child bullet");
     expect(snapshot.unsupportedBlockIds).toEqual(["child-unsupported"]);
+  });
+
+  it("stops when a child page points back to an ancestor", async () => {
+    const client = createMockClient();
+    const snapshot = await loadNotionPageSnapshot(client, "root");
+
+    expect(snapshot.childPages).toHaveLength(1);
+    expect(snapshot.childPages[0]?.page.id).toBe("root-child-page");
+    expect(snapshot.childPages[0]?.childPages).toHaveLength(0);
+  });
+
+  it("logs each page as it is read", async () => {
+    const logs: string[] = [];
+
+    await loadNotionPageSnapshot(createMockClient(), "root", new Set<string>(), {
+      info: (message) => {
+        logs.push(message);
+      },
+    });
+
+    expect(logs).toEqual([
+      "Notion sync: reading page Root Page (root)",
+      "Notion sync: reading page Child Page (root-child-page)",
+    ]);
   });
 });
