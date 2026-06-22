@@ -20,6 +20,10 @@ type RichTextSegment = Readonly<{
   plain_text: string;
 }>;
 
+type NotionTraversalLogger = Readonly<{
+  info: (message: string) => void;
+}>;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
@@ -98,11 +102,17 @@ const listAllChildBlocks = async (
 const collectPageChildren = async (
   client: NotionClientLike,
   pageId: string,
+  visitedPageIds: ReadonlySet<string> = new Set<string>(),
+  logger: NotionTraversalLogger = {
+    info: () => {},
+  },
 ): Promise<{
   contentLines: string[];
   childPages: NotionPageSnapshot[];
   unsupportedBlockIds: string[];
 }> => {
+  const nextVisitedPageIds = new Set(visitedPageIds);
+  nextVisitedPageIds.add(pageId);
   const blocks = await listAllChildBlocks(client, pageId);
   const contentLines: string[] = [];
   const childPages: NotionPageSnapshot[] = [];
@@ -110,7 +120,9 @@ const collectPageChildren = async (
 
   for (const block of blocks) {
     if (block.type === "child_page") {
-      childPages.push(await loadNotionPageSnapshot(client, block.id));
+      if (!nextVisitedPageIds.has(block.id)) {
+        childPages.push(await loadNotionPageSnapshot(client, block.id, nextVisitedPageIds, logger));
+      }
       continue;
     }
 
@@ -122,8 +134,8 @@ const collectPageChildren = async (
       contentLines.push(rendered);
     }
 
-    if (block.has_children === true) {
-      const nested = await collectPageChildren(client, block.id);
+    if (block.has_children === true && !nextVisitedPageIds.has(block.id)) {
+      const nested = await collectPageChildren(client, block.id, nextVisitedPageIds, logger);
       contentLines.push(...nested.contentLines);
       childPages.push(...nested.childPages);
       unsupportedBlockIds.push(...nested.unsupportedBlockIds);
@@ -140,8 +152,11 @@ const collectPageChildren = async (
 const buildPageSnapshot = async (
   client: NotionClientLike,
   page: NotionPageRecord,
+  visitedPageIds: ReadonlySet<string>,
+  logger: NotionTraversalLogger,
 ): Promise<NotionPageSnapshot> => {
-  const children = await collectPageChildren(client, page.id);
+  logger.info(`Notion sync: reading page ${extractPageTitle(page)} (${page.id})`);
+  const children = await collectPageChildren(client, page.id, visitedPageIds, logger);
 
   return {
     page: {
@@ -200,14 +215,23 @@ const normalizeDatabaseRowToPageRecord = (
 export const loadNotionPageSnapshot = async (
   client: NotionClientLike,
   pageId: string,
+  visitedPageIds: ReadonlySet<string> = new Set<string>(),
+  logger: NotionTraversalLogger = {
+    info: () => {},
+  },
 ): Promise<NotionPageSnapshot> => {
   const page = await client.pages.retrieve({ page_id: pageId });
-  return buildPageSnapshot(client, page);
+  const nextVisitedPageIds = new Set(visitedPageIds);
+  nextVisitedPageIds.add(pageId);
+  return buildPageSnapshot(client, page, nextVisitedPageIds, logger);
 };
 
 export const loadNotionDatabaseRootSnapshots = async (
   client: NotionClientLike,
   databaseId: string,
+  logger: NotionTraversalLogger = {
+    info: () => {},
+  },
 ): Promise<{
   databaseTitle: string;
   rowSnapshots: ReadonlyArray<NotionPageSnapshot>;
@@ -223,7 +247,8 @@ export const loadNotionDatabaseRootSnapshots = async (
 
   for (const row of rows) {
     const rowPage = normalizeDatabaseRowToPageRecord(database, row);
-    rowSnapshots.push(await buildPageSnapshot(client, rowPage));
+    logger.info(`Notion sync: reading database row ${extractDatabaseRowTitle(database, row)} (${row.id})`);
+    rowSnapshots.push(await buildPageSnapshot(client, rowPage, new Set<string>(), logger));
   }
 
   return {
