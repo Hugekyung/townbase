@@ -2,17 +2,17 @@
 
 ## 1. 문서 목적
 
-이 문서는 townbase를 2~3일 안에 지원서에 설명 가능한 RAG MVP 수준으로 개선하기 위한 실행 계획이다. 최우선은 실제 질문이 Source 기반 답변까지 이어지는 P0 흐름이며, 평가 자동화와 운영 보강은 P0가 동작한 뒤 진행한다.
+이 문서는 townbase를 2~3일 안에 지원서에 설명 가능한 MCP Retrieval-first RAG MVP 수준으로 개선하기 위한 실행 계획이다. 최우선은 질문이 검색된 근거 문서와 함께 MCP 응답으로 반환되는 P0 흐름이며, 별도 LLM API 호출은 기본 경로에 포함하지 않는다.
 
-> Notion·로컬 Git 문서의 수집, Chunking, Embedding, Retrieval뿐 아니라 실제 LLM 답변과 Citation, Knowledge Gap 전환까지 동작하고, Golden Dataset을 이용해 검색 품질을 측정·개선한 End-to-End RAG Knowledge Agent
+> Notion·로컬 Git 문서의 수집, Chunking, Embedding, Retrieval, Citation, Knowledge Gap 전환까지 동작하고, MCP Client Agent가 검색 근거를 이용해 최종 답변을 만들 수 있는 RAG Knowledge Agent
 
 이번 작업은 기능 확장이 아니라 현재 구현의 핵심 공백을 메우고 성과를 수치로 증명하는 데 집중한다.
 
 ### 최종 목표
 
-- 실제 질문 한 건이 MCP를 통해 들어와 Retrieval, LLM 답변, Citation, Persistence까지 이어지는 흐름을 완성한다.
+- 실제 질문 한 건이 MCP를 통해 들어와 Retrieval, 근거 문서 반환, Citation, Persistence까지 이어지는 흐름을 완성한다.
 - 질문 목적에 맞는 Mode-aware Retrieval을 실제 Chat 검색 경로에 적용한다.
-- 근거가 부족한 질문은 답변하지 않고 Knowledge Gap으로 전환한다.
+- 근거가 부족한 질문은 답변용 Source를 반환하지 않고 Knowledge Gap으로 전환한다.
 - Vector Only와 Mode-aware의 차이를 동일 Dataset으로 비교한다.
 - 다음 세 가지 결과물을 남긴다.
   1. 실행 가능한 End-to-End RAG 데모
@@ -26,6 +26,7 @@
 - LangChain·LangGraph 재작성
 - Multi-Agent
 - GitHub Issue·Notion Page 실제 생성
+- townbase 내부 Chat Completion API와 별도 OpenAI Chat/Responses 호출
 - Web UI
 - `change_impact` Mode
 - 멀티테넌시·권한 동기화
@@ -35,7 +36,7 @@
 
 ## 2. townbase의 질문 → 답변 전체 흐름
 
-Chat Completion Adapter는 검색기가 아니다. 검색된 문서를 LLM이 읽고, 정해진 JSON 형식의 답변을 만들도록 연결하는 내부 부품이다. OpenAI Chat/Responses API 같은 LLM API를 호출하는 구현체가 이 역할을 맡는다.
+기본 P0 경로에서는 townbase가 별도 Chat Completion API를 호출하지 않는다. ChatGPT·Codex 같은 MCP Client Agent가 이미 사용 중인 모델로 최종 자연어 답변을 만들고, townbase는 검색·근거·Citation·Knowledge Gap 정보를 반환한다. Chat Completion Adapter는 townbase가 MCP 없이 자체 답변 API까지 제공하려는 경우에만 선택적으로 추가한다.
 
 MCP에 연결된 외부 Agent와 townbase 내부의 역할은 다음처럼 나뉜다.
 
@@ -75,26 +76,18 @@ MCP에 연결된 외부 Agent와 townbase 내부의 역할은 다음처럼 나�
    v
 [Prompt Context + Grounding Rule]
    |
-   | 11. 제공된 Source만 사용하도록 LLM에 전달
+   | 11. Source 내용·경로·Section·점수로 MCP 응답 구성
    v
-[Chat Completion Adapter]
+[MCP Retrieval Response]
    |
-   | 12. OpenAI Responses/Chat API 호출
-   | 13. Structured Output 반환
-   |     { answer, isAnswerable, usedSourceIds, knowledgeGap }
-   v
-[Response Parser + Grounding Validator]
-   |
-   | 14. JSON Schema 검증
-   | 15. usedSourceIds가 실제 검색 Source인지 검증
-   | 16. Source가 없거나 근거가 약하면 답변 거절
+   | { question, resolvedMode, isAnswerable, sources, citations, knowledgeGap }
    v
 [Persistence]
    |
-   | 17. Question 저장
-   | 18. QuestionSource와 점수·순위 저장
-   | 19. Citation은 DB Source에서 복원
-   | 20. 답변 불가면 KnowledgeGap·ActionDraft 저장
+   | 12. Question 저장
+   | 13. QuestionSource와 점수·순위 저장
+   | 14. Citation은 DB Source에서 복원
+   | 15. 답변 불가면 KnowledgeGap·ActionDraft 저장
    v
 [MCP 결과]
    |
@@ -107,13 +100,15 @@ MCP에 연결된 외부 Agent와 townbase 내부의 역할은 다음처럼 나�
 [사용자 응답]
 ```
 
-정리하면 외부 Agent는 MCP를 통해 townbase 기능을 호출하고 최종 대화를 담당한다. townbase 내부의 Chat Completion Adapter는 검색된 문서를 실제 답변 JSON으로 바꾸는 LLM 호출 담당이다. 둘은 같은 역할이 아니다.
+정리하면 townbase는 문서 검색과 근거 패킷 생성을 담당하고, 외부 MCP Agent가 그 패킷을 바탕으로 최종 답변을 담당한다. 이 구조에서는 townbase가 별도 OpenAI Chat/Responses API를 호출하지 않으므로 중복 API 비용이 발생하지 않는다.
+
+단, Embedding을 OpenAI API로 생성하면 Embedding 비용은 별도로 발생할 수 있다. 비용 없는 로컬 검증이 필요하면 Fixture Embedding 또는 로컬 Embedding Model을 사용하고, 실제 검색 품질 평가에서만 선택적으로 OpenAI Embedding을 사용한다.
 
 Source가 없는 경우의 예외 흐름은 다음과 같다.
 
 ```text
 Retriever 결과 0개 또는 Answerability 기준 미달
-   → Chat Completion Adapter 호출하지 않음
+   → 답변 Source를 반환하지 않음
    → isAnswerable=false
    → Question 저장
    → Knowledge Gap 및 Draft 저장
@@ -124,7 +119,7 @@ Retriever 결과 0개 또는 Answerability 기준 미달
 
 ```text
 사전 점검
-→ P0: 실제 Completion + Mode-aware 검색 + Source Grounding
+→ P0: Mode-aware 검색 + Source Grounding 응답
 → P0: End-to-End Smoke Test
 → P1: Golden Dataset·Vector Baseline
 → P1: Mode-aware 재측정·평가 보고서
@@ -133,9 +128,9 @@ Retriever 결과 0개 또는 Answerability 기준 미달
 
 | 우선순위 | 작업 | 예상 시간 | 핵심 산출물 |
 |---:|---|---:|---|
-| P0 | 실제 Completion Adapter와 Source Grounding | 4~6시간 | 결과물 1·2의 기반 |
+| P0 | MCP Retrieval 응답과 Source Grounding | 3~5시간 | 결과물 1·2의 기반 |
 | P0 | Chat 경로 Mode-aware Retrieval 연결 | 3~5시간 | 실제 검색 순위 개선 |
-| P0 | End-to-End Smoke Test와 대표 데모 | 2~3시간 | 결과물 1: 실행 가능한 RAG 데모 |
+| P0 | MCP End-to-End Smoke Test와 대표 데모 | 2~3시간 | 결과물 1: 실행 가능한 RAG 데모 |
 | P1 | Golden Dataset·Vector Baseline·평가 Runner | 4~6시간 | 비교 가능한 Baseline |
 | P1 | Mode-aware 재측정과 평가 보고서 | 3~5시간 | 결과물 3: 평가 보고서 |
 | P2 | 동기화·비용·운영 안정성 보강 | 남는 시간 | 운영 증거와 후속 개선 |
@@ -146,14 +141,14 @@ Retriever 결과 0개 또는 Answerability 기준 미달
 
 ### TASK-001. 현재 동작 경로 확인
 
-- [ ] `apps/api/src/chat/chat.runtime.ts`에서 Completion Client 생성 위치를 확인한다.
-- [ ] Completion Interface와 테스트용 Scaffold 구현체를 확인한다.
+- [ ] `apps/api/src/chat/chat.runtime.ts`에서 MCP Retrieval 응답 생성 위치를 확인한다.
+- [ ] 현재 Completion Scaffold가 기본 경로에 연결되어 있지 않은지 확인한다.
 - [ ] MCP 질문 Tool에서 다음 호출 흐름을 코드 기준으로 기록한다.
   - Mode 결정
   - 질문 Embedding
   - Vector Search
   - Prompt Context 생성
-  - Completion 호출
+  - MCP Retrieval 응답 구성
   - Question·QuestionSource 저장
   - Knowledge Gap 판단
 - [ ] 검색 Repository의 실제 SQL과 반환 필드를 확인한다.
@@ -178,7 +173,9 @@ RAG_RETRIEVAL_STRATEGY=vector_only
 
 ---
 
-## 4. Phase 1 — 실제 OpenAI Completion Adapter
+## 4. P2 선택 Phase — Standalone OpenAI Completion Adapter
+
+이 Phase는 기본 MCP Retrieval 경로에 포함하지 않는다. MCP Client Agent 없이도 townbase가 자체적으로 답변을 생성하는 standalone API가 필요할 때만 진행한다. 지원서용 최소 목표와 API 비용 절감 목표를 위해 P0·P1 완료 전에는 착수하지 않는다.
 
 ### TASK-101. Completion 계약 확정
 
@@ -255,9 +252,9 @@ OPENAI_COMPLETION_TIMEOUT_MS=15000
 - [ ] API 오류 시 Question 상태 또는 오류 응답 테스트
 - [ ] 실제 API 스모크 테스트 2~3개를 별도 명령으로 제공한다.
 
-완료 조건:
+완료 조건(선택 기능):
 
-- MCP 질문 한 번으로 실제 답변, Citation, QuestionSource 저장까지 완료된다.
+- standalone 질문 API 한 번으로 실제 답변, Citation, QuestionSource 저장까지 완료된다.
 - API Key가 없는 테스트 환경에서는 Fake Adapter로 전체 테스트가 통과한다.
 - Source가 없거나 응답이 불완전한 경우 근거 없는 답변을 저장하지 않는다.
 
@@ -399,22 +396,22 @@ Mode Accuracy = expectedMode와 resolvedMode가 같은 질문 수 / 전체 auto 
 Answerability Accuracy = expected answerable과 실제 isAnswerable이 같은 질문 수 / 전체 질문 수
 ```
 
-#### Citation Accuracy
+#### Source Citation Precision
 
-최종 답변의 Citation이 Golden Dataset의 관련 문서에 포함되는지 측정한다.
+MCP Retrieval 응답의 Citation이 Golden Dataset의 관련 문서와 일치하는지 측정한다. 외부 Agent가 만든 자연어 답변 자체의 품질은 별도 수동 검토 대상으로 기록한다.
 
 - [ ] `Hit@3`, `Hit@5`, `MRR` 구현
 - [ ] Mode Accuracy 구현
 - [ ] Answerability Accuracy 구현
-- [ ] Citation Accuracy 또는 Citation Precision 구현
+- [ ] Source Citation Precision 구현
 - [ ] 평균·P95 Retrieval Latency 구현
-- [ ] 평균·P95 End-to-End Latency 구현
-- [ ] 가능하면 LLM 입력·출력 Token과 예상 비용을 기록한다.
+- [ ] 평균·P95 MCP Response Latency 구현
+- [ ] 외부 Agent의 LLM 비용은 townbase 평가 비용과 분리해 기록한다.
 
 ### TASK-303. 기존 Vector Search Baseline 측정
 
 - [ ] `RAG_RETRIEVAL_STRATEGY=vector_only`로 평가한다.
-- [ ] 결과 파일에 실행 일시, Git Commit, Embedding 모델, Chat 모델, Top K를 기록한다.
+- [ ] 결과 파일에 실행 일시, Git Commit, Embedding 모델, Top K를 기록한다.
 - [ ] 질문별 실패 원인을 다음 유형으로 분류한다.
   - 잘못된 Mode
   - 관련 Chunk 누락
@@ -478,7 +475,7 @@ finalScore
 ### TASK-403. 개선 후 재측정
 
 - [ ] 동일 Corpus와 Golden Dataset을 사용한다.
-- [ ] 동일 Embedding·Chat 모델과 Top K를 사용한다.
+- [ ] 동일 Embedding 모델과 Top K를 사용한다.
 - [ ] `mode_aware` 전략으로 평가한다.
 - [ ] Vector Baseline과 지표를 비교한다.
 - [ ] 성능이 나빠진 질문도 숨기지 않고 원인을 기록한다.
@@ -504,22 +501,24 @@ finalScore
 
 ```text
 Source 0개
-→ LLM 미호출
+→ 빈 Source packet
 → isAnswerable=false
-→ Knowledge Gap
+→ Question·Knowledge Gap 저장
 
 Source는 있으나 검색 점수가 낮음
-→ 낮은 근거 상태로 Prompt에 전달하거나 Gap 처리
+→ Source packet 반환하지 않음
+→ isAnswerable=false
+→ Knowledge Gap 처리
 
 Source 충분
-→ LLM 답변
-→ usedSourceIds 검증
+→ Source packet 반환
 → Citation 저장
+→ MCP Client Agent가 최종 답변 생성
 ```
 
-- [ ] Source 0개 처리 규칙을 코드로 강제한다.
+- [ ] Source 0개 시 빈 Source packet과 Knowledge Gap을 반환한다.
 - [ ] 최고 검색 Score와 Source 수를 기록한다.
-- [ ] 고정 `0.65`가 LLM Confidence인지 최종 Confidence인지 명확히 한다.
+- [ ] `confidence`가 Retrieval 근거 점수인지 명확히 한다.
 - [ ] Threshold는 설정값으로 이동한다.
 - [ ] 평가 결과를 근거로 Threshold를 한 번만 조정한다.
 
@@ -587,7 +586,7 @@ durationMs
 
 ### Answerability 판정 기준
 
-- 검색 Source가 0개면 LLM을 호출하지 않는다.
+- 검색 Source가 0개면 답변용 Source packet을 반환하지 않는다.
 - 검색 Source가 1개 이상이면 다음 조건을 모두 만족할 때만 답변 가능으로 본다.
 
 ```text
@@ -598,9 +597,9 @@ isAnswerable
 ```
 
 - `topAdjustedScore`와 `averageTop3AdjustedScore`는 Retrieval 결과의 `adjustedScore`를 사용한다.
-- LLM이 반환한 `confidence`는 최종 답변 가능 여부를 결정하는 기준으로 사용하지 않는다.
-- 시스템은 Retrieval 근거를 기준으로 `isAnswerable`을 먼저 결정하고, LLM은 답변과 근거 Source ID만 반환한다.
-- 조건을 만족하지 못하면 답변을 저장하지 않고 `isAnswerable=false`로 Question을 저장한 뒤 Knowledge Gap을 생성한다.
+- `confidence`는 Retrieval 근거를 나타내며 외부 Agent의 LLM confidence와 구분한다.
+- 시스템은 Retrieval 근거를 기준으로 `isAnswerable`을 결정하고, 충분한 경우에만 Source packet을 반환한다.
+- 조건을 만족하지 못하면 답변용 Source를 반환하지 않고 `isAnswerable=false`로 Question을 저장한 뒤 Knowledge Gap을 생성한다.
 - Threshold는 코드 상수로 흩어놓지 않고 평가 설정 객체에 모은다. 최초 값은 `0.65`, `0.55`로 두고, Golden Dataset 평가 결과에 따라 한 번만 조정한다.
 
 ### Mode별 Source Type과 Ranking 정책
@@ -634,7 +633,7 @@ finalScore
 
 - Mode-aware의 `Hit@5` 또는 `MRR` 중 하나가 Vector Only보다 개선되어야 한다.
 - 개선되지 않은 주요 지표가 Baseline 대비 크게 악화되지 않아야 한다.
-- Citation Accuracy는 최소 90%를 목표로 한다.
+- Source Citation Precision은 최소 90%를 목표로 한다.
 - 답변 불가능 질문은 정상 거절율과 불필요한 거절율을 함께 기록한다.
 - 개선된 질문, 악화된 질문, 악화 원인, 다음 개선안을 질문별 결과에 남긴다.
 - 위 수치는 20개 Golden Dataset 전체의 품질을 보장하는 절대 기준이 아니라 v0.1 비교 실험의 목표로 사용한다.
@@ -660,8 +659,8 @@ docs/evaluation-report.md
 5. Vector Only Baseline
 6. Mode-aware 결과
 7. 개선된 질문과 악화된 질문
-8. Answerability·Citation 결과
-9. Latency·Token·비용 변화
+8. Answerability·Source Citation Precision 결과
+9. Retrieval Latency·MCP Response Latency 변화
 10. 한계와 다음 개선 후보
 
 성과 문장 Template:
@@ -669,7 +668,7 @@ docs/evaluation-report.md
 ```text
 Golden Question 20개를 기준으로 Vector Only와 Mode-aware Retrieval을 비교했다.
 Mode-aware Retrieval 적용 후 Hit@5는 [A]%에서 [B]%로, MRR은 [C]에서 [D]로 변했다.
-답변 불가능 질문 [N]개 중 [M]개를 정상적으로 거절했으며, Citation Accuracy는 [E]%였다.
+답변 불가능 질문 [N]개 중 [M]개에 대해 정상적으로 근거 부족을 표시했으며, Source Citation Precision은 [E]%였다.
 대신 Retrieval P95는 [F]ms에서 [G]ms로 증가해 정확도와 지연 시간의 trade-off가 발생했다.
 ```
 
@@ -677,23 +676,24 @@ Mode-aware Retrieval 적용 후 Hit@5는 [A]%에서 [B]%로, MRR은 [C]에서 [D
 
 ### TASK-702. README 업데이트
 
-- [ ] 현재 구현 상태에서 Completion Scaffold 문구를 제거하거나 실제 상태로 수정한다.
+- [ ] MCP Retrieval-first 구조를 README에 설명하고 Completion Scaffold는 기본 경로가 아님을 명시한다.
 - [ ] 평가 결과 요약 표를 추가한다.
 - [ ] `pnpm eval:rag` 실행 방법을 추가한다.
-- [ ] 대표 질문·답변·Citation 예시를 2~3개 추가한다.
+- [ ] 대표 질문·Source packet·외부 Agent 답변·Citation 예시를 2~3개 추가한다.
 - [ ] 여전히 구현하지 않은 기능은 한계로 유지한다.
 
 ### TASK-703. `interview.md` 업데이트
 
 - [ ] “설계되어 있다”와 “구현·검증했다”를 구분한다.
 - [ ] Metadata-aware Retrieval의 실제 Ranking 공식을 설명한다.
+- [ ] MCP Client Agent와 townbase Retrieval Server의 역할을 구분한다.
 - [ ] Golden Dataset과 지표 선택 이유를 추가한다.
 - [ ] 성능이 개선되지 않은 부분과 trade-off도 설명한다.
 - [ ] 1분 답변에는 핵심 수치 1~2개만 포함한다.
 
 최종 표현:
 
-> Notion·로컬 Git 문서를 증분 수집하고 Heading-aware Chunking과 pgvector 검색을 적용한 End-to-End RAG Knowledge Agent를 구현했습니다. Golden Dataset으로 Retrieval Mode, Answerability, Citation 품질을 측정하고, Mode별 Metadata Ranking을 적용해 일반 Vector Search와 성능을 비교했습니다. 근거가 부족한 질문은 Knowledge Gap과 ActionDraft로 전환하는 Human-in-the-loop 문서화 Workflow로 연결했습니다.
+> Notion·로컬 Git 문서를 증분 수집하고 Heading-aware Chunking과 pgvector 검색을 적용한 MCP Retrieval-first RAG Knowledge Agent를 구현했습니다. MCP Client Agent가 사용할 수 있도록 Retrieval Mode별 Source packet과 Citation을 반환하고, Golden Dataset으로 Vector Only와 Mode-aware 검색 품질을 비교했습니다. 근거가 부족한 질문은 Knowledge Gap과 ActionDraft로 전환하는 Human-in-the-loop 문서화 Workflow로 연결했습니다.
 
 ---
 
@@ -710,35 +710,35 @@ Fixture 또는 로컬 문서 수집
 → Chunking·Embedding 저장
 → 질문 Embedding
 → Vector/Mode-aware Retrieval
-→ Chat Completion Adapter
-→ Source 기반 답변
-→ Citation·Question 저장
+→ Source 내용·Citation 반환
+→ Question·QuestionSource 저장
+→ MCP Client Agent가 최종 답변 생성
 ```
 
 완료 기준:
 
-- MCP `workspace_knowledge.question` 호출 한 번으로 실제 답변이 반환된다.
-- 답변에는 검색된 문서의 제목·경로·Section Citation이 포함된다.
-- API Key가 없는 테스트 환경에서는 Fake Adapter로 같은 흐름을 재현할 수 있다.
-- 실제 API Smoke Test는 별도 명령으로 1~3개 질문을 실행한다.
+- MCP `workspace_knowledge.question` 호출 한 번으로 Source packet이 반환된다.
+- 응답에는 문서 내용 또는 필요한 Snippet, 제목·경로·Section·Citation이 포함된다.
+- MCP Client Agent가 반환된 Source만 사용해 최종 답변을 만들 수 있다.
+- OpenAI Chat API Key 없이 Fixture 또는 로컬 Retrieval Smoke Test를 실행한다.
 
 ### 결과물 2 — Source Grounding과 Citation 검증 결과
 
 P0에서 결과물 1과 함께 완료한다.
 
-- Source가 0개면 Completion Adapter를 호출하지 않는다.
-- 검색 Source에 없는 `usedSourceIds`는 저장하지 않는다.
-- Citation은 LLM이 만든 URL이 아니라 DB Source에서 복원한다.
-- 근거가 부족하면 답변을 저장하지 않고 `isAnswerable=false`와 Knowledge Gap을 저장한다.
-- 답변 가능 질문, 답변 불가능 질문, 잘못된 Source ID 응답을 각각 테스트한다.
+- Source가 0개면 답변용 Source packet을 반환하지 않는다.
+- 반환된 Source ID와 Citation은 실제 DB 검색 결과에 존재해야 한다.
+- Citation은 검색 결과의 DB Source에서 복원한다.
+- 근거가 부족하면 `isAnswerable=false`와 Knowledge Gap을 저장한다.
+- 답변 가능 질문, 답변 불가능 질문, Source ID·Citation 불일치 상황을 각각 테스트한다.
 
 ### 결과물 3 — Vector Only 대비 Mode-aware 평가 보고서
 
 P1에서 완료한다. P0가 먼저 동작하지 않으면 평가를 시작하지 않는다.
 
 - 동일 Corpus와 Golden Question 10~20개를 사용한다.
-- 동일 Embedding 모델·Chat 모델·Top K로 `vector_only`와 `mode_aware`를 비교한다.
-- `Hit@5`, `MRR`, Mode Accuracy, Answerability Accuracy, Citation Accuracy를 기록한다.
+- 동일 Embedding 모델·Top K로 `vector_only`와 `mode_aware`를 비교한다.
+- `Hit@5`, `MRR`, Mode Accuracy, Answerability Accuracy, Source Citation Precision을 기록한다.
 - 개선된 질문과 악화된 질문을 모두 기록한다.
 - `docs/evaluation-report.md`에 실제 측정 수치만 작성한다.
 
@@ -747,10 +747,9 @@ P1에서 완료한다. P0가 먼저 동작하지 않으면 평가를 시작하�
 ### P0 — 최우선: 실제 RAG 동작 완성
 
 - [ ] 현재 Chat/MCP 호출 경로 확인
-- [ ] 실제 OpenAI Completion Adapter 구현
-- [ ] Structured Output과 응답 Parser 연결
-- [ ] Source 0개 시 LLM 미호출
-- [ ] `usedSourceIds`와 Citation 검증
+- [ ] MCP Retrieval 응답 Schema와 응답 Parser 연결
+- [ ] Source 0개 시 빈 Source packet과 Knowledge Gap 반환
+- [ ] Source ID·Citation이 실제 검색 결과인지 검증
 - [ ] Chat 경로에 Mode-aware Ranking 연결
 - [ ] archived/deprecated 문서 제외
 - [ ] Question·QuestionSource·KnowledgeGap 저장
@@ -761,9 +760,9 @@ P0 종료 조건:
 ```text
 MCP 질문
 → 검색
-→ 실제 또는 Fake LLM 답변
-→ Citation
+→ Source packet·Citation 반환
 → Question/Source 저장
+→ MCP Client Agent가 최종 답변 생성
 → 근거 부족 시 Knowledge Gap
 ```
 
@@ -818,10 +817,10 @@ P1 종료 조건:
 - [ ] Fixture 또는 로컬 문서가 수집된다.
 - [ ] Heading-aware Chunk와 Embedding이 저장된다.
 - [ ] MCP 질문 Tool이 호출된다.
-- [ ] Chat Completion Adapter가 실제 또는 Fake LLM을 호출한다.
-- [ ] 검색 Source 기반 답변이 반환된다.
+- [ ] MCP Retrieval 응답에 검색 Source 내용이 포함된다.
+- [ ] MCP Client Agent가 반환된 Source로 최종 답변을 만들 수 있다.
 - [ ] Citation이 DB Source에서 복원된다.
-- [ ] Source가 없으면 LLM을 호출하지 않는다.
+- [ ] Source가 없으면 답변용 Source를 반환하지 않는다.
 - [ ] 근거가 없으면 Knowledge Gap으로 전환된다.
 - [ ] Question·QuestionSource·KnowledgeGap이 저장된다.
 
@@ -830,7 +829,7 @@ P1 종료 조건:
 - [ ] Vector Only Baseline 결과가 보존되어 있다.
 - [ ] Mode-aware 결과가 동일 Dataset으로 측정되어 있다.
 - [ ] Hit@5·MRR이 계산된다.
-- [ ] Answerability·Citation 결과가 계산된다.
+- [ ] Answerability·Source Citation Precision 결과가 계산된다.
 - [ ] 개선·악화 질문과 원인이 기록되어 있다.
 - [ ] 평가 보고서에 실제 수치만 남아 있다.
 
@@ -838,8 +837,8 @@ P1 종료 조건:
 
 최소한 다음 세 가지를 실제 실행 결과로 보여줄 수 있으면 지원서용 목표를 달성한 것으로 본다.
 
-1. **End-to-End RAG 데모**: 질문이 Retrieval → LLM → Citation → Persistence까지 흐른다.
-2. **Grounding 검증**: 근거가 없는 질문은 답변하지 않고 Knowledge Gap으로 전환된다.
+1. **End-to-End RAG 데모**: 질문이 Retrieval → MCP Source packet → 외부 Agent 답변까지 흐른다.
+2. **Grounding 검증**: 근거가 없는 질문은 Source를 반환하지 않고 Knowledge Gap으로 전환된다.
 3. **평가 보고서**: Vector Only와 Mode-aware의 차이를 같은 Dataset의 수치와 실패 사례로 설명한다.
 
 P2 항목은 위 세 결과물을 완성한 뒤에만 진행한다.
