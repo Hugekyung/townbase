@@ -129,14 +129,16 @@ Retriever 결과 0개 또는 Answerability 기준 미달
 → P3: Knowledge Gap·동기화·운영 보강
 ```
 
-| 우선순위 | 작업 | 예상 시간 | 핵심 산출물 |
-|---:|---|---:|---|
-| P0 | Vector Only RAG 수직 슬라이스 | 5~8시간 | 결과물 1: 실행 가능한 RAG 데모 |
-| P0 | Citation·Answerability·Persistence 검증 | 2~4시간 | 결과물 2: Grounding 검증 |
-| P1 | Golden Dataset·튜닝 Runner·Baseline | 4~6시간 | 재현 가능한 평가 기반 |
-| P1 | Chunking·Embedding 설정 실험 | 4~8시간 | 결과물 3: 튜닝 평가 보고서 |
-| P2 | Mode-aware Retrieval | 4~8시간 | 선택적 차별화 기능 |
-| P3 | Knowledge Gap·동기화·비용·운영 보강 | 남는 시간 | 후속 완성도 |
+
+| 우선순위 | 작업                                    | 예상 시간 | 핵심 산출물               |
+| ----: | ------------------------------------- | -----: | -------------------- |
+| P0   | Vector Only RAG 수직 슬라이스               | 5~8시간 | 결과물 1: 실행 가능한 RAG 데모 |
+| P0   | Citation·Answerability·Persistence 검증 | 2~4시간 | 결과물 2: Grounding 검증  |
+| P1   | Golden Dataset·튜닝 Runner·Baseline     | 4~6시간 | 재현 가능한 평가 기반         |
+| P1   | Chunking·Embedding 설정 실험              | 4~8시간 | 결과물 3: 튜닝 평가 보고서     |
+| P2   | Mode-aware Retrieval                  | 4~8시간 | 선택적 차별화 기능           |
+| P3   | Knowledge Gap·동기화·비용·운영 보강            | 남는 시간 | 후속 완성도               |
+
 
 ---
 
@@ -369,9 +371,9 @@ P0와 P1 결과가 확보된 뒤에만 진행한다.
 
 ### TASK-001. 현재 동작 경로 확인
 
-- [ ] `apps/api/src/chat/chat.runtime.ts`에서 MCP Retrieval 응답 생성 위치를 확인한다.
-- [ ] 현재 Completion Scaffold가 기본 경로에 연결되어 있지 않은지 확인한다.
-- [ ] MCP 질문 Tool에서 다음 호출 흐름을 코드 기준으로 기록한다.
+- [x] `apps/api/src/chat/chat.runtime.ts`에서 MCP Retrieval 응답 생성 위치를 확인한다.
+- [x] 현재 Completion Scaffold가 기본 경로에 연결되어 있으나 외부 Chat/Responses API를 호출하지 않는 stub임을 확인한다.
+- [x] MCP 질문 Tool에서 다음 호출 흐름을 코드 기준으로 기록한다.
   - Mode 결정
   - 질문 Embedding
   - Vector Search
@@ -379,8 +381,29 @@ P0와 P1 결과가 확보된 뒤에만 진행한다.
   - MCP Retrieval 응답 구성
   - Question·QuestionSource 저장
   - Knowledge Gap 판단
-- [ ] 검색 Repository의 실제 SQL과 반환 필드를 확인한다.
-- [ ] 현재 테스트 명령과 전체 검증 명령을 확인한다.
+- [x] 검색 Repository의 실제 SQL과 반환 필드를 확인한다.
+- [x] 현재 테스트 명령과 전체 검증 명령을 확인한다.
+
+#### TASK-001 실행 결과
+
+- MCP 진입점은 `apps/api/src/chat/chat.server.ts`의 `CallToolRequestSchema` →
+  `ChatToolRegistry.callTool()` → `ChatQuestionService.executeQuestion()` 순서다.
+- 질문 서비스는 입력 파싱·Mode 결정 → 질문 Embedding → Retriever → Prompt Context와
+  Citation 생성 → Completion dependency → Question 저장 → QuestionSource trace 저장 →
+  Answerability 기반 Knowledge Gap 후보 저장 순서로 실행된다.
+- 기본 Retriever는 `workspaceId`, 질문 embedding, `strategy.topK`만 vector search에 전달한다.
+  현재 SQL은 `DocumentChunk`에서 embedding이 존재하고 workspace가 일치하는 행을 cosine
+  distance 오름차순으로 `topK`개 조회하며 `id`, `documentId`, `score`만 반환한다.
+- 기본 Embedding은 `OPENAI_API_KEY`가 있으면 OpenAI Embedding Model을 사용하고, 없으면
+  `hash-embedding-1536` fallback을 사용한다. 따라서 API key가 있는 실행에서는 질문과
+  문서 embedding 생성 비용이 발생할 수 있다.
+- Completion은 `chat.runtime.ts`의 `chat-scaffold` stub이며 항상 JSON 형식의 빈 답변/
+  `isAnswerable=false` 응답을 반환한다. OpenAI Chat/Responses 네트워크 호출은 없다.
+- 검증 명령 결과: `pnpm test` exit 0 (18 suites, 42 tests), `pnpm build` exit 0,
+  `pnpm lint` exit 0, `pnpm --filter @townbase/database prisma:validate` exit 0.
+
+TASK-001 완료. 다음 P0 구현에서는 이 현 상태를 기준으로 Completion API를 추가하지 않고,
+Vector Only 검색과 MCP Source packet 반환 경계를 먼저 검증한다.
 
 ### TASK-002. 변경 전 상태 보존
 
@@ -526,13 +549,15 @@ fixtures/evaluation/workspace/
 
 권장 분포:
 
-| 유형 | 수량 |
-|---|---:|
-| onboarding | 5 |
-| product_history | 5 |
-| 정확한 파일명·기술 용어 | 3 |
-| 여러 문서가 필요한 질문 | 3 |
-| 답변할 수 없는 질문 | 4 |
+
+| 유형              | 수량  |
+| --------------- | ---: |
+| onboarding      | 5   |
+| product_history | 5   |
+| 정확한 파일명·기술 용어   | 3   |
+| 여러 문서가 필요한 질문   | 3   |
+| 답변할 수 없는 질문     | 4   |
+
 
 Dataset Schema 예시:
 
@@ -710,10 +735,12 @@ finalScore
 
 비교표 Template:
 
-| 전략 | Hit@3 | Hit@5 | MRR | Mode Accuracy | Answerability | Citation | Retrieval P95 |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Vector Only |  |  |  |  |  |  |  |
-| Mode-aware |  |  |  |  |  |  |  |
+
+| 전략          | Hit@3 | Hit@5 | MRR | Mode Accuracy | Answerability | Citation | Retrieval P95 |
+| ----------- | -----: | -----: | ---: | -------------: | -------------: | --------: | -------------: |
+| Vector Only |       |       |     |               |               |          |               |
+| Mode-aware  |       |       |     |               |               |          |               |
+
 
 완료 조건:
 
@@ -834,11 +861,13 @@ isAnswerable
 
 Mode별 Source Type은 초기부터 Hard Filter로 정답을 제거하지 않도록 Ranking Bonus를 우선 적용한다. 단, `archived`와 `deprecated`는 모든 Mode에서 제외한다.
 
-| Mode | 우선 Source Type | 우선 Knowledge Type | 답변 전략 |
-|---|---|---|---|
-| `onboarding` | `repo_readme`, `repo_docs`, `notion_page` | `onboarding`, `deployment`, `operation`, `architecture` | 핵심 개념과 시작 순서, 먼저 볼 문서 제시 |
-| `product_history` | `adr`, `prd`, `incident_review`, `repo_docs` | `product_history`, `architecture`, `domain_policy`, `incident` | 현재 상태와 변경 이유, 결정 근거 설명 |
-| `documentation_gap` | `repo_readme`, `repo_docs`, `notion_page` | `documentation_gap`, `onboarding`, `operation` | 부족한 문서 영역과 작성 우선순위 제시 |
+
+| Mode                | 우선 Source Type                               | 우선 Knowledge Type                                              | 답변 전략                    |
+| ------------------- | -------------------------------------------- | -------------------------------------------------------------- | ------------------------ |
+| `onboarding`        | `repo_readme`, `repo_docs`, `notion_page`    | `onboarding`, `deployment`, `operation`, `architecture`        | 핵심 개념과 시작 순서, 먼저 볼 문서 제시 |
+| `product_history`   | `adr`, `prd`, `incident_review`, `repo_docs` | `product_history`, `architecture`, `domain_policy`, `incident` | 현재 상태와 변경 이유, 결정 근거 설명   |
+| `documentation_gap` | `repo_readme`, `repo_docs`, `notion_page`    | `documentation_gap`, `onboarding`, `operation`                 | 부족한 문서 영역과 작성 우선순위 제시    |
+
 
 최종 점수는 다음 순서를 유지한다.
 
@@ -1054,7 +1083,6 @@ P2는 P0와 P1이 완료된 뒤에만 시작한다.
 
 ### P0 기능 검증
 
-
 - [ ] Fixture 또는 로컬 문서가 수집된다.
 - [ ] Heading-aware Chunk와 Embedding이 저장된다.
 - [ ] MCP 질문 Tool이 호출된다.
@@ -1089,5 +1117,5 @@ Mode-aware Retrieval은 위 세 결과물을 완성한 뒤 선택적으로 진�
 
 ## 14. 참고 문서
 
-- OpenAI Structured Outputs: https://developers.openai.com/api/docs/guides/structured-outputs
-- OpenAI Text Generation·Responses API: https://developers.openai.com/api/docs/guides/text
+- OpenAI Structured Outputs: [https://developers.openai.com/api/docs/guides/structured-outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+- OpenAI Text Generation·Responses API: [https://developers.openai.com/api/docs/guides/text](https://developers.openai.com/api/docs/guides/text)
