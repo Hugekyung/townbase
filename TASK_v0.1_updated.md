@@ -38,7 +38,7 @@
 
 ## 2. townbase의 질문 → 답변 전체 흐름
 
-기본 P0 경로에서는 townbase가 별도 Chat Completion API를 호출하지 않는다. ChatGPT·Codex 같은 MCP Client Agent가 이미 사용 중인 모델로 최종 자연어 답변을 만들고, townbase는 검색·근거·Citation·Knowledge Gap 정보를 반환한다. Chat Completion Adapter는 townbase가 MCP 없이 자체 답변 API까지 제공하려는 경우에만 선택적으로 추가한다.
+기본 및 최종 경로에서는 townbase가 Chat Completion API를 호출하지 않는다. ChatGPT·Codex 같은 MCP Client Agent가 이미 사용 중인 모델로 최종 자연어 답변을 만들고, townbase는 검색·근거·Citation·Knowledge Gap 정보를 반환한다. OpenAI API는 Embedding 용도로만 선택적으로 사용한다.
 
 MCP에 연결된 외부 Agent와 townbase 내부의 역할은 다음처럼 나뉜다.
 
@@ -438,90 +438,170 @@ TASK-002 완료. 다음 단계에서는 이 전략 경계를 유지한 채 P0 �
 
 ---
 
-## 참고 Phase — P3 선택: Standalone OpenAI Completion Adapter
+## 실제 진행 대상 TASK
 
-이 Phase는 기본 MCP Retrieval 경로에 포함하지 않는다. MCP Client Agent 없이도 townbase가 자체적으로 답변을 생성하는 standalone API가 필요할 때만 진행한다. 지원서용 최소 목표와 API 비용 절감 목표를 위해 P0·P1·P2 완료 전에는 착수하지 않는다.
+아래 순서대로 바로 구현한다. 각 TASK의 세부 항목을 모두 완료하고 검증한 뒤
+다음 TASK로 넘어간다. OpenAI Chat/Responses API, 내부 Completion Adapter,
+standalone 답변 API, Mode-aware Retrieval은 현재 실제 진행 목록에 포함하지 않는다.
 
-### TASK-101. Completion 계약 확정
+### TASK-101. 문서 수집과 저장
 
-기존 Interface를 우선 재사용하고, 없다면 다음 수준의 계약을 정의한다.
+초기 Corpus는 외부 Notion 문서를 새로 준비하지 않고, 현재 로컬 프로젝트의 문서를 사용한다.
 
-```ts
-export interface CompletionClient {
-  complete(input: CompletionInput): Promise<CompletionResult>;
-}
+수집 대상:
 
-export interface CompletionResult {
-  answer: string;
-  isAnswerable: boolean;
-  confidence: number;
-  usedSourceIds: string[];
-  knowledgeGap: {
-    title: string;
-    description: string;
-  } | null;
-}
-```
+- `README.md`
+- `docs/**/*.md`
+- `PRD_*.md`
+- `TASK_*.md`
 
-- [ ] `usedSourceIds`에는 Prompt Context로 제공한 Source ID만 허용한다.
-- [ ] `confidence`는 `0~1` 범위로 검증한다.
-- [ ] 답변 불가능할 때 `knowledgeGap`을 `null` 가능 구조로 명시한다.
-- [ ] LLM 반환 타입과 도메인 타입이 분리되어 있다면 Mapper를 둔다.
+세부 작업:
 
-### TASK-102. OpenAI Adapter 구현
+- [ ] 현재 저장소의 수집 대상 경로를 설정값 또는 함수 인자로 전달한다.
+- [ ] `node_modules`, `.git`, `dist`, `build`, `.env`, secret 파일, dependency 파일을 제외한다.
+- [ ] Markdown 파일을 읽어 제목과 원문 내용을 추출한다.
+- [ ] 파일별 `workspaceId`, `title`, `sourceType=repo_docs`, `filePath`, `content`, `status=active`, `contentHash`를 만든다.
+- [ ] 기존 Document가 없으면 새로 저장하고, 있으면 `contentHash`를 비교한다.
+- [ ] hash가 같으면 Document와 하위 Chunk·Embedding을 다시 만들지 않는다.
+- [ ] hash가 다르면 Document 원문과 `updatedAt`을 갱신하고 후속 재색인 대상으로 표시한다.
+- [ ] 파일이 사라진 경우 기존 Document를 삭제하지 않고 `archived`로 변경한다.
+- [ ] 저장 직후 DB에서 Document를 다시 읽어 원문과 `filePath`를 복원한다.
+- [ ] 최소 3개 Markdown 문서로 위 시나리오를 테스트한다.
 
-신규 구현은 OpenAI Responses API를 기본으로 하고 Structured Outputs를 이용해 JSON Schema를 강제한다. TypeScript에서는 Zod Schema를 단일 기준으로 사용해 런타임 검증 타입과 정적 타입의 불일치를 줄인다.
+완료 조건:
 
-예상 파일 위치:
+- [ ] 문서 3개 이상이 DB에 저장된다.
+- [ ] 동일 문서를 두 번 수집해도 Document 수가 늘지 않는다.
+- [ ] 내용 변경 시 hash와 원문이 갱신된다.
+- [ ] 삭제된 문서가 `archived`로 남는다.
+- [ ] 제외 대상 파일이 저장되지 않는다.
 
-```text
-packages/agent-core/src/completion/completion-client.ts
-packages/agent-core/src/completion/openai-completion.client.ts
-packages/agent-core/src/completion/fake-completion.client.ts
-packages/agent-core/src/completion/completion.schema.ts
-```
+### TASK-102. Chunking과 출처 보존
 
-- [ ] OpenAI SDK 의존성을 확인하거나 추가한다.
-- [ ] Zod 기반 응답 Schema를 정의한다.
-- [ ] Responses API 호출을 구현한다.
-- [ ] `OPENAI_CHAT_MODEL`로 모델을 외부 설정한다.
-- [ ] 출력 Token 제한과 Timeout을 설정한다.
-- [ ] `store: false`를 적용해 요청 저장 여부를 명시적으로 통제한다.
-- [ ] Refusal, incomplete response, Timeout, Rate Limit, 잘못된 응답을 구분해 처리한다.
-- [ ] 실제 Adapter와 Fake Adapter 선택을 환경설정에서 분리한다.
+세부 작업:
 
-권장 환경 변수:
+- [ ] TASK-101에서 저장한 active Document를 읽어 Chunking 입력으로 전달한다.
+- [ ] Heading이 있는 Markdown은 heading 경계를 우선해 Chunk를 만든다.
+- [ ] Heading이 없는 긴 문서는 고정 token/문자 길이와 overlap으로 나눈다.
+- [ ] 초기 Baseline을 `maxTokens=600`, `overlapTokens=80`으로 고정한다.
+- [ ] 튜닝 후보는 `400/40`, `600/80`, `800/100`으로 두고, 기본 구현에서는 Baseline만 사용한다.
+- [ ] 각 Chunk에 `documentId`, `workspaceId`, `content`, `chunkIndex`, `sectionTitle`, `headingPath`, `contentHash`, `sourceType`를 저장한다.
+- [ ] 문서 재색인 시 기존 Chunk를 중복 생성하지 않고 변경된 문서의 Chunk만 교체한다.
+- [ ] Chunk ID에서 원본 Document, 제목, 파일 경로를 역추적한다.
+- [ ] heading 문서, heading 없는 문서, 매우 짧은 문서 각각을 테스트한다.
 
-```bash
-OPENAI_API_KEY=
-OPENAI_CHAT_MODEL=
-OPENAI_COMPLETION_ENABLED=true
-OPENAI_COMPLETION_TIMEOUT_MS=15000
-```
+완료 조건:
 
-### TASK-103. Source Grounding 검증
+- [ ] 문서가 예상 순서의 Chunk 여러 개로 저장된다.
+- [ ] 모든 Chunk가 원본 Document와 연결된다.
+- [ ] `headingPath`와 `sectionTitle`로 출처 위치를 설명할 수 있다.
+- [ ] 동일 문서 재색인으로 중복 Chunk가 생기지 않는다.
 
-- [ ] 검색 Source가 0개면 LLM을 호출하지 않는다.
-- [ ] Prompt에는 제공된 Source만 사용하도록 명시한다.
-- [ ] `usedSourceIds`가 검색 결과에 없는 값을 포함하면 실패 또는 제거 처리한다.
-- [ ] Citation은 LLM이 생성한 경로나 URL을 신뢰하지 않고 DB Source에서 복원한다.
-- [ ] 답변과 사용 Source를 하나의 트랜잭션 단위로 저장할지 검토한다.
+### TASK-103. Embedding과 Vector DB 저장
 
-### TASK-104. Completion 테스트
+세부 작업:
 
-- [ ] Fake Adapter 단위 테스트
-- [ ] Structured Output Schema 검증 테스트
-- [ ] 존재하지 않는 Source ID 반환 테스트
-- [ ] Source가 없을 때 LLM 미호출 테스트
-- [ ] `isAnswerable=false`일 때 Gap 생성 테스트
-- [ ] API 오류 시 Question 상태 또는 오류 응답 테스트
-- [ ] 실제 API 스모크 테스트 2~3개를 별도 명령으로 제공한다.
+- [ ] 테스트 기본값으로 deterministic fixture 또는 local/fake Embedding Model을 연결한다.
+- [ ] 실제 품질 측정에서만 OpenAI Embedding API 사용 여부와 모델명을 설정한다.
+- [ ] 기본 모델은 `text-embedding-3-small`로 기록한다.
+- [ ] 현재 DB schema가 `vector(1536)`이므로 초기 차원은 `1536`으로 고정한다.
+- [ ] Embedding 모델명과 벡터 차원을 설정값 및 실행 결과에 기록한다.
+- [ ] 차원을 변경하려면 DB migration, 전체 재embedding, 질문 embedding 동기화를 먼저 수행한다.
+- [ ] Chunk contentHash가 같고 embedding이 이미 있으면 API/model 호출을 생략한다.
+- [ ] 새 Chunk 또는 변경된 Chunk만 Embedding을 생성한다.
+- [ ] 생성한 벡터 차원이 DB pgvector 차원과 일치하는지 저장 전에 검증한다.
+- [ ] `DocumentChunk.embedding`과 `updatedAt`을 저장한다.
+- [ ] 저장 후 DB에서 벡터 존재 여부와 차원을 readback한다.
+- [ ] OpenAI API를 사용할 때 요청 횟수와 실패 시 문서 처리 상태를 기록한다.
 
-완료 조건(선택 기능):
+완료 조건:
 
-- standalone 질문 API 한 번으로 실제 답변, Citation, QuestionSource 저장까지 완료된다.
-- API Key가 없는 테스트 환경에서는 Fake Adapter로 전체 테스트가 통과한다.
-- Source가 없거나 응답이 불완전한 경우 근거 없는 답변을 저장하지 않는다.
+- [ ] 모든 검색 대상 Chunk에 embedding이 존재한다.
+- [ ] 질문 embedding과 문서 embedding의 차원이 일치한다.
+- [ ] 동일 Chunk 재실행 시 불필요한 embedding 호출이 없다.
+- [ ] API Key 없이도 fixture/local embedding으로 테스트가 실행된다.
+
+### TASK-104. Vector Only 검색
+
+세부 작업:
+
+- [ ] MCP 질문의 `workspaceId`, `question`, `topK`를 검증한다.
+- [ ] TASK-103과 동일한 Embedding Model로 질문 벡터를 만든다.
+- [ ] 초기 `topK=5`로 고정하고, `topK`는 알고리즘이 아니라 반환할 상위 Chunk 개수로 취급한다.
+- [ ] `workspaceId`와 embedding 존재 여부로 검색 범위를 제한한다.
+- [ ] pgvector cosine similarity 기준으로 정렬하고 `topK`개를 반환한다.
+- [ ] 결과에 `chunkId`, `documentId`, title, section, filePath/sourceUrl, rank, vectorScore를 포함한다.
+- [ ] 검색 결과 Chunk를 DB에서 다시 읽어 실제 Source인지 검증한다.
+- [ ] P0에서는 sourceType, knowledgeType, sourcePriority, mode bonus를 점수에 반영하지 않는다.
+- [ ] 대표 질문 3개와 근거 없는 질문 1개를 실행한다.
+
+완료 조건:
+
+- [ ] 대표 질문의 기대 문서가 topK 안에 포함된다.
+- [ ] 검색 결과의 rank와 score가 재현된다.
+- [ ] 다른 workspace의 Chunk가 섞이지 않는다.
+- [ ] 검색 결과가 없는 경우 빈 결과를 안전하게 반환한다.
+
+### TASK-105. MCP Source packet과 외부 Agent 답변
+
+세부 작업:
+
+- [ ] 기존 `workspace_knowledge.question` MCP tool의 입력 계약을 유지한다.
+- [ ] 질문, resolved mode, `isAnswerable`, 검색 Source, Citation, score, rank를 응답에 담는다.
+- [ ] Citation은 DB Source의 documentId/chunkId/title/filePath/sourceUrl/section으로 만든다.
+- [ ] Source packet에 없는 URL이나 경로를 LLM 결과로 임의 생성하지 않는다.
+- [ ] townbase 내부 Completion API나 OpenAI Chat/Responses API를 호출하지 않는다.
+- [ ] MCP Client Agent가 Source packet을 받아 최종 자연어 답변을 만드는 흐름을 수동 또는 통합 테스트한다.
+- [ ] MCP 응답을 JSON text와 structured content 양쪽에서 확인한다.
+
+완료 조건:
+
+- [ ] MCP Client가 Source packet만으로 답변을 작성할 수 있다.
+- [ ] Citation이 실제 DB Source와 일치한다.
+- [ ] townbase 실행 중 Chat/Responses API 호출이 발생하지 않는다.
+
+### TASK-106. Grounding·Answerability·Persistence
+
+세부 작업:
+
+- [ ] Source 0개, 낮은 score, 정상 score 질문을 각각 준비한다.
+- [ ] Source 0개 또는 threshold 미달이면 `isAnswerable=false`로 처리한다.
+- [ ] 답변 불가 질문은 답변용 Source packet을 비우고 Knowledge Gap 후보를 만든다.
+- [ ] Question에 원 질문, answerability, confidence, requested/resolved mode를 저장한다.
+- [ ] QuestionSource에 chunkId, rank, score, mode를 저장한다.
+- [ ] KnowledgeGap을 실제 DB row로 저장하고 questionId와 연결한다.
+- [ ] Question, QuestionSource, KnowledgeGap을 저장 후 readback한다.
+- [ ] 근거 없는 질문에서 성공 답변이 저장되지 않는지 확인한다.
+
+완료 조건:
+
+- [ ] 답변 가능한 질문은 Source와 Citation을 저장한다.
+- [ ] 답변 불가능한 질문은 `isAnswerable=false`와 Knowledge Gap을 저장한다.
+- [ ] 저장된 Source와 응답 Citation이 일치한다.
+- [ ] 전체 흐름을 문서 sync → 검색 → MCP 응답 → persistence 순서로 재현한다.
+
+### TASK-107. Chunking·Embedding 평가 기반
+
+세부 작업:
+
+- [ ] 현재 로컬 프로젝트 문서 중 내용이 겹치지 않는 문서 5~10개를 평가 Corpus로 고정한다.
+- [ ] Corpus의 파일 목록, contentHash, Embedding 모델, 차원을 기록한다.
+- [ ] 사실 확인, 사용법, 설계 배경, 다중 문서, 근거 없음 질문을 포함해 Golden Question 10~20개를 만든다.
+- [ ] 각 질문에 `expectedDocumentIds`, `expectedChunkIds`, `isAnswerable`을 기록한다.
+- [ ] 긴 모범 답안 대신 필요한 경우 핵심 사실 또는 키워드 1~3개만 추가한다.
+- [ ] 동일 Corpus와 질문으로 현재 Chunking 설정의 Vector Only baseline을 실행한다.
+- [ ] Chunk size/overlap만 바꾸고 재색인한 뒤 Hit@5, MRR, chunk 수, latency를 기록한다.
+- [ ] 가장 좋은 Chunking 설정을 고정하고 Embedding 모델 또는 차원만 바꿔 재색인한다.
+- [ ] Embedding 설정별 Hit@5, MRR, 호출 횟수, latency, 비용을 기록한다.
+- [ ] Citation Precision, Answerability Accuracy, 실패 질문과 원인을 기록한다.
+- [ ] 최종 설정과 baseline 비교표를 `docs/evaluation-report.md`에 작성한다.
+
+완료 조건:
+
+- [ ] 동일 Dataset으로 baseline과 설정별 실험을 재현할 수 있다.
+- [ ] Chunking과 Embedding 변경 효과를 수치로 설명할 수 있다.
+- [ ] 개선 질문과 악화 질문을 모두 기록한다.
+- [ ] 측정하지 않은 품질 수치를 문서에 작성하지 않는다.
 
 ---
 
@@ -1132,4 +1212,4 @@ Mode-aware Retrieval은 위 세 결과물을 완성한 뒤 선택적으로 진�
 ## 14. 참고 문서
 
 - OpenAI Structured Outputs: [https://developers.openai.com/api/docs/guides/structured-outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
-- OpenAI Text Generation·Responses API: [https://developers.openai.com/api/docs/guides/text](https://developers.openai.com/api/docs/guides/text)
+- OpenAI Embeddings API: [https://developers.openai.com/api/docs/guides/embeddings](https://developers.openai.com/api/docs/guides/embeddings)

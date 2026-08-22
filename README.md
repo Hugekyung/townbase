@@ -95,7 +95,7 @@ docs/                  local-first 실행 및 설계 문서
 
 ## 주요 사용 기술
 
-Node.js, TypeScript, pnpm, NestJS, Jest, ESLint, PostgreSQL, pgvector, Prisma, Notion API, OpenAI embedding/chat API adapter, Model Context Protocol, Docker Compose
+Node.js, TypeScript, pnpm, NestJS, Jest, ESLint, PostgreSQL, pgvector, Prisma, Notion API, optional OpenAI Embeddings API, Model Context Protocol, Docker Compose
 
 ## 주요 ADR
 
@@ -105,6 +105,8 @@ Node.js, TypeScript, pnpm, NestJS, Jest, ESLint, PostgreSQL, pgvector, Prisma, N
 4. **근거가 없으면 답하지 않는다.** 낮은 confidence 답변은 Knowledge Gap으로 전환한다.
 5. **`auto`는 규칙 기반으로 시작한다.** 향후 LLM classifier로 확장할 수 있다.
 6. **외부 변경은 draft로 멈춘다.** GitHub Issue나 Notion page를 자동 생성하지 않고 사람이 검토할 초안을 저장한다.
+7. **초기 Embedding 차원은 1536으로 고정한다.** `text-embedding-3-small`의 기본 차원과 현재 pgvector schema `vector(1536)`을 맞춰 migration과 전체 재embedding 없이 PoC를 완성한다.
+8. **초기 평가는 로컬 문서 5~10개와 Golden Question 10~20개로 제한한다.** 질문별 기대 Document/Chunk ID와 답변 가능 여부를 정답 기준으로 저장해 Hit@5와 MRR을 재현하고, 대규모 Corpus 품질을 주장하지 않는다.
 
 상세 기준은 [PRD_v0_1_retrieval_modes.md](PRD_v0_1_retrieval_modes.md)와 [TASK_v0_1_retrieval_modes.md](TASK_v0_1_retrieval_modes.md)에서 확인할 수 있다.
 
@@ -128,7 +130,7 @@ pnpm --filter @townbase/connectors local-repo:sync
 curl http://localhost:3000/health
 ```
 
-Notion에는 `NOTION_API_KEY`, `NOTION_ROOT_PAGE_ID`, 로컬 저장소에는 `REPO_ROOT_PATH`, `LOCAL_REPO_NAMES`가 필요하다. embedding과 답변 생성에는 OpenAI 관련 환경 변수가 필요하다. 전체 설정과 fixture 실행은 [docs/local-first-execution.md](docs/local-first-execution.md)를 참고한다.
+Notion에는 `NOTION_API_KEY`, `NOTION_ROOT_PAGE_ID`, 로컬 저장소에는 `REPO_ROOT_PATH`, `LOCAL_REPO_NAMES`가 필요하다. OpenAI 관련 환경 변수는 선택적 Embedding 사용 시에만 필요하다. 최종 답변은 MCP Client Agent가 생성한다. 전체 설정과 fixture 실행은 [docs/local-first-execution.md](docs/local-first-execution.md)를 참고한다.
 
 ## 현 프로젝트의 한계 및 향후 개선사항
 

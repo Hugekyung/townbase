@@ -8,7 +8,7 @@ This guide covers the v0.1 local-first flow. The primary interaction path is MCP
 - Docker installed and running
 - A local `repos/` directory for selected Git repositories
 - Notion credentials if you want to ingest Notion pages
-- OpenAI API credentials if you want the full embedding / answer path rather than fixture-only or fallback behavior
+- OpenAI API credentials only if you want to use OpenAI Embeddings rather than fixture, local, or fallback embeddings
 
 ## 2. Environment variables
 
@@ -19,7 +19,6 @@ Use `.env.example` as the starting point. The main variables are:
 - `POSTGRES_PASSWORD`
 - `POSTGRES_DB`
 - `OPENAI_API_KEY`
-- `OPENAI_CHAT_MODEL`
 - `OPENAI_EMBEDDING_MODEL`
 - `OPENAI_EMBEDDING_BASE_URL`
 - `NOTION_API_KEY`
