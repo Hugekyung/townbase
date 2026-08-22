@@ -4,20 +4,21 @@
 
 이 문서는 townbase를 2~3일 안에 지원서에 설명 가능한 MCP Retrieval-first RAG MVP 수준으로 개선하기 위한 실행 계획이다. 최우선은 질문이 검색된 근거 문서와 함께 MCP 응답으로 반환되는 P0 흐름이며, 별도 LLM API 호출은 기본 경로에 포함하지 않는다.
 
-> Notion·로컬 Git 문서의 수집, Chunking, Embedding, Retrieval, Citation, Knowledge Gap 전환까지 동작하고, MCP Client Agent가 검색 근거를 이용해 최종 답변을 만들 수 있는 RAG Knowledge Agent
+> Notion·로컬 Git 문서의 수집, Chunking, Embedding, Vector DB 검색, Citation, MCP Client Agent 답변까지 동작하는 RAG Knowledge Agent를 먼저 완성하고, 이후 검색 품질을 실험으로 개선한다.
 
 이번 작업은 기능 확장이 아니라 현재 구현의 핵심 공백을 메우고 성과를 수치로 증명하는 데 집중한다.
 
 ### 최종 목표
 
 - 실제 질문 한 건이 MCP를 통해 들어와 Retrieval, 근거 문서 반환, Citation, Persistence까지 이어지는 흐름을 완성한다.
-- 질문 목적에 맞는 Mode-aware Retrieval을 실제 Chat 검색 경로에 적용한다.
 - 근거가 부족한 질문은 답변용 Source를 반환하지 않고 Knowledge Gap으로 전환한다.
-- Vector Only와 Mode-aware의 차이를 동일 Dataset으로 비교한다.
+- Chunking과 Embedding 설정값을 바꾸며 검색·답변 정확도가 어떻게 변하는지 측정한다.
+- 기본 RAG 품질이 검증된 뒤 Mode-aware Retrieval을 선택적으로 추가하고 Vector Only와 비교한다.
 - 다음 세 가지 결과물을 남긴다.
   1. 실행 가능한 End-to-End RAG 데모
   2. Source Grounding과 Citation 검증 결과
-  3. Vector Only 대비 Mode-aware 평가 보고서
+  3. Chunking·Embedding 튜닝 평가 보고서
+  4. (후속) Vector Only 대비 Mode-aware 평가 보고서
 
 ### 이번 범위에서 제외
 
@@ -28,6 +29,7 @@
 - GitHub Issue·Notion Page 실제 생성
 - townbase 내부 Chat Completion API와 별도 OpenAI Chat/Responses 호출
 - Web UI
+- P0 단계의 검색 Mode 기능
 - `change_impact` Mode
 - 멀티테넌시·권한 동기화
 - Redis·BullMQ·별도 Worker
@@ -115,29 +117,255 @@ Retriever 결과 0개 또는 Answerability 기준 미달
    → MCP Client Agent가 "근거 부족"으로 사용자에게 응답
 ```
 
-## 3. 전체 작업 순서
+## 3. 최종 실행 순서
 
 ```text
 사전 점검
-→ P0: Mode-aware 검색 + Source Grounding 응답
-→ P0: End-to-End Smoke Test
-→ P1: Golden Dataset·Vector Baseline
-→ P1: Mode-aware 재측정·평가 보고서
-→ P2: 동기화·비용·운영 보강
+→ P0: Vector Only 기반 기본 RAG End-to-End
+→ P0: Citation·Answerability·Persistence 검증
+→ P1: Chunking·Embedding 튜닝 실험
+→ P1: 튜닝 결과 보고서와 최종 설정 확정
+→ P2: Mode-aware Retrieval 선택 구현
+→ P3: Knowledge Gap·동기화·운영 보강
 ```
 
 | 우선순위 | 작업 | 예상 시간 | 핵심 산출물 |
 |---:|---|---:|---|
-| P0 | MCP Retrieval 응답과 Source Grounding | 3~5시간 | 결과물 1·2의 기반 |
-| P0 | Chat 경로 Mode-aware Retrieval 연결 | 3~5시간 | 실제 검색 순위 개선 |
-| P0 | MCP End-to-End Smoke Test와 대표 데모 | 2~3시간 | 결과물 1: 실행 가능한 RAG 데모 |
-| P1 | Golden Dataset·Vector Baseline·평가 Runner | 4~6시간 | 비교 가능한 Baseline |
-| P1 | Mode-aware 재측정과 평가 보고서 | 3~5시간 | 결과물 3: 평가 보고서 |
-| P2 | 동기화·비용·운영 안정성 보강 | 남는 시간 | 운영 증거와 후속 개선 |
+| P0 | Vector Only RAG 수직 슬라이스 | 5~8시간 | 결과물 1: 실행 가능한 RAG 데모 |
+| P0 | Citation·Answerability·Persistence 검증 | 2~4시간 | 결과물 2: Grounding 검증 |
+| P1 | Golden Dataset·튜닝 Runner·Baseline | 4~6시간 | 재현 가능한 평가 기반 |
+| P1 | Chunking·Embedding 설정 실험 | 4~8시간 | 결과물 3: 튜닝 평가 보고서 |
+| P2 | Mode-aware Retrieval | 4~8시간 | 선택적 차별화 기능 |
+| P3 | Knowledge Gap·동기화·비용·운영 보강 | 남는 시간 | 후속 완성도 |
 
 ---
 
-## 3. Phase 0 — 사전 점검과 Baseline 보존
+## 3-1. 최종 구현 Playbook
+
+아래 순서를 실제 구현 순서로 사용한다. 각 단계의 완료 조건을 만족하기 전에는 다음 단계로 넘어가지 않는다.
+
+### Phase 0 — 변경 전 상태 확인
+
+#### P0-001. 현재 경로와 실패 지점 기록
+
+수행 방법:
+
+1. `apps/api`의 MCP 질문 진입점에서 입력 검증, 질문 embedding, vector search, source packet 생성, persistence 호출 순서를 기록한다.
+2. `packages/database`의 vector 검색 SQL이 실제로 반환하는 필드와 `topK` 동작을 확인한다.
+3. 현재 테스트를 실행해 통과 테스트와 기존 실패를 별도 기록한다.
+4. 현재 `resolvedMode`와 `strategy`가 검색기에 전달되더라도 P0에서는 ranking에 사용하지 않는다는 기준을 고정한다.
+
+산출물:
+
+- 변경 전 테스트 결과
+- 질문 → MCP 응답 호출 흐름 메모
+- P0에서 사용할 Vector Only 기준 정의
+
+완료 조건:
+
+- 구현자가 현재 실패 원인과 P0 목표 경계를 설명할 수 있다.
+- 기존 실패를 새 기능 실패로 오인하지 않을 기준이 있다.
+
+### Phase 1 — P0 기본 RAG 수직 슬라이스
+
+#### P0-101. 문서 수집과 저장 확인
+
+1. Notion fixture 또는 로컬 Git 문서 fixture를 선택한다.
+2. README·docs·ADR·PRD 중 최소 3개 문서가 수집되는지 확인한다.
+3. Document의 제목, 원본 경로/URL, sourceType, status, contentHash 저장을 확인한다.
+4. 생성 파일, secret, dependency, build artifact 제외를 확인한다.
+
+완료 조건:
+
+- 동일 fixture를 다시 sync해도 변경 없는 문서가 중복 생성되지 않는다.
+- DB에서 원문과 원본 위치를 복원할 수 있다.
+
+#### P0-102. Chunking 구현과 저장 확인
+
+1. 기존 heading-aware chunker를 기본값으로 사용한다.
+2. heading이 있는 문서는 `sectionTitle`, `headingPath`, `chunkIndex`를 보존한다.
+3. heading이 부족한 문서는 token 기반 fallback으로 처리한다.
+4. chunk의 contentHash와 원본 Document 연결을 확인한다.
+5. chunk size와 overlap은 한 가지 설정으로 고정하고 튜닝은 P1에서 수행한다.
+
+완료 조건:
+
+- 문서가 예상 가능한 순서의 여러 chunk로 저장된다.
+- chunk만으로 원본 문서와 출처를 추적할 수 있다.
+
+#### P0-103. Embedding 생성과 Vector DB 저장
+
+1. 테스트에서는 deterministic fixture 또는 local/fake embedding을 사용한다.
+2. 실제 품질 측정 시 embedding 모델명과 차원을 명시한다.
+3. 각 chunk embedding이 pgvector에 저장되는지 확인한다.
+4. 질문 embedding과 문서 embedding의 차원이 일치하는지 확인한다.
+5. contentHash가 같은 chunk에는 불필요한 embedding 재호출이 없는지 기록한다.
+
+완료 조건:
+
+- sync 완료 후 검색 대상 chunk에 embedding이 존재한다.
+- 동일 차원의 질문 embedding으로 검색된다.
+
+#### P0-104. Vector Only 질문 검색
+
+1. 질문을 동일 embedding 모델로 변환한다.
+2. workspaceId 범위에서 pgvector similarity search를 실행한다.
+3. `topK`로 후보를 제한한다.
+4. P0에서는 sourceType, knowledgeType, sourcePriority, mode bonus를 ranking에 적용하지 않는다.
+5. 결과에 chunkId, documentId, title, section, source URL/filePath, rank, vector score를 포함한다.
+
+완료 조건:
+
+- 대표 질문의 기대 문서가 topK 안에 들어온다.
+- 검색 결과가 실제 DB source인지 확인할 수 있다.
+
+#### P0-105. MCP Source packet 반환
+
+1. MCP 질문 tool의 입력 계약을 확인한다.
+2. 질문과 검색 결과를 MCP 응답 구조로 변환한다.
+3. 최종 자연어 답변은 townbase 내부 Completion API가 아니라 MCP Client Agent가 생성하도록 유지한다.
+4. Source packet에 source 내용/요약, citation, rank, score를 포함한다.
+
+완료 조건:
+
+- MCP Client Agent가 반환된 Source packet으로 답변할 수 있다.
+- 원본 URL 또는 파일 경로가 citation으로 복원된다.
+
+### Phase 2 — P0 품질·거절·저장 검증
+
+#### P0-201. Source Grounding 검증
+
+1. 답변 가능한 대표 질문을 실행한다.
+2. source에 실제 정답 근거가 포함되는지 확인한다.
+3. citation의 문서 ID, chunk ID, 제목, 경로가 검색 결과와 일치하는지 검증한다.
+4. source에 없는 내용을 답변에 포함하지 않는지 MCP Agent 결과를 확인한다.
+
+#### P0-202. Answerability와 Knowledge Gap 최소 흐름
+
+1. source가 0개인 질문과 score가 낮은 질문을 실행한다.
+2. 두 경우 모두 `isAnswerable=false`와 빈 source packet 정책을 확인한다.
+3. Question·QuestionSource를 저장하고 Knowledge Gap row를 readback한다.
+
+완료 조건:
+
+- 근거 없는 답변을 성공 답변처럼 반환하지 않는다.
+- Knowledge Gap이 persisted row로 확인된다.
+
+#### P0-203. P0 End-to-End Smoke Test
+
+```text
+문서 sync
+→ chunk 저장
+→ embedding 저장
+→ MCP 질문
+→ vector search
+→ source packet·citation 반환
+→ 외부 MCP Agent 답변
+→ trace 및 gap 저장
+```
+
+이 흐름이 실제 실행 결과로 확인되면 P0를 완료한다.
+
+### Phase 3 — P1 Chunking·Embedding 평가 기반
+
+#### P1-301. 고정 평가 Corpus와 Golden Question
+
+1. README, onboarding, architecture, ADR, PRD, 운영 문서를 포함한 작은 고정 Corpus를 만든다.
+2. 문서 ID와 contentHash를 기록한다.
+3. 실제 사용 질문 10~20개를 작성하고 기대 정답 문서/chunk ID를 지정한다.
+4. 질문별 답변 가능 여부와 필수 citation을 JSON 등 기계가 읽을 수 있는 형식으로 저장한다.
+
+질문 유형은 사실 확인, 온보딩 절차, 설계 배경, 여러 문서 연결, 근거 없는 질문을 포함한다.
+
+#### P1-302. Vector Only 평가 Runner와 Baseline
+
+1. 동일 Corpus, embedding 모델, chunking 설정, topK로 모든 질문을 실행한다.
+2. 질문별 검색 결과, score, latency, citation, answerability를 저장한다.
+3. Hit@3 또는 Hit@5, MRR, Citation Precision, Answerability Accuracy를 계산한다.
+4. 결과를 `vector_only` 실험 버전으로 보존한다.
+
+완료 조건:
+
+- 같은 입력으로 평가를 다시 실행할 수 있다.
+- 질문별 성공·실패와 전체 지표를 모두 확인할 수 있다.
+
+### Phase 4 — P1 Chunking·Embedding 설정 튜닝
+
+#### P1-401. Chunking 실험
+
+1. embedding 모델과 topK를 고정한다.
+2. heading-aware 기본 설정을 기준으로 chunk size와 overlap 후보를 정한다.
+3. 후보마다 전체 Corpus를 재chunk하고 필요 시 재embedding한다.
+4. 동일 Golden Question으로 평가한다.
+5. 정확도, chunk 수, 검색 latency, embedding 호출량을 기록한다.
+
+#### P1-402. Embedding 실험
+
+1. 가장 좋은 Chunking 설정을 고정한다.
+2. 비교할 embedding 모델과 차원을 명시한다.
+3. 모델마다 전체 chunk를 재embedding한다.
+4. 동일 질문과 동일 topK로 평가한다.
+5. 품질, latency, API 호출량, 예상 비용을 비교한다.
+
+#### P1-403. 최종 설정 선택과 보고서
+
+1. Hit@K와 MRR을 우선 비교한다.
+2. Citation Precision과 answerability 오판을 함께 본다.
+3. 품질 차이가 작으면 비용·지연·운영 단순성이 좋은 설정을 선택한다.
+4. 개선·악화 질문을 모두 기록한다.
+
+산출물:
+
+- `docs/evaluation-report.md`
+- 실험별 설정값과 실행 방법
+- 최종 chunk size, overlap, embedding model, topK
+- Vector Only baseline 대비 개선표
+
+### Phase 5 — P2 Mode-aware Retrieval 선택 구현
+
+P0와 P1 결과가 확보된 뒤에만 진행한다.
+
+#### P2-501. Mode 계약과 분류 연결
+
+- `requestedMode`와 `resolvedMode`를 Question trace에 저장한다.
+- `auto`는 규칙 기반으로 분류하고 fallback 발생 여부를 기록한다.
+- `vector_only`와 `mode_aware`를 설정으로 분리 실행한다.
+
+#### P2-502. Metadata ranking 연결
+
+- archived/deprecated는 필수 제외한다.
+- sourceType·knowledgeTypes는 초기에는 hard filter보다 작은 ranking bonus를 우선 적용한다.
+- vector score와 metadata bonus를 분리 저장한다.
+- mode별 ranking이 실제 검색기에 연결됐는지 테스트한다.
+
+#### P2-503. Mode-aware 비교
+
+- 동일 Corpus, 질문, embedding, topK로 Vector Only와 비교한다.
+- Hit@K, MRR, Citation Precision, latency를 비교한다.
+- 개선·악화 질문과 원인을 보고서에 기록한다.
+
+### Phase 6 — P3 후속 완성도
+
+남은 시간과 지원서 어필 수준을 보고 선택한다.
+
+- Knowledge Gap 중복 병합과 유사 질문 집계
+- 증분 sync 통계와 변경 문서 재embedding 방지 검증
+- embedding 비용·token·P95 latency 기록
+- PostgreSQL/pgvector Docker 통합 검증
+- README와 `interview.md`에 실제 측정 결과 반영
+
+다음 항목은 이번 목표에서 제외한다.
+
+- Hybrid Search, 별도 Reranker, Feedback 기반 Ranking
+- Multi-Agent와 Web UI
+- GitHub Issue/Notion Page 실제 발행
+- Redis·BullMQ·별도 Worker
+- 멀티테넌시·권한 동기화
+- `change_impact` Mode
+
+> 아래 기존 `TASK-xxx` 상세 항목은 초기 설계에서 남아 있는 참고 자료다. 실제 구현 순서와 우선순위는 반드시 위 `3-1. 최종 구현 Playbook`을 기준으로 한다. 특히 P0에서는 Mode-aware Ranking과 내부 Completion API를 구현하지 않는다.
+
+## 참고 Phase — 사전 점검과 Baseline 보존
 
 ### TASK-001. 현재 동작 경로 확인
 
@@ -173,9 +401,9 @@ RAG_RETRIEVAL_STRATEGY=vector_only
 
 ---
 
-## 4. P2 선택 Phase — Standalone OpenAI Completion Adapter
+## 참고 Phase — P3 선택: Standalone OpenAI Completion Adapter
 
-이 Phase는 기본 MCP Retrieval 경로에 포함하지 않는다. MCP Client Agent 없이도 townbase가 자체적으로 답변을 생성하는 standalone API가 필요할 때만 진행한다. 지원서용 최소 목표와 API 비용 절감 목표를 위해 P0·P1 완료 전에는 착수하지 않는다.
+이 Phase는 기본 MCP Retrieval 경로에 포함하지 않는다. MCP Client Agent 없이도 townbase가 자체적으로 답변을 생성하는 standalone API가 필요할 때만 진행한다. 지원서용 최소 목표와 API 비용 절감 목표를 위해 P0·P1·P2 완료 전에는 착수하지 않는다.
 
 ### TASK-101. Completion 계약 확정
 
@@ -436,7 +664,7 @@ docs/evaluations/
 
 ---
 
-## 7. Phase 4 — Mode-aware Metadata Retrieval
+## 참고 Phase — P2 Mode-aware Metadata Retrieval
 
 ### TASK-401. 검색 조건 SQL 적용
 
@@ -495,7 +723,7 @@ finalScore
 
 ---
 
-## 8. Phase 5 — Answerability와 Knowledge Gap 검증
+## 참고 Phase — P3 Answerability와 Knowledge Gap 고도화
 
 ### TASK-501. Answerability 정책 명시
 
@@ -546,7 +774,7 @@ Source 충분
 
 ---
 
-## 9. Phase 6 — 증분 동기화 정합성 테스트
+## 참고 Phase — P3 증분 동기화 정합성 테스트
 
 ### TASK-601. 핵심 시나리오 테스트
 
@@ -631,7 +859,8 @@ finalScore
 
 절대 수치 하나만으로 성공을 선언하지 않고, Vector Only Baseline 대비 개선 여부와 실패 사례를 함께 본다.
 
-- Mode-aware의 `Hit@5` 또는 `MRR` 중 하나가 Vector Only보다 개선되어야 한다.
+- P1에서는 Chunking·Embedding 설정 변경 후 `Hit@5` 또는 `MRR` 변화를 기록한다.
+- P2에서 Mode-aware를 구현한 경우에만 Vector Only 대비 개선 여부를 평가한다.
 - 개선되지 않은 주요 지표가 Baseline 대비 크게 악화되지 않아야 한다.
 - Source Citation Precision은 최소 90%를 목표로 한다.
 - 답변 불가능 질문은 정상 거절율과 불필요한 거절율을 함께 기록한다.
@@ -657,7 +886,7 @@ docs/evaluation-report.md
 3. Golden Question 구성
 4. 측정 지표 정의
 5. Vector Only Baseline
-6. Mode-aware 결과
+6. Chunking·Embedding 설정별 결과
 7. 개선된 질문과 악화된 질문
 8. Answerability·Source Citation Precision 결과
 9. Retrieval Latency·MCP Response Latency 변화
@@ -666,8 +895,8 @@ docs/evaluation-report.md
 성과 문장 Template:
 
 ```text
-Golden Question 20개를 기준으로 Vector Only와 Mode-aware Retrieval을 비교했다.
-Mode-aware Retrieval 적용 후 Hit@5는 [A]%에서 [B]%로, MRR은 [C]에서 [D]로 변했다.
+Golden Question 20개를 기준으로 Chunking·Embedding 설정을 비교했다.
+최종 설정 적용 후 Hit@5는 [A]%에서 [B]%로, MRR은 [C]에서 [D]로 변했다.
 답변 불가능 질문 [N]개 중 [M]개에 대해 정상적으로 근거 부족을 표시했으며, Source Citation Precision은 [E]%였다.
 대신 Retrieval P95는 [F]ms에서 [G]ms로 증가해 정확도와 지연 시간의 trade-off가 발생했다.
 ```
@@ -693,7 +922,7 @@ Mode-aware Retrieval 적용 후 Hit@5는 [A]%에서 [B]%로, MRR은 [C]에서 [D
 
 최종 표현:
 
-> Notion·로컬 Git 문서를 증분 수집하고 Heading-aware Chunking과 pgvector 검색을 적용한 MCP Retrieval-first RAG Knowledge Agent를 구현했습니다. MCP Client Agent가 사용할 수 있도록 Retrieval Mode별 Source packet과 Citation을 반환하고, Golden Dataset으로 Vector Only와 Mode-aware 검색 품질을 비교했습니다. 근거가 부족한 질문은 Knowledge Gap과 ActionDraft로 전환하는 Human-in-the-loop 문서화 Workflow로 연결했습니다.
+> Notion·로컬 Git 문서를 증분 수집하고 Heading-aware Chunking과 pgvector Vector Search를 적용한 MCP Retrieval-first RAG Knowledge Agent를 구현했습니다. MCP Client Agent가 사용할 수 있도록 Source packet과 Citation을 반환하고, Golden Dataset으로 Chunking·Embedding 설정별 검색 품질을 측정했습니다. 근거가 부족한 질문은 Knowledge Gap과 ActionDraft로 전환하는 Human-in-the-loop 문서화 Workflow로 연결했습니다.
 
 ---
 
@@ -709,7 +938,7 @@ P0에서 반드시 완료한다.
 Fixture 또는 로컬 문서 수집
 → Chunking·Embedding 저장
 → 질문 Embedding
-→ Vector/Mode-aware Retrieval
+→ Vector Only Retrieval
 → Source 내용·Citation 반환
 → Question·QuestionSource 저장
 → MCP Client Agent가 최종 답변 생성
@@ -732,26 +961,26 @@ P0에서 결과물 1과 함께 완료한다.
 - 근거가 부족하면 `isAnswerable=false`와 Knowledge Gap을 저장한다.
 - 답변 가능 질문, 답변 불가능 질문, Source ID·Citation 불일치 상황을 각각 테스트한다.
 
-### 결과물 3 — Vector Only 대비 Mode-aware 평가 보고서
+### 결과물 3 — Chunking·Embedding 튜닝 평가 보고서
 
 P1에서 완료한다. P0가 먼저 동작하지 않으면 평가를 시작하지 않는다.
 
 - 동일 Corpus와 Golden Question 10~20개를 사용한다.
-- 동일 Embedding 모델·Top K로 `vector_only`와 `mode_aware`를 비교한다.
-- `Hit@5`, `MRR`, Mode Accuracy, Answerability Accuracy, Source Citation Precision을 기록한다.
+- Chunking 설정을 먼저 비교하고, 최종 Chunking을 고정한 뒤 Embedding 설정을 비교한다.
+- `Hit@5`, `MRR`, Answerability Accuracy, Source Citation Precision을 기록한다.
 - 개선된 질문과 악화된 질문을 모두 기록한다.
 - `docs/evaluation-report.md`에 실제 측정 수치만 작성한다.
 
 ## 12. 권장 실행 순서와 축소 기준
 
-### P0 — 최우선: 실제 RAG 동작 완성
+### P0 — 최우선: Vector Only 기본 RAG
 
 - [ ] 현재 Chat/MCP 호출 경로 확인
 - [ ] MCP Retrieval 응답 Schema와 응답 Parser 연결
 - [ ] Source 0개 시 빈 Source packet과 Knowledge Gap 반환
 - [ ] Source ID·Citation이 실제 검색 결과인지 검증
-- [ ] Chat 경로에 Mode-aware Ranking 연결
-- [ ] archived/deprecated 문서 제외
+- [ ] Vector similarity 기반 topK 검색 연결
+- [ ] 검색 결과의 실제 Source·Citation 검증
 - [ ] Question·QuestionSource·KnowledgeGap 저장
 - [ ] 대표 질문의 End-to-End Smoke Test
 
@@ -768,25 +997,37 @@ MCP 질문
 
 이 흐름이 관찰되면 “RAG 기반 시스템을 만들어봤다”는 핵심 목표를 달성한 것으로 본다.
 
-### P1 — 차별화: 평가와 비교 증거
+### P1 — Chunking·Embedding 품질 평가
 
 - [ ] 평가 Corpus 구성
 - [ ] Golden Question 10~20개 작성
-- [ ] `vector_only`와 `mode_aware` 전환 설정
+- [ ] `vector_only` Baseline 보존
 - [ ] 평가 Runner 구현
+- [ ] Chunking 설정별 재색인·평가
+- [ ] Embedding 설정별 재색인·평가
 - [ ] Hit@5·MRR·Answerability·Citation 측정
-- [ ] Baseline과 개선 결과 비교
+- [ ] 최종 설정 선택 근거 기록
 - [ ] 실패 질문과 원인 기록
 - [ ] `docs/evaluation-report.md` 작성
 - [ ] README와 `interview.md`에 실제 결과 반영
 
 P1 종료 조건:
 
-- 동일 Dataset으로 두 전략을 재실행할 수 있다.
-- Mode-aware가 어떤 질문을 개선했고 어떤 질문을 악화했는지 설명할 수 있다.
+- 동일 Dataset으로 각 설정을 재실행할 수 있다.
+- Chunking·Embedding 설정 변경이 결과에 미친 영향을 설명할 수 있다.
 - 측정하지 않은 수치를 문서에 쓰지 않는다.
 
-### P2 — 시간이 남으면 보강
+### P2 — 선택적 차별화: Mode-aware Retrieval
+
+- [ ] Mode 계약과 auto 분류 연결
+- [ ] Vector Only와 Mode-aware 전환 설정
+- [ ] metadata ranking 연결
+- [ ] 동일 Dataset으로 두 전략 비교
+- [ ] 개선·악화 질문과 원인 기록
+
+P2는 P0와 P1이 완료된 뒤에만 시작한다.
+
+### P3 — 시간이 남으면 보강
 
 - [ ] Knowledge Gap 중복 방지
 - [ ] 증분 동기화 상세 통계
@@ -827,7 +1068,8 @@ P1 종료 조건:
 ### P1 평가 검증
 
 - [ ] Vector Only Baseline 결과가 보존되어 있다.
-- [ ] Mode-aware 결과가 동일 Dataset으로 측정되어 있다.
+- [ ] Chunking 설정별 결과가 동일 Dataset으로 측정되어 있다.
+- [ ] Embedding 설정별 결과가 동일 Dataset으로 측정되어 있다.
 - [ ] Hit@5·MRR이 계산된다.
 - [ ] Answerability·Source Citation Precision 결과가 계산된다.
 - [ ] 개선·악화 질문과 원인이 기록되어 있다.
@@ -839,9 +1081,9 @@ P1 종료 조건:
 
 1. **End-to-End RAG 데모**: 질문이 Retrieval → MCP Source packet → 외부 Agent 답변까지 흐른다.
 2. **Grounding 검증**: 근거가 없는 질문은 Source를 반환하지 않고 Knowledge Gap으로 전환된다.
-3. **평가 보고서**: Vector Only와 Mode-aware의 차이를 같은 Dataset의 수치와 실패 사례로 설명한다.
+3. **평가 보고서**: Chunking·Embedding 설정별 차이를 같은 Dataset의 수치와 실패 사례로 설명한다.
 
-P2 항목은 위 세 결과물을 완성한 뒤에만 진행한다.
+Mode-aware Retrieval은 위 세 결과물을 완성한 뒤 선택적으로 진행한다.
 
 ---
 
