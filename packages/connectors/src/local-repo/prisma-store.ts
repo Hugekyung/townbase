@@ -150,6 +150,27 @@ export const createPrismaLocalRepoSyncStore = (
       throw new Error(`Embedding failed for document ${document.id}: ${result.reason}`);
     }
   },
+  async archiveMissingDocuments(selectedRepoNames, seenExternalIds) {
+    const result = await prisma.document.updateMany({
+      where: {
+        workspaceId: context.workspaceId,
+        dataSourceId: context.dataSourceId,
+        status: "active",
+        repoName: {
+          in: [...selectedRepoNames],
+        },
+        externalId: {
+          notIn: [...seenExternalIds],
+        },
+      },
+      data: {
+        status: "archived",
+        indexStatus: "pending",
+      },
+    });
+
+    return result.count;
+  },
   async markLastSyncedAt(syncedAt: Date) {
     await prisma.dataSource.update({
       where: {

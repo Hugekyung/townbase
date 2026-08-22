@@ -58,6 +58,9 @@ const createPrismaClientLike = (
       async update(input: unknown) {
         return prisma.document.update(input as never);
       },
+      async updateMany(input: unknown) {
+        return prisma.document.updateMany(input as never);
+      },
     },
     documentChunk: {
       async deleteMany(input: unknown) {
@@ -147,6 +150,7 @@ describe("local repo connector database integration", () => {
         {
           workspaceId: workspace.id,
           dataSourceId: dataSource.id,
+          selectedRepoNames: ["repo-a"],
           syncedAt: new Date("2024-01-10T00:00:00.000Z"),
           files,
         },
@@ -225,6 +229,7 @@ describe("local repo connector database integration", () => {
         {
           workspaceId: workspace.id,
           dataSourceId: dataSource.id,
+          selectedRepoNames: ["repo-a"],
           syncedAt: new Date("2024-01-11T00:00:00.000Z"),
           files: updatedFiles,
         },
@@ -246,6 +251,30 @@ describe("local repo connector database integration", () => {
         content: "updated text",
         chunkIndex: 0,
       });
+
+      await fs.rm(path.join(rootPath, "repo-a", "docs", "guide.md"));
+      const filesAfterRemoval = await collectSelectedLocalRepoFiles(rootPath, ["repo-a"]);
+      const removalSummary = await syncLocalRepoFiles(
+        {
+          workspaceId: workspace.id,
+          dataSourceId: dataSource.id,
+          selectedRepoNames: ["repo-a"],
+          syncedAt: new Date("2024-01-12T00:00:00.000Z"),
+          files: filesAfterRemoval,
+        },
+        store,
+      );
+      const archivedGuide = await prisma.document.findUnique({
+        where: {
+          dataSourceId_externalId: {
+            dataSourceId: dataSource.id,
+            externalId: "repo-a:docs/guide.md",
+          },
+        },
+      });
+
+      expect(removalSummary.archived).toBe(1);
+      expect(archivedGuide?.status).toBe("archived");
     } finally {
       await fs.rm(rootPath, { recursive: true, force: true });
     }

@@ -1,4 +1,5 @@
 import { mapLocalRepoFileToDocumentDraft } from "./mapping";
+import type { DocumentStatus } from "../classification";
 import type {
   LocalRepoSyncFailure,
   LocalRepoSyncInput,
@@ -14,7 +15,12 @@ const compareModifiedAt = (left: Date | null, right: Date | null): number => {
   return left.getTime() - right.getTime();
 };
 
-const shouldSkipStaleDocument = (
+const shouldSkipUnchangedDocument = (
+  existing: { readonly contentHash: string | null; readonly status: DocumentStatus },
+  draft: { readonly contentHash: string; readonly status: DocumentStatus },
+): boolean => existing.status === draft.status && existing.contentHash === draft.contentHash;
+
+const shouldSkipStaleArchivedDocument = (
   existing: { readonly externalUpdatedAt: Date | null },
   draftModifiedAt: Date,
 ): boolean => existing.externalUpdatedAt !== null && compareModifiedAt(existing.externalUpdatedAt, draftModifiedAt) >= 0;
@@ -57,7 +63,7 @@ export const syncLocalRepoFiles = async (
 
     if (draft.status === "archived") {
       if (existing !== null && existing.status === "archived") {
-        if (shouldSkipStaleDocument(existing, draft.externalUpdatedAt)) {
+        if (shouldSkipStaleArchivedDocument(existing, draft.externalUpdatedAt)) {
           skippedUnchanged += 1;
           continue;
         }
@@ -79,7 +85,7 @@ export const syncLocalRepoFiles = async (
     }
 
     if (existing !== null) {
-      if (existing.status === draft.status && shouldSkipStaleDocument(existing, draft.externalUpdatedAt)) {
+      if (shouldSkipUnchangedDocument(existing, draft)) {
         skippedUnchanged += 1;
         continue;
       }
@@ -112,6 +118,9 @@ export const syncLocalRepoFiles = async (
     }
     inserted += 1;
   }
+
+  const seenExternalIds = input.files.map((file) => `${file.repoName}:${file.filePath}`);
+  archived += await store.archiveMissingDocuments(input.selectedRepoNames, seenExternalIds);
 
   await store.markLastSyncedAt(input.syncedAt);
 

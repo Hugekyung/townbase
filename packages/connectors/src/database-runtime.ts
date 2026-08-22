@@ -30,6 +30,7 @@ type PrismaDocumentDelegate = Readonly<{
     >;
   upsert: (input: unknown) => Promise<PrismaRecord>;
   update: (input: unknown) => Promise<unknown>;
+  updateMany: (input: unknown) => Promise<{ readonly count: number }>;
 }>;
 
 type PrismaDocumentChunkDelegate = Readonly<{

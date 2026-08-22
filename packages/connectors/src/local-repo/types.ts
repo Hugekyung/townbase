@@ -38,6 +38,7 @@ export type LocalRepoDocumentDraft = Readonly<{
 export type LocalRepoSyncInput = Readonly<{
   workspaceId: string;
   dataSourceId: string;
+  selectedRepoNames: ReadonlyArray<string>;
   syncedAt: Date;
   files: ReadonlyArray<LocalRepoFileSnapshot>;
 }>;
@@ -67,5 +68,9 @@ export type LocalRepoSyncStore = Readonly<{
     indexStatus: DocumentIndexStatus;
   } | null>;
   upsertDocument: (input: LocalRepoDocumentDraft) => Promise<void>;
+  archiveMissingDocuments: (
+    selectedRepoNames: ReadonlyArray<string>,
+    seenExternalIds: ReadonlyArray<string>,
+  ) => Promise<number>;
   markLastSyncedAt: (syncedAt: Date) => Promise<void>;
 }>;

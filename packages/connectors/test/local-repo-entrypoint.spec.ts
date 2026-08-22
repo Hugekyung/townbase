@@ -66,6 +66,9 @@ const createMockPrismaClient = (
       async update() {
         return undefined;
       },
+      async updateMany() {
+        return { count: 0 };
+      },
     },
     documentChunk: {
       async deleteMany() {
