@@ -1,5 +1,7 @@
 import {
   persistDocumentChunkEmbedding,
+  listIndexedDocumentChunkIds,
+  readDocumentChunkEmbeddingDimensions,
   searchDocumentChunksByEmbedding,
   type DocumentChunkEmbeddingUpsertInput,
   type DocumentChunkVectorSearchInput,
@@ -42,6 +44,7 @@ export type ChunkEmbeddingSearchInput = Readonly<{
 
 type PrismaEmbeddingClient = Readonly<{
   $transaction: (arg: unknown, options?: unknown) => Promise<unknown>;
+  $queryRaw: <T>(query: unknown) => Promise<T>;
   document: Readonly<{
     update: (input: unknown) => Promise<unknown>;
   }>;
@@ -136,7 +139,24 @@ export const indexDocumentChunks = async (
       };
     }
 
-    const indexedChunks = await embedDocumentChunks(model, chunks);
+    const indexedChunkIds = await listIndexedDocumentChunkIds(
+      prisma,
+      workspaceId,
+      chunks.map(({ chunkId }) => chunkId),
+    );
+    const indexedChunkIdSet = new Set(indexedChunkIds);
+    const pendingChunks = chunks.filter(({ chunkId }) => !indexedChunkIdSet.has(chunkId));
+
+    if (pendingChunks.length === 0) {
+      await updateDocumentIndexStatus(prisma, workspaceId, documentId, "indexed");
+      return {
+        kind: "indexed",
+        documentId,
+        chunkCount: chunks.length,
+      };
+    }
+
+    const indexedChunks = await embedDocumentChunks(model, pendingChunks);
 
     await prisma.$transaction(async (transactionClient: PrismaEmbeddingTransactionClient) => {
       for (const indexedChunk of indexedChunks) {
@@ -151,6 +171,20 @@ export const indexDocumentChunks = async (
         }
       }
     });
+
+    const persistedEmbeddings = await readDocumentChunkEmbeddingDimensions(
+      prisma,
+      workspaceId,
+      pendingChunks.map(({ chunkId }) => chunkId),
+    );
+    const persistedEmbeddingDimensions = new Map(
+      persistedEmbeddings.map(({ id, dimensions }) => [id, dimensions]),
+    );
+    for (const chunk of pendingChunks) {
+      if (persistedEmbeddingDimensions.get(chunk.chunkId) !== model.dimensions) {
+        throw new Error(`Embedding readback failed for chunk ${chunk.chunkId}`);
+      }
+    }
 
     await updateDocumentIndexStatus(prisma, workspaceId, documentId, "indexed");
     return {

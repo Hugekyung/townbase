@@ -30,6 +30,9 @@ const createPrismaClientLike = (
 
       throw new Error("notion integration test only supports transaction callbacks");
     },
+    async $queryRaw<T>(query: unknown) {
+      return prisma.$queryRaw<T>(query as never);
+    },
     workspace: {
       async upsert(input: unknown) {
         return prisma.workspace.upsert(input as never);

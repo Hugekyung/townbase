@@ -1,4 +1,4 @@
-import { buildDocumentChunkEmbeddingUpsertQuery, buildDocumentChunkVectorSearchQuery, persistDocumentChunkEmbedding, searchDocumentChunksByEmbedding, toPgVectorLiteral } from "../src/embedding";
+import { buildDocumentChunkEmbeddingUpsertQuery, buildDocumentChunkVectorSearchQuery, listIndexedDocumentChunkIds, persistDocumentChunkEmbedding, readDocumentChunkEmbeddingDimensions, searchDocumentChunksByEmbedding, toPgVectorLiteral } from "../src/embedding";
 import type { DocumentChunkEmbeddingQueryClient } from "../src/embedding";
 
 describe("database embedding helpers", () => {
@@ -82,5 +82,35 @@ describe("database embedding helpers", () => {
     expect(query.values).toContain(5);
     expect(query.values).toContain(0.8);
     expect(queries).toHaveLength(1);
+  });
+
+  it("lists only chunks that already have an embedding", async () => {
+    const client: DocumentChunkEmbeddingQueryClient = {
+      async $queryRaw<T>() {
+        return [{ id: "chunk-1" }] as T;
+      },
+      async $executeRaw() {
+        return 1;
+      },
+    };
+
+    await expect(listIndexedDocumentChunkIds(client, "workspace-1", ["chunk-1", "chunk-2"])).resolves.toEqual([
+      "chunk-1",
+    ]);
+  });
+
+  it("reads persisted vector dimensions for selected chunks", async () => {
+    const client: DocumentChunkEmbeddingQueryClient = {
+      async $queryRaw<T>() {
+        return [{ id: "chunk-1", dimensions: 1536 }] as T;
+      },
+      async $executeRaw() {
+        return 1;
+      },
+    };
+
+    await expect(readDocumentChunkEmbeddingDimensions(client, "workspace-1", ["chunk-1"])).resolves.toEqual([
+      { id: "chunk-1", dimensions: 1536 },
+    ]);
   });
 });

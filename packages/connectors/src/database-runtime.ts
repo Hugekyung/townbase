@@ -42,6 +42,7 @@ export type PrismaClientLike = Readonly<{
   $connect: () => Promise<void>;
   $disconnect?: () => Promise<void>;
   $transaction: PrismaTransactionDelegate;
+  $queryRaw: <T>(query: unknown) => Promise<T>;
   workspace: PrismaWorkspaceDelegate;
   dataSource: PrismaDataSourceDelegate;
   document: PrismaDocumentDelegate;

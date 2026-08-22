@@ -9,6 +9,7 @@ const DEFAULT_OPENAI_EMBEDDING_BASE_URL = "https://api.openai.com/v1";
 export type EmbeddingModelEnv = Readonly<{
   openaiApiKey: string;
   openaiEmbeddingModel?: string;
+  openaiEmbeddingDimensions?: number;
   openaiEmbeddingBaseUrl?: string;
   fetchImpl?: typeof fetch;
 }>;
@@ -33,15 +34,23 @@ const readEmbeddingModelEnv = (
   }
 
   const openaiEmbeddingModel = normalizeOptional(env.OPENAI_EMBEDDING_MODEL);
+  const openaiEmbeddingDimensions = normalizeOptional(env.OPENAI_EMBEDDING_DIMENSIONS);
   const openaiEmbeddingBaseUrl =
     normalizeOptional(env.OPENAI_EMBEDDING_BASE_URL) ??
     DEFAULT_OPENAI_EMBEDDING_BASE_URL;
+
+  const parsedDimensions =
+    openaiEmbeddingDimensions === undefined ? undefined : Number(openaiEmbeddingDimensions);
+  if (parsedDimensions !== undefined && !Number.isInteger(parsedDimensions)) {
+    throw new Error("OPENAI_EMBEDDING_DIMENSIONS must be an integer");
+  }
 
   return {
     openaiApiKey,
     ...(openaiEmbeddingModel === undefined
       ? {}
       : { openaiEmbeddingModel }),
+    ...(parsedDimensions === undefined ? {} : { openaiEmbeddingDimensions: parsedDimensions }),
     openaiEmbeddingBaseUrl,
   };
 };
@@ -62,6 +71,9 @@ export const createEmbeddingModel = (
   createOpenAIEmbeddingModel({
     apiKey: env.openaiApiKey,
     model: env.openaiEmbeddingModel ?? DEFAULT_OPENAI_EMBEDDING_MODEL_NAME,
+    ...(env.openaiEmbeddingDimensions === undefined
+      ? {}
+      : { dimensions: env.openaiEmbeddingDimensions }),
     baseUrl: env.openaiEmbeddingBaseUrl ?? DEFAULT_OPENAI_EMBEDDING_BASE_URL,
     ...(env.fetchImpl === undefined ? {} : { fetchImpl: env.fetchImpl }),
   });

@@ -37,6 +37,7 @@ describe("embedding model config", () => {
     const model = createEmbeddingModel({
       openaiApiKey: "secret",
       openaiEmbeddingModel: "text-embedding-3-small",
+      openaiEmbeddingDimensions: 3,
       openaiEmbeddingBaseUrl: "https://api.openai.com/v1",
       fetchImpl,
     });
@@ -70,6 +71,7 @@ describe("embedding model config", () => {
       ...originalEnv,
       OPENAI_API_KEY: "secret",
       OPENAI_EMBEDDING_MODEL: "text-embedding-3-small",
+      OPENAI_EMBEDDING_DIMENSIONS: "3",
       OPENAI_EMBEDDING_BASE_URL: "https://api.openai.com/v1",
     };
 

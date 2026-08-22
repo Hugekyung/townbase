@@ -8,6 +8,7 @@ describe("embedding service", () => {
     const queryCalls: Prisma.Sql[] = [];
     const model: EmbeddingModel = {
       model: "test-embedding-model",
+      dimensions: 3,
       async embedText(text: string) {
         expect(text).toBe("How do I update the schema?");
         return [0.1, 0.2, 0.3];
@@ -73,8 +74,13 @@ describe("embedding service", () => {
   it("stores chunk embeddings and marks the document indexed", async () => {
     const executeRaw = jest.fn(async () => 1);
     const documentUpdate = jest.fn(async () => undefined);
+    const queryRaw = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "chunk-1", dimensions: 3 }, { id: "chunk-2", dimensions: 3 }]);
     const model: EmbeddingModel = {
       model: "test-embedding-model",
+      dimensions: 3,
       async embedText(text: string) {
         expect(text).toBe("alpha beta");
         return [0.11, 0.12, 0.13];
@@ -88,9 +94,7 @@ describe("embedding service", () => {
       },
     };
     const prisma = {
-      async $queryRaw() {
-        return [];
-      },
+      $queryRaw: queryRaw,
       async $executeRaw() {
         return 1;
       },
@@ -148,6 +152,7 @@ describe("embedding service", () => {
     const documentUpdate = jest.fn(async () => undefined);
     const model: EmbeddingModel = {
       model: "test-embedding-model",
+      dimensions: 3,
       async embedText() {
         return [0.11, 0.12, 0.13];
       },
@@ -212,6 +217,7 @@ describe("embedding service", () => {
     const documentUpdate = jest.fn(async () => undefined);
     const model: EmbeddingModel = {
       model: "test-embedding-model",
+      dimensions: 3,
       async embedText() {
         return [0.11, 0.12, 0.13];
       },
@@ -271,5 +277,40 @@ describe("embedding service", () => {
         indexStatus: "failed",
       },
     });
+  });
+
+  it("skips model calls when every chunk already has an embedding", async () => {
+    const embedTexts = jest.fn();
+    const documentUpdate = jest.fn(async () => undefined);
+    const model: EmbeddingModel = {
+      model: "test-embedding-model",
+      dimensions: 3,
+      async embedText() {
+        return [0.11, 0.12, 0.13];
+      },
+      embedTexts,
+    };
+    const prisma = {
+      async $queryRaw() {
+        return [{ id: "chunk-1" }, { id: "chunk-2" }];
+      },
+      async $executeRaw() {
+        return 1;
+      },
+      async $transaction() {
+        throw new Error("transaction should not be called");
+      },
+      document: {
+        update: documentUpdate,
+      },
+    } as unknown as Parameters<typeof indexDocumentChunks>[0];
+
+    await expect(
+      indexDocumentChunks(prisma, model, "workspace-1", "document-1", [
+        { chunkId: "chunk-1", documentId: "document-1", content: "alpha" },
+        { chunkId: "chunk-2", documentId: "document-1", content: "beta" },
+      ]),
+    ).resolves.toEqual({ kind: "indexed", documentId: "document-1", chunkCount: 2 });
+    expect(embedTexts).not.toHaveBeenCalled();
   });
 });

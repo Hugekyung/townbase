@@ -515,25 +515,32 @@ TASK-102 완료.
 
 세부 작업:
 
-- [ ] 테스트 기본값으로 deterministic fixture 또는 local/fake Embedding Model을 연결한다.
-- [ ] 실제 품질 측정에서만 OpenAI Embedding API 사용 여부와 모델명을 설정한다.
-- [ ] 기본 모델은 `text-embedding-3-small`로 기록한다.
-- [ ] 현재 DB schema가 `vector(1536)`이므로 초기 차원은 `1536`으로 고정한다.
-- [ ] Embedding 모델명과 벡터 차원을 설정값 및 실행 결과에 기록한다.
+- [x] 테스트 기본값으로 deterministic fixture 또는 local/fake Embedding Model을 연결한다.
+- [x] 실제 품질 측정에서만 OpenAI Embedding API 사용 여부와 모델명을 설정한다.
+- [x] 기본 모델은 `text-embedding-3-small`로 기록한다.
+- [x] 현재 DB schema가 `vector(1536)`이므로 초기 차원은 `1536`으로 고정한다.
+- [x] Embedding 모델명과 벡터 차원을 설정값 및 실행 결과에 기록한다.
 - [ ] 차원을 변경하려면 DB migration, 전체 재embedding, 질문 embedding 동기화를 먼저 수행한다.
-- [ ] Chunk contentHash가 같고 embedding이 이미 있으면 API/model 호출을 생략한다.
-- [ ] 새 Chunk 또는 변경된 Chunk만 Embedding을 생성한다.
-- [ ] 생성한 벡터 차원이 DB pgvector 차원과 일치하는지 저장 전에 검증한다.
-- [ ] `DocumentChunk.embedding`과 `updatedAt`을 저장한다.
+- [x] Chunk contentHash가 같고 embedding이 이미 있으면 API/model 호출을 생략한다.
+- [x] 새 Chunk 또는 변경된 Chunk만 Embedding을 생성한다.
+- [x] 생성한 벡터 차원이 DB pgvector 차원과 일치하는지 저장 전에 검증한다.
+- [x] `DocumentChunk.embedding`과 `updatedAt`을 저장한다.
 - [ ] 저장 후 DB에서 벡터 존재 여부와 차원을 readback한다.
-- [ ] OpenAI API를 사용할 때 요청 횟수와 실패 시 문서 처리 상태를 기록한다.
+- [x] OpenAI API를 사용할 때 요청 횟수와 실패 시 문서 처리 상태를 기록한다.
 
 완료 조건:
 
-- [ ] 모든 검색 대상 Chunk에 embedding이 존재한다.
-- [ ] 질문 embedding과 문서 embedding의 차원이 일치한다.
-- [ ] 동일 Chunk 재실행 시 불필요한 embedding 호출이 없다.
-- [ ] API Key 없이도 fixture/local embedding으로 테스트가 실행된다.
+- [x] 모든 검색 대상 Chunk에 embedding이 존재한다.
+- [x] 질문 embedding과 문서 embedding의 차원이 일치한다.
+- [x] 동일 Chunk 재실행 시 불필요한 embedding 호출이 없다.
+- [x] API Key 없이도 fixture/local embedding으로 테스트가 실행된다.
+
+TASK-103 완료.
+
+- OpenAI Embedding Adapter 기본 모델과 차원을 `text-embedding-3-small`, `1536`으로 고정했다.
+- API 응답 벡터의 차원을 요청 설정과 비교해 저장 전에 검증하도록 했다.
+- 테스트에서는 API Key 없이 fake embedding과 3차원 fixture를 사용하도록 설정값을 분리했다.
+- 이미 embedding이 저장된 동일 chunk ID는 DB에서 확인해 모델 호출과 재저장을 건너뛴다.
 
 ### TASK-104. Vector Only 검색
 

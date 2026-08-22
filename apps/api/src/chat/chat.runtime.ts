@@ -109,6 +109,7 @@ const hashEmbedding = (text: string, dimension = 1536): readonly number[] => {
 
 export const createFallbackEmbeddingModel = (): EmbeddingModel => ({
   model: "hash-embedding-1536",
+  dimensions: 1536,
   async embedText(text: string): Promise<readonly number[]> {
     return hashEmbedding(text);
   },

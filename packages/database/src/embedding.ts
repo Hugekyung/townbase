@@ -28,6 +28,43 @@ export type DocumentChunkEmbeddingQueryClient = DocumentChunkEmbeddingExecuteCli
     $queryRaw: <T>(query: Prisma.Sql) => Promise<T>;
   }>;
 
+export const listIndexedDocumentChunkIds = async (
+  client: Readonly<{ $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }>,
+  workspaceId: string,
+  chunkIds: readonly string[],
+): Promise<readonly string[]> => {
+  if (chunkIds.length === 0) {
+    return [];
+  }
+
+  const rows = await client.$queryRaw<readonly { readonly id: string }[]>(Prisma.sql`
+    SELECT "id"
+    FROM "DocumentChunk"
+    WHERE "workspaceId" = ${workspaceId}
+      AND "id" IN (${Prisma.join(chunkIds)})
+      AND "embedding" IS NOT NULL
+  `);
+
+  return rows.map(({ id }) => id);
+};
+
+export const readDocumentChunkEmbeddingDimensions = async (
+  client: Readonly<{ $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }>,
+  workspaceId: string,
+  chunkIds: readonly string[],
+): Promise<readonly { readonly id: string; readonly dimensions: number | null }[]> => {
+  if (chunkIds.length === 0) {
+    return [];
+  }
+
+  return client.$queryRaw(Prisma.sql`
+    SELECT "id", vector_dims("embedding") AS "dimensions"
+    FROM "DocumentChunk"
+    WHERE "workspaceId" = ${workspaceId}
+      AND "id" IN (${Prisma.join(chunkIds)})
+  `);
+};
+
 const assertFiniteNumber = (value: number, label: string): number => {
   if (!Number.isFinite(value)) {
     throw new Error(`${label} must be a finite number`);

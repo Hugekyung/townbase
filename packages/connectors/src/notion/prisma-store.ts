@@ -135,7 +135,7 @@ export const createPrismaNotionSyncStore = (
     );
 
     const result = await indexDocumentChunks(
-      prisma,
+      { ...prisma, $queryRaw: prisma.$queryRaw },
       context.embeddingModel,
       context.workspaceId,
       document.id,

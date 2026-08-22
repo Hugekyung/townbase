@@ -34,6 +34,9 @@ const createMockPrismaClient = (
 
       return Promise.resolve(input);
     },
+    async $queryRaw<T>() {
+      return [] as T;
+    },
     workspace: {
       async upsert() {
         return { id: "workspace-1" };
