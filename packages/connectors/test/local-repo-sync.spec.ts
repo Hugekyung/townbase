@@ -73,6 +73,9 @@ describe("syncLocalRepoFiles", () => {
           indexStatus: input.indexStatus,
         });
       },
+      async archiveMissingDocuments() {
+        return 0;
+      },
       async markLastSyncedAt() {
         return undefined;
       },
@@ -82,6 +85,7 @@ describe("syncLocalRepoFiles", () => {
       {
         workspaceId: "workspace-1",
         dataSourceId: "source-1",
+        selectedRepoNames: ["repo-a"],
         syncedAt: new Date("2024-01-10T00:00:00.000Z"),
         files: [
           {
@@ -152,6 +156,9 @@ describe("syncLocalRepoFiles", () => {
       async upsertDocument() {
         throw new Error("should not upsert archived snapshot");
       },
+      async archiveMissingDocuments() {
+        return 0;
+      },
       async markLastSyncedAt() {
         syncedAtCalls += 1;
         return undefined;
@@ -162,6 +169,7 @@ describe("syncLocalRepoFiles", () => {
       {
         workspaceId: "workspace-1",
         dataSourceId: "source-1",
+        selectedRepoNames: ["repo-a"],
         syncedAt: new Date("2024-01-12T00:00:00.000Z"),
         files: [
           {
@@ -185,6 +193,79 @@ describe("syncLocalRepoFiles", () => {
       failures: [],
     });
     expect(syncedAtCalls).toBe(1);
+  });
+
+  it("updates changed content even when the file timestamp is older", async () => {
+    const upsertDocument = jest.fn(async () => undefined);
+    const store: LocalRepoSyncStore = {
+      async findDocumentByExternalId() {
+        return {
+          externalUpdatedAt: new Date("2024-02-01T00:00:00.000Z"),
+          status: "active",
+          contentHash: createHash("sha256").update("# Old content\n").digest("hex"),
+          indexStatus: "indexed",
+        };
+      },
+      upsertDocument,
+      async archiveMissingDocuments() {
+        return 0;
+      },
+      async markLastSyncedAt() {
+        return undefined;
+      },
+    };
+
+    const result = await syncLocalRepoFiles(
+      {
+        workspaceId: "workspace-1",
+        dataSourceId: "source-1",
+        selectedRepoNames: ["repo-a"],
+        syncedAt: new Date("2024-02-02T00:00:00.000Z"),
+        files: [
+          {
+            repoName: "repo-a",
+            filePath: "README.md",
+            content: "# New content\n",
+            createdAt: new Date("2024-01-01T00:00:00.000Z"),
+            modifiedAt: new Date("2024-01-15T00:00:00.000Z"),
+          },
+        ],
+      },
+      store,
+    );
+
+    expect(result.updated).toBe(1);
+    expect(upsertDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it("archives missing files within the selected repository scope", async () => {
+    const archiveMissingDocuments = jest.fn().mockResolvedValue(1);
+    const store: LocalRepoSyncStore = {
+      async findDocumentByExternalId() {
+        return null;
+      },
+      async upsertDocument() {
+        return undefined;
+      },
+      archiveMissingDocuments,
+      async markLastSyncedAt() {
+        return undefined;
+      },
+    };
+
+    const result = await syncLocalRepoFiles(
+      {
+        workspaceId: "workspace-1",
+        dataSourceId: "source-1",
+        selectedRepoNames: ["repo-a", "repo-b"],
+        syncedAt: new Date("2024-02-02T00:00:00.000Z"),
+        files: [],
+      },
+      store,
+    );
+
+    expect(archiveMissingDocuments).toHaveBeenCalledWith(["repo-a", "repo-b"], []);
+    expect(result.archived).toBe(1);
   });
 
   it("normalizes the local repo summary to the Phase5 connector contract", async () => {

@@ -457,24 +457,31 @@ standalone 답변 API, Mode-aware Retrieval은 현재 실제 진행 목록에 �
 
 세부 작업:
 
-- [ ] 현재 저장소의 수집 대상 경로를 설정값 또는 함수 인자로 전달한다.
-- [ ] `node_modules`, `.git`, `dist`, `build`, `.env`, secret 파일, dependency 파일을 제외한다.
-- [ ] Markdown 파일을 읽어 제목과 원문 내용을 추출한다.
-- [ ] 파일별 `workspaceId`, `title`, `sourceType=repo_docs`, `filePath`, `content`, `status=active`, `contentHash`를 만든다.
-- [ ] 기존 Document가 없으면 새로 저장하고, 있으면 `contentHash`를 비교한다.
-- [ ] hash가 같으면 Document와 하위 Chunk·Embedding을 다시 만들지 않는다.
-- [ ] hash가 다르면 Document 원문과 `updatedAt`을 갱신하고 후속 재색인 대상으로 표시한다.
-- [ ] 파일이 사라진 경우 기존 Document를 삭제하지 않고 `archived`로 변경한다.
-- [ ] 저장 직후 DB에서 Document를 다시 읽어 원문과 `filePath`를 복원한다.
-- [ ] 최소 3개 Markdown 문서로 위 시나리오를 테스트한다.
+- [x] 현재 저장소의 수집 대상 경로를 설정값 또는 함수 인자로 전달한다.
+- [x] `node_modules`, `.git`, `dist`, `build`, `.env`, secret 파일, dependency 파일을 제외한다.
+- [x] Markdown 파일을 읽어 제목과 원문 내용을 추출한다.
+- [x] 파일별 `workspaceId`, `title`, `sourceType=repo_docs`, `filePath`, `content`, `status=active`, `contentHash`를 만든다.
+- [x] 기존 Document가 없으면 새로 저장하고, 있으면 `contentHash`를 비교한다.
+- [x] hash가 같으면 Document와 하위 Chunk·Embedding을 다시 만들지 않는다.
+- [x] hash가 다르면 Document 원문과 `updatedAt`을 갱신하고 후속 재색인 대상으로 표시한다.
+- [x] 파일이 사라진 경우 기존 Document를 삭제하지 않고 `archived`로 변경한다.
+- [x] 저장 직후 DB에서 Document를 다시 읽어 원문과 `filePath`를 복원한다.
+- [x] 최소 3개 Markdown 문서로 위 시나리오를 테스트한다.
 
 완료 조건:
 
-- [ ] 문서 3개 이상이 DB에 저장된다.
-- [ ] 동일 문서를 두 번 수집해도 Document 수가 늘지 않는다.
-- [ ] 내용 변경 시 hash와 원문이 갱신된다.
-- [ ] 삭제된 문서가 `archived`로 남는다.
-- [ ] 제외 대상 파일이 저장되지 않는다.
+- [x] 문서 3개 이상이 DB에 저장된다.
+- [x] 동일 문서를 두 번 수집해도 Document 수가 늘지 않는다.
+- [x] 내용 변경 시 hash와 원문이 갱신된다.
+- [x] 삭제된 문서가 `archived`로 남는다.
+- [x] 제외 대상 파일이 저장되지 않는다.
+
+TASK-101 완료.
+
+- `contentHash` 기준으로 동일 내용 재수집을 건너뛰고, 수정 시각이 과거여도 내용이 바뀌면 갱신한다.
+- 선택된 repository와 현재 scan 결과를 비교해 누락된 Document를 `archived` 처리한다.
+- 검증 결과: connectors 테스트 25 suites/70 tests 통과, connectors build 통과, API build 통과,
+  전체 API 테스트 18 suites/48 tests 통과, lint 통과, Prisma validation 통과.
 
 ### TASK-102. Chunking과 출처 보존
 

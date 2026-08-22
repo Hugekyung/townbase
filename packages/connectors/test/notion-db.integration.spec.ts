@@ -53,6 +53,9 @@ const createPrismaClientLike = (
       async update(input: unknown) {
         return prisma.document.update(input as never);
       },
+      async updateMany(input: unknown) {
+        return prisma.document.updateMany(input as never);
+      },
     },
     documentChunk: {
       async deleteMany(input: unknown) {

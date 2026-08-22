@@ -33,6 +33,7 @@ describe("createPrismaLocalRepoSyncStore", () => {
       document: {
         findUnique: jest.fn(),
         upsert: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       dataSource: {
         update: jest.fn(),

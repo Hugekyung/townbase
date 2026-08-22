@@ -217,6 +217,7 @@ export const runLocalRepoSync = async (
       {
         workspaceId,
         dataSourceId,
+        selectedRepoNames,
         syncedAt: new Date(),
         files,
       },
