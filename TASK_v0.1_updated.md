@@ -487,22 +487,29 @@ TASK-101 완료.
 
 세부 작업:
 
-- [ ] TASK-101에서 저장한 active Document를 읽어 Chunking 입력으로 전달한다.
-- [ ] Heading이 있는 Markdown은 heading 경계를 우선해 Chunk를 만든다.
-- [ ] Heading이 없는 긴 문서는 고정 token/문자 길이와 overlap으로 나눈다.
-- [ ] 초기 Baseline을 `maxTokens=600`, `overlapTokens=80`으로 고정한다.
-- [ ] 튜닝 후보는 `400/40`, `600/80`, `800/100`으로 두고, 기본 구현에서는 Baseline만 사용한다.
-- [ ] 각 Chunk에 `documentId`, `workspaceId`, `content`, `chunkIndex`, `sectionTitle`, `headingPath`, `contentHash`, `sourceType`를 저장한다.
-- [ ] 문서 재색인 시 기존 Chunk를 중복 생성하지 않고 변경된 문서의 Chunk만 교체한다.
-- [ ] Chunk ID에서 원본 Document, 제목, 파일 경로를 역추적한다.
-- [ ] heading 문서, heading 없는 문서, 매우 짧은 문서 각각을 테스트한다.
+- [x] TASK-101에서 저장한 active Document를 읽어 Chunking 입력으로 전달한다.
+- [x] Heading이 있는 Markdown은 heading 경계를 우선해 Chunk를 만든다.
+- [x] Heading이 없는 긴 문서는 고정 token/문자 길이와 overlap으로 나눈다.
+- [x] 초기 Baseline을 `maxTokens=600`, `overlapTokens=80`으로 고정한다.
+- [x] 튜닝 후보는 `400/40`, `600/80`, `800/100`으로 두고, 기본 구현에서는 Baseline만 사용한다.
+- [x] 각 Chunk에 `documentId`, `workspaceId`, `content`, `chunkIndex`, `sectionTitle`, `headingPath`, `contentHash`, `sourceType`를 저장한다.
+- [x] 문서 재색인 시 기존 Chunk를 중복 생성하지 않고 변경된 문서의 Chunk만 교체한다.
+- [x] Chunk ID에서 원본 Document, 제목, 파일 경로를 역추적한다.
+- [x] heading 문서, heading 없는 문서, 매우 짧은 문서 각각을 테스트한다.
 
 완료 조건:
 
-- [ ] 문서가 예상 순서의 Chunk 여러 개로 저장된다.
-- [ ] 모든 Chunk가 원본 Document와 연결된다.
-- [ ] `headingPath`와 `sectionTitle`로 출처 위치를 설명할 수 있다.
-- [ ] 동일 문서 재색인으로 중복 Chunk가 생기지 않는다.
+- [x] 문서가 예상 순서의 Chunk 여러 개로 저장된다.
+- [x] 모든 Chunk가 원본 Document와 연결된다.
+- [x] `headingPath`와 `sectionTitle`로 출처 위치를 설명할 수 있다.
+- [x] 동일 문서 재색인으로 중복 Chunk가 생기지 않는다.
+
+TASK-102 완료.
+
+- `rag-core`의 heading-aware chunker와 plain-text fallback을 TASK-101 Document upsert 경로에 연결해 저장한다.
+- 기본 설정은 `maxTokens=600`, `overlapTokens=80`으로 유지하고, section 경계를 overlap보다 우선한다.
+- DocumentChunk는 원본 documentId와 chunkIndex, sectionTitle, headingPath, contentHash, sourceType를 보존하며 재색인 시 기존 chunk를 교체한다.
+- 기본값, heading 문서, heading 없는 문서, 매우 짧은 문서에 대한 테스트를 보강했다.
 
 ### TASK-103. Embedding과 Vector DB 저장
 

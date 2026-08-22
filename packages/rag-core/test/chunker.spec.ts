@@ -303,4 +303,65 @@ describe("chunkDocument", () => {
     // Then
     expect(chunks).toEqual([]);
   });
+
+  it("uses the baseline 600-token window with 80-token overlap by default", () => {
+    // Given
+    const document = {
+      documentId: "doc-baseline",
+      sourceType: "readme",
+      content: Array.from({ length: 601 }, (_, index) => `token-${index}`).join(" "),
+      sectionTitle: null,
+      headingPath: [],
+      contentHash: null,
+      knowledgeTypes: [],
+      domainTags: [],
+      metadata: {},
+      status: "active",
+      sourcePriority: 1,
+      requestedMode: null,
+      resolvedMode: null,
+    } as const;
+
+    // When
+    const chunks = chunkDocument(document);
+
+    // Then
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]?.tokenCount).toBe(600);
+    expect(chunks[1]?.tokenCount).toBe(81);
+    expect(chunks[1]?.content.startsWith("token-520")).toBe(true);
+  });
+
+  it("keeps a very short document as one source-preserving chunk", () => {
+    // Given
+    const document = {
+      documentId: "doc-short",
+      sourceType: "adr",
+      content: "# Decision\nUse PostgreSQL.",
+      sectionTitle: null,
+      headingPath: [],
+      contentHash: null,
+      knowledgeTypes: ["architecture"],
+      domainTags: ["database"],
+      metadata: { filePath: "docs/decision.md" },
+      status: "active",
+      sourcePriority: 4,
+      requestedMode: null,
+      resolvedMode: null,
+    } as const;
+
+    // When
+    const chunks = chunkDocument(document);
+
+    // Then
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toMatchObject({
+      documentId: "doc-short",
+      chunkIndex: 0,
+      sectionTitle: "Decision",
+      headingPath: ["Decision"],
+      sourceType: "adr",
+      content: "Use PostgreSQL.",
+    });
+  });
 });
