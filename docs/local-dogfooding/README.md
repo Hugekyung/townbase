@@ -19,7 +19,6 @@ v0.1의 기본 사용 경로는 `MCP-first`이고, 웹 UI나 HTTP chat API는 �
 - `NOTION_API_KEY`
 - `NOTION_ROOT_PAGE_ID`
 - `OPENAI_API_KEY`
-- `OPENAI_CHAT_MODEL`
 - `OPENAI_EMBEDDING_MODEL`
 - `OPENAI_EMBEDDING_BASE_URL`
 
@@ -28,7 +27,7 @@ v0.1의 기본 사용 경로는 `MCP-first`이고, 웹 UI나 HTTP chat API는 �
 - `REPO_ROOT_PATH`와 `LOCAL_REPO_NAMES`는 selected-repo sync에 필요하다.
 - `NOTION_API_KEY`와 `NOTION_ROOT_PAGE_ID`가 없으면 개인 Notion dogfooding은 할 수 없다.
 - Notion fixture replay가 필요하면 `pnpm --filter @townbase/connectors notion:sync:fixture`를 쓴다.
-- `OPENAI_API_KEY`가 없으면 embedding/chat의 full path가 아니라 fallback 또는 gap-heavy path로 동작할 수 있다.
+- `OPENAI_API_KEY`는 OpenAI Embedding을 사용할 때만 필요하다. 없으면 fixture·local·fallback embedding으로 검증한다.
 - `REPO_ROOT_PATH`는 `pnpm` 실행 시 package cwd가 달라질 수 있으므로, 상대경로보다 절대경로가 안전하다.
 
 ## 2. 로컬 실행 순서
