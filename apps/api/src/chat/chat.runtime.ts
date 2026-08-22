@@ -21,6 +21,10 @@ import type { ChatQuestionExecutionInput } from "./chat.service";
 import type { PromptTraceSource } from "@townbase/agent-core";
 import type { ChatMcpSurface } from "./chat.server";
 import type { RetrievalStrategy } from "@townbase/rag-core";
+import {
+  resolveRetrievalExecutionStrategy,
+  type RetrievalExecutionStrategy,
+} from "./retrieval-strategy";
 
 export type ChatRetrievalRequest = Readonly<{
   workspaceId: string;
@@ -28,6 +32,7 @@ export type ChatRetrievalRequest = Readonly<{
   requestedMode: ChatQuestionExecutionInput["mode"];
   resolvedMode: Exclude<ChatQuestionExecutionInput["mode"], "auto">;
   strategy: RetrievalStrategy;
+  executionStrategy: RetrievalExecutionStrategy;
   embedding: readonly number[];
 }>;
 
@@ -84,6 +89,7 @@ export type ChatTransportSurface = Readonly<{
 export type ChatExecutionDependencies = Readonly<{
   prisma: Pick<PrismaClient, "question" | "questionSource" | "knowledgeGap" | "documentChunk" | "$transaction">;
   embedding: EmbeddingModel;
+  retrievalExecutionStrategy: RetrievalExecutionStrategy;
   retriever: ChatRetrievalExecutor;
   completion: ChatCompletionClient;
   persistence: ChatPersistence;
@@ -179,6 +185,7 @@ export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
             : { model: process.env.OPENAI_EMBEDDING_MODEL }),
         })
       : createFallbackEmbeddingModel(),
+    retrievalExecutionStrategy: resolveRetrievalExecutionStrategy(),
     retriever: {
       retrieve: createDefaultDocumentRetriever(prisma),
     },

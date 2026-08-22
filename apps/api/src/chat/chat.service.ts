@@ -53,6 +53,7 @@ export class ChatQuestionService {
       requestedMode: selection.requestedMode,
       resolvedMode: selection.resolvedMode,
       strategy: selection.strategy,
+      executionStrategy: this.deps.retrievalExecutionStrategy,
       embedding: questionEmbedding,
     });
     const context: PromptContext = buildPromptContext({

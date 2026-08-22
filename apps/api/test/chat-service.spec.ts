@@ -21,6 +21,7 @@ const createService = (
       embedText: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
       embedTexts: jest.fn(),
     },
+    retrievalExecutionStrategy: "vector_only",
     retriever: {
       retrieve: jest.fn().mockResolvedValue([
         {

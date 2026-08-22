@@ -407,9 +407,9 @@ Vector Only 검색과 MCP Source packet 반환 경계를 먼저 검증한다.
 
 ### TASK-002. 변경 전 상태 보존
 
-- [ ] 기존 테스트를 실행하고 결과를 기록한다.
-- [ ] 기존 Vector Search 동작을 변경하기 전에 별도 Strategy 또는 설정으로 유지할 수 있는지 확인한다.
-- [ ] 비교 실험을 위해 `vector_only`와 `mode_aware` 전략을 전환할 수 있는 설정을 준비한다.
+- [x] 기존 테스트를 실행하고 결과를 기록한다.
+- [x] 기존 Vector Search 동작을 변경하기 전에 별도 Strategy 또는 설정으로 유지할 수 있는지 확인한다.
+- [x] 비교 실험을 위해 `vector_only`와 `mode_aware` 전략을 전환할 수 있는 설정을 준비한다.
 
 권장 환경 변수:
 
@@ -421,6 +421,20 @@ RAG_RETRIEVAL_STRATEGY=vector_only
 
 - 기존 검색 방식과 개선 검색 방식을 같은 Dataset에서 선택적으로 실행할 수 있다.
 - 변경 전 전체 테스트 결과가 기록되어 있다.
+
+#### TASK-002 실행 결과
+
+- `apps/api/src/chat/retrieval-strategy.ts`에 실행 전략 계약을 추가했다.
+- `RAG_RETRIEVAL_STRATEGY`가 없으면 `vector_only`를 사용한다.
+- 허용 값은 `vector_only`, `mode_aware`이며 그 외 값은 명확한 오류로 거절한다.
+- 선택된 전략은 MCP 질문의 Retrieval Request까지 전달되지만, TASK-002에서는 두 전략 모두
+  기존 Vector Search SQL과 Source 매핑을 그대로 사용한다. 실제 Metadata ranking은 P2에서 구현한다.
+- 동일한 deterministic fixture로 두 전략을 실행해 workspace, embedding, topK 검색 입력과
+  Source ID·순서가 동일함을 검증했다.
+- 검증 결과: `pnpm test` exit 0 (18 suites, 48 tests), `pnpm build` exit 0,
+  `pnpm lint` exit 0, `pnpm --filter @townbase/database prisma:validate` exit 0.
+
+TASK-002 완료. 다음 단계에서는 이 전략 경계를 유지한 채 P0 기본 RAG 수직 슬라이스 구현으로 진행한다.
 
 ---
 
