@@ -1,5 +1,5 @@
 import { Client } from "@notionhq/client";
-import type { Logger } from "@notionhq/client/build/src/logging";
+import type { Logger } from "@notionhq/client";
 
 import { normalizeLiveNotionPageRecord } from "./live-page";
 import {
