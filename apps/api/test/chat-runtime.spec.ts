@@ -110,6 +110,8 @@ describe("chat runtime defaults", () => {
         workspaceId: "workspace-1",
         embedding: [0.1, 0.2, 0.3],
         topK: 2,
+        embeddingModel: "text-embedding-3-small",
+        dimensions: 1536,
       });
       expect(result.map((source) => source.chunkId)).toEqual(["chunk-1", "chunk-2"]);
       expect(result.map((source) => source.rank)).toEqual([1, 2]);

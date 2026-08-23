@@ -64,6 +64,8 @@ describe("database embedding helpers", () => {
       searchDocumentChunksByEmbedding(client, {
         workspaceId: "workspace-1",
         embedding: [0.1, 0.2, 0.3],
+        embeddingModel: "test-model",
+        dimensions: 3,
         topK: 5,
         scoreThreshold: 0.8,
       }),
@@ -72,6 +74,8 @@ describe("database embedding helpers", () => {
     const query = buildDocumentChunkVectorSearchQuery({
       workspaceId: "workspace-1",
       embedding: [0.1, 0.2, 0.3],
+      embeddingModel: "test-model",
+      dimensions: 3,
       topK: 5,
       scoreThreshold: 0.8,
     });

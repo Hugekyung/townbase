@@ -18,7 +18,6 @@ export type EmbeddingModel = Readonly<{
 const DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
-const MODELS_WITHOUT_DIMENSIONS_SUPPORT = new Set(["text-embedding-ada-002"]);
 
 const assertNonEmpty = (value: string, label: string): string => {
   const trimmed = value.trim();
@@ -121,7 +120,13 @@ export const createOpenAIEmbeddingModel = (
   const baseUrl = config.baseUrl?.trim() || DEFAULT_OPENAI_BASE_URL;
   const fetchImpl = config.fetchImpl ?? fetch;
   const dimensions = normalizeDimensions(config.dimensions) ?? DEFAULT_EMBEDDING_DIMENSIONS;
-  const supportsDimensions = !MODELS_WITHOUT_DIMENSIONS_SUPPORT.has(model);
+
+  if (model !== DEFAULT_OPENAI_EMBEDDING_MODEL) {
+    throw new Error(`Only ${DEFAULT_OPENAI_EMBEDDING_MODEL} is supported`);
+  }
+  if (dimensions !== DEFAULT_EMBEDDING_DIMENSIONS) {
+    throw new Error(`Only ${DEFAULT_EMBEDDING_DIMENSIONS} dimensions are supported`);
+  }
 
   if (typeof fetchImpl !== "function") {
     throw new Error("fetch implementation is required");
@@ -137,7 +142,7 @@ export const createOpenAIEmbeddingModel = (
           model,
           baseUrl,
           fetchImpl,
-          ...(supportsDimensions ? { dimensions } : {}),
+          dimensions,
         },
         [assertNonEmpty(text, "text")],
       );
@@ -160,7 +165,7 @@ export const createOpenAIEmbeddingModel = (
           model,
           baseUrl,
           fetchImpl,
-          ...(supportsDimensions ? { dimensions } : {}),
+          dimensions,
         },
         normalizedTexts,
       );

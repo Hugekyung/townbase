@@ -8,6 +8,8 @@ import {
 } from "@townbase/database";
 import {
   createOpenAIEmbeddingModel,
+  DEFAULT_EMBEDDING_DIMENSIONS,
+  DEFAULT_OPENAI_EMBEDDING_MODEL_NAME,
   type EmbeddingModel,
   type EmbeddingVector,
 } from "@townbase/rag-core";
@@ -108,13 +110,13 @@ const hashEmbedding = (text: string, dimension = 1536): readonly number[] => {
 };
 
 export const createFallbackEmbeddingModel = (): EmbeddingModel => ({
-  model: "hash-embedding-1536",
-  dimensions: 1536,
+  model: DEFAULT_OPENAI_EMBEDDING_MODEL_NAME,
+  dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
   async embedText(text: string): Promise<readonly number[]> {
-    return hashEmbedding(text);
+    return hashEmbedding(text, DEFAULT_EMBEDDING_DIMENSIONS);
   },
   async embedTexts(texts: readonly string[]): Promise<readonly EmbeddingVector[]> {
-    return texts.map((text) => hashEmbedding(text));
+    return texts.map((text) => hashEmbedding(text, DEFAULT_EMBEDDING_DIMENSIONS));
   },
 });
 
@@ -127,6 +129,8 @@ export const createDefaultDocumentRetriever = (
       workspaceId: input.workspaceId,
       embedding: input.embedding,
       topK: input.strategy.topK,
+      embeddingModel: DEFAULT_OPENAI_EMBEDDING_MODEL_NAME,
+      dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
     });
 
     if (rows.length === 0) {

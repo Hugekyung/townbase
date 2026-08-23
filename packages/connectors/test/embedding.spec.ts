@@ -33,11 +33,14 @@ describe("embedding service", () => {
         return 1;
       },
       async $transaction<T>(
-        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number> }) => Promise<T>,
+        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number>; readonly $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }) => Promise<T>,
       ): Promise<T> {
         return callback({
           async $executeRaw() {
             return 1;
+          },
+          async $queryRaw<T>() {
+            return [{ id: "chunk-1", dimensions: 3 }, { id: "chunk-2", dimensions: 3 }] as T;
           },
         });
       },
@@ -99,10 +102,13 @@ describe("embedding service", () => {
         return 1;
       },
       async $transaction<T>(
-        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number> }) => Promise<T>,
+        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number>; readonly $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }) => Promise<T>,
       ): Promise<T> {
         return callback({
           $executeRaw: executeRaw,
+          async $queryRaw<T>() {
+            return [{ id: "chunk-1", dimensions: 3 }, { id: "chunk-2", dimensions: 3 }] as T;
+          },
         });
       },
       document: {
@@ -168,11 +174,14 @@ describe("embedding service", () => {
         return 1;
       },
       async $transaction<T>(
-        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number> }) => Promise<T>,
+        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number>; readonly $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }) => Promise<T>,
       ): Promise<T> {
         return callback({
           async $executeRaw() {
             return 1;
+          },
+          async $queryRaw<T>() {
+            return [] as T;
           },
         });
       },
@@ -234,11 +243,14 @@ describe("embedding service", () => {
         return 0;
       },
       async $transaction<T>(
-        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number> }) => Promise<T>,
+        callback: (transactionClient: { readonly $executeRaw: (query: Prisma.Sql) => Promise<number>; readonly $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }) => Promise<T>,
       ): Promise<T> {
         return callback({
           async $executeRaw() {
             return 0;
+          },
+          async $queryRaw<T>() {
+            return [] as T;
           },
         });
       },

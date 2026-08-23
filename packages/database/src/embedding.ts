@@ -9,6 +9,8 @@ export type VectorSearchRow = Readonly<{
 export type DocumentChunkVectorSearchInput = Readonly<{
   workspaceId: string;
   embedding: readonly number[];
+  embeddingModel: string;
+  dimensions: number;
   topK: number;
   scoreThreshold?: number;
 }>;
@@ -105,6 +107,8 @@ export const buildDocumentChunkVectorSearchQuery = (
     FROM "DocumentChunk"
     WHERE "workspaceId" = ${input.workspaceId}
       AND "embedding" IS NOT NULL
+      AND "embeddingModel" = ${input.embeddingModel}
+      AND vector_dims("embedding") = ${input.dimensions}
       ${thresholdClause}
     ORDER BY "embedding" <=> ${embeddingLiteral}::vector
     LIMIT ${input.topK}

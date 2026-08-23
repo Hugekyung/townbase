@@ -52,6 +52,7 @@ type PrismaEmbeddingClient = Readonly<{
 
 type PrismaEmbeddingTransactionClient = Readonly<{
   $executeRaw: (query: unknown) => Promise<number>;
+  $queryRaw: <T>(query: unknown) => Promise<T>;
 }>;
 
 type PrismaEmbeddingQueryClient = Readonly<{
@@ -176,21 +177,21 @@ export const indexDocumentChunks = async (
           throw new Error(`Failed to persist embedding for chunk ${indexedChunk.chunkId}`);
         }
       }
-    });
 
-    const persistedEmbeddings = await readDocumentChunkEmbeddingDimensions(
-      prisma,
-      workspaceId,
-      pendingChunks.map(({ chunkId }) => chunkId),
-    );
-    const persistedEmbeddingDimensions = new Map(
-      persistedEmbeddings.map(({ id, dimensions }) => [id, dimensions]),
-    );
-    for (const chunk of pendingChunks) {
-      if (persistedEmbeddingDimensions.get(chunk.chunkId) !== model.dimensions) {
-        throw new Error(`Embedding readback failed for chunk ${chunk.chunkId}`);
+      const persistedEmbeddings = await readDocumentChunkEmbeddingDimensions(
+        transactionClient,
+        workspaceId,
+        pendingChunks.map(({ chunkId }) => chunkId),
+      );
+      const persistedEmbeddingDimensions = new Map(
+        persistedEmbeddings.map(({ id, dimensions }) => [id, dimensions]),
+      );
+      for (const chunk of pendingChunks) {
+        if (persistedEmbeddingDimensions.get(chunk.chunkId) !== model.dimensions) {
+          throw new Error(`Embedding readback failed for chunk ${chunk.chunkId}`);
+        }
       }
-    }
+    });
 
     await updateDocumentIndexStatus(prisma, workspaceId, documentId, "indexed");
     return {
@@ -218,6 +219,8 @@ export const searchSimilarChunksForQuestion = async (
   return searchDocumentChunksByEmbedding(prisma, {
     workspaceId: input.workspaceId,
     embedding,
+    embeddingModel: model.model,
+    dimensions: model.dimensions,
     topK: input.topK,
     ...(input.scoreThreshold === undefined ? {} : { scoreThreshold: input.scoreThreshold }),
   } satisfies DocumentChunkVectorSearchInput);
