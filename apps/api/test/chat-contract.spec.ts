@@ -47,6 +47,25 @@ describe("chat question contract", () => {
       workspaceId: "workspace-1",
       question: "What changed?",
       mode: "auto",
+      topK: 5,
     });
+  });
+
+  it("defaults topK to 5 and rejects invalid values", () => {
+    expect(() =>
+      parseChatQuestionInput({
+        workspaceId: "workspace-1",
+        question: "What changed?",
+        mode: "auto",
+        topK: 0,
+      }),
+    ).toThrow("topK must be a positive integer");
+
+    expect(parseChatQuestionInput({
+      workspaceId: "workspace-1",
+      question: "What changed?",
+      mode: "auto",
+      topK: 3,
+    }).topK).toBe(3);
   });
 });

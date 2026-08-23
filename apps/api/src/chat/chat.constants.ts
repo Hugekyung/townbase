@@ -40,6 +40,11 @@ export const CHAT_MCP_TOOLS = {
           type: "string",
           enum: [...CHAT_QUESTION_MODES],
         },
+        topK: {
+          type: "integer",
+          minimum: 1,
+          default: 5,
+        },
       },
       required: ["workspaceId", "question", "mode"],
     },

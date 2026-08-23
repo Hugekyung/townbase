@@ -18,6 +18,7 @@ export type ChatQuestionInput = Readonly<{
   workspaceId: string;
   question: string;
   mode: ChatQuestionMode;
+  topK: number;
 }>;
 
 export type ChatQuestionSelection = Readonly<{
@@ -64,6 +65,22 @@ const readQuestionMode = (value: Readonly<Record<string, unknown>>, key: string)
   return normalized;
 };
 
+const DEFAULT_TOP_K = 5;
+
+const readTopK = (value: Readonly<Record<string, unknown>>): number => {
+  const rawValue = value.topK;
+
+  if (rawValue === undefined) {
+    return DEFAULT_TOP_K;
+  }
+
+  if (typeof rawValue !== "number" || !Number.isInteger(rawValue) || rawValue < 1) {
+    throw new BadRequestException("topK must be a positive integer");
+  }
+
+  return rawValue;
+};
+
 export const parseChatQuestionInput = (value: unknown): ChatQuestionInput => {
   if (!isRecord(value)) {
     throw new BadRequestException("workspaceId, question, and mode are required");
@@ -77,6 +94,7 @@ export const parseChatQuestionInput = (value: unknown): ChatQuestionInput => {
     workspaceId: readTrimmedString(value, "workspaceId"),
     question: readTrimmedString(value, "question"),
     mode: readQuestionMode(value, "mode"),
+    topK: readTopK(value),
   };
 };
 
@@ -94,7 +112,10 @@ export const resolveChatQuestionSelection = (
   return {
     requestedMode: input.mode,
     resolvedMode,
-    strategy,
+    strategy: {
+      ...strategy,
+      topK: input.topK,
+    },
   };
 };
 
