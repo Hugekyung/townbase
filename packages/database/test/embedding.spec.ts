@@ -24,6 +24,7 @@ describe("database embedding helpers", () => {
         workspaceId: "workspace-1",
         chunkId: "chunk-1",
         embedding: [0.1, 0.2, 0.3],
+        embeddingModel: "test-model",
       }),
     ).resolves.toBe(1);
 
@@ -31,6 +32,7 @@ describe("database embedding helpers", () => {
       workspaceId: "workspace-1",
       chunkId: "chunk-1",
       embedding: [0.1, 0.2, 0.3],
+      embeddingModel: "test-model",
     });
 
     expect(query.sql).toContain('UPDATE "DocumentChunk"');
@@ -94,9 +96,9 @@ describe("database embedding helpers", () => {
       },
     };
 
-    await expect(listIndexedDocumentChunkIds(client, "workspace-1", ["chunk-1", "chunk-2"])).resolves.toEqual([
-      "chunk-1",
-    ]);
+    await expect(
+      listIndexedDocumentChunkIds(client, "workspace-1", ["chunk-1", "chunk-2"], "test-model", 3),
+    ).resolves.toEqual(["chunk-1"]);
   });
 
   it("reads persisted vector dimensions for selected chunks", async () => {

@@ -17,6 +17,7 @@ export type DocumentChunkEmbeddingUpsertInput = Readonly<{
   workspaceId: string;
   chunkId: string;
   embedding: readonly number[];
+  embeddingModel: string;
 }>;
 
 export type DocumentChunkEmbeddingExecuteClient = Readonly<{
@@ -32,6 +33,8 @@ export const listIndexedDocumentChunkIds = async (
   client: Readonly<{ $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }>,
   workspaceId: string,
   chunkIds: readonly string[],
+  embeddingModel: string,
+  dimensions: number,
 ): Promise<readonly string[]> => {
   if (chunkIds.length === 0) {
     return [];
@@ -43,6 +46,8 @@ export const listIndexedDocumentChunkIds = async (
     WHERE "workspaceId" = ${workspaceId}
       AND "id" IN (${Prisma.join(chunkIds)})
       AND "embedding" IS NOT NULL
+      AND "embeddingModel" = ${embeddingModel}
+      AND vector_dims("embedding") = ${dimensions}
   `);
 
   return rows.map(({ id }) => id);
@@ -114,6 +119,7 @@ export const buildDocumentChunkEmbeddingUpsertQuery = (
   return Prisma.sql`
     UPDATE "DocumentChunk"
     SET "embedding" = ${embeddingLiteral}::vector,
+        "embeddingModel" = ${input.embeddingModel},
         "updatedAt" = NOW()
     WHERE "workspaceId" = ${input.workspaceId}
       AND "id" = ${input.chunkId}

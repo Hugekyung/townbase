@@ -156,6 +156,7 @@ model DocumentChunk {
   documentId      String
   content         String
   embedding       Unsupported("vector")?
+  embeddingModel  String?
   sourceType      SourceType
   chunkType       String
   chunkIndex      Int

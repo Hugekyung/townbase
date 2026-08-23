@@ -113,6 +113,9 @@ export const embedDocumentChunks = async (
     if (embedding === undefined) {
       throw new Error(`Missing embedding vector for chunk ${chunk.chunkId}`);
     }
+    if (embedding.length !== model.dimensions) {
+      throw new Error(`Embedding dimension mismatch for chunk ${chunk.chunkId}`);
+    }
 
     return {
       chunkId: chunk.chunkId,
@@ -143,6 +146,8 @@ export const indexDocumentChunks = async (
       prisma,
       workspaceId,
       chunks.map(({ chunkId }) => chunkId),
+      model.model,
+      model.dimensions,
     );
     const indexedChunkIdSet = new Set(indexedChunkIds);
     const pendingChunks = chunks.filter(({ chunkId }) => !indexedChunkIdSet.has(chunkId));
@@ -164,6 +169,7 @@ export const indexDocumentChunks = async (
           workspaceId,
           chunkId: indexedChunk.chunkId,
           embedding: indexedChunk.embedding,
+          embeddingModel: model.model,
         } satisfies DocumentChunkEmbeddingUpsertInput);
 
         if (affectedRows !== 1) {
