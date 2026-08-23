@@ -199,4 +199,48 @@ describe("ChatQuestionService", () => {
       similarQuestionCount: 0,
     });
   });
+
+  it("rejects low-score sources and persists a knowledge gap", async () => {
+    const { service, persistKnowledgeGapCandidate, questionCreate } = createService({
+      retriever: {
+        retrieve: jest.fn().mockResolvedValue([
+          {
+            documentId: "document-1",
+            chunkId: "chunk-1",
+            sourceType: "repo_docs",
+            title: "README",
+            filePath: "README.md",
+            sourceUrl: null,
+            sectionTitle: "Setup",
+            headingPath: ["Setup"],
+            rank: 1,
+            score: 0.6,
+          },
+        ]),
+      },
+    });
+
+    await expect(
+      service.executeQuestion({
+        workspaceId: "workspace-1",
+        question: "What is missing from the docs?",
+        mode: "auto",
+      }),
+    ).resolves.toMatchObject({
+      answer: "",
+      isAnswerable: false,
+      knowledgeGapCreated: true,
+      sources: [],
+    });
+
+    expect(questionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          answer: null,
+          isAnswerable: false,
+        }),
+      }),
+    );
+    expect(persistKnowledgeGapCandidate).toHaveBeenCalled();
+  });
 });

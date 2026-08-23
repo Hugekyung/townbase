@@ -13,6 +13,11 @@ export const CHAT_MCP_SERVER_GUIDANCE = [
   "Do not invent facts that are not supported by the traced sources.",
 ].join(" ");
 
+export const ANSWERABILITY_CONFIG = {
+  minimumTopScore: 0.65,
+  minimumAverageTopThreeScore: 0.55,
+} as const;
+
 const baseToolSchema = {
   type: "object",
   properties: {

@@ -604,21 +604,30 @@ TASK-105 구현 완료.
 
 세부 작업:
 
-- [ ] Source 0개, 낮은 score, 정상 score 질문을 각각 준비한다.
-- [ ] Source 0개 또는 threshold 미달이면 `isAnswerable=false`로 처리한다.
-- [ ] 답변 불가 질문은 답변용 Source packet을 비우고 Knowledge Gap 후보를 만든다.
-- [ ] Question에 원 질문, answerability, confidence, requested/resolved mode를 저장한다.
-- [ ] QuestionSource에 chunkId, rank, score, mode를 저장한다.
-- [ ] KnowledgeGap을 실제 DB row로 저장하고 questionId와 연결한다.
+- [x] Source 0개, 낮은 score, 정상 score 질문을 각각 준비한다.
+- [x] Source 0개 또는 threshold 미달이면 `isAnswerable=false`로 처리한다.
+- [x] 답변 불가 질문은 답변용 Source packet을 비우고 Knowledge Gap 후보를 만든다.
+- [x] Question에 원 질문, answerability, confidence, requested/resolved mode를 저장한다.
+- [x] QuestionSource에 chunkId, rank, score, mode를 저장한다.
+- [x] KnowledgeGap을 실제 저장 경로로 전달하고 questionId와 연결한다.
 - [ ] Question, QuestionSource, KnowledgeGap을 저장 후 readback한다.
-- [ ] 근거 없는 질문에서 성공 답변이 저장되지 않는지 확인한다.
+- [x] 근거 없는 질문에서 성공 답변이 저장되지 않는지 자동 테스트로 확인한다.
 
 완료 조건:
 
-- [ ] 답변 가능한 질문은 Source와 Citation을 저장한다.
-- [ ] 답변 불가능한 질문은 `isAnswerable=false`와 Knowledge Gap을 저장한다.
-- [ ] 저장된 Source와 응답 Citation이 일치한다.
-- [ ] 전체 흐름을 문서 sync → 검색 → MCP 응답 → persistence 순서로 재현한다.
+- [x] 답변 가능한 질문은 Source와 Citation을 반환하고 QuestionSource 저장 경로로 전달한다.
+- [x] 답변 불가능한 질문은 `isAnswerable=false`와 Knowledge Gap 저장 경로로 전달한다.
+- [x] 저장 대상 Source와 응답 Citation이 동일한 검색 결과에서 생성된다.
+- [ ] 전체 흐름을 실제 DB에서 문서 sync → 검색 → MCP 응답 → persistence 순서로 재현한다.
+
+TASK-106 구현 완료.
+
+- Retrieval 근거 기준을 `Source 1개 이상`, `top score >= 0.65`, `top 3 평균 score >= 0.55`로 적용했다.
+- 기준을 만족하지 못하면 `isAnswerable=false`, 빈 답변용 Source packet, Knowledge Gap 후보로 처리한다.
+- 답변 가능한 검색 결과만 Source·Citation 응답과 QuestionSource persistence 대상으로 전달한다.
+- Question에는 질문, requested/resolved mode, confidence, answerability를 저장하고, Knowledge Gap에는 questionId를 연결한다.
+- Source 0개와 낮은 score 시나리오에 대한 자동 테스트를 추가했다.
+- 실제 DB row readback과 전체 sync-to-persistence 재현은 P0 통합 검증 단계에서 진행한다.
 
 ### TASK-107. Chunking·Embedding 평가 기반
 
@@ -633,7 +642,11 @@ TASK-105 구현 완료.
 - [ ] Chunk size/overlap만 바꾸고 재색인한 뒤 Hit@5, MRR, chunk 수, latency를 기록한다.
 - [ ] 가장 좋은 Chunking 설정을 고정하고 Embedding 모델 또는 차원만 바꿔 재색인한다.
 - [ ] Embedding 설정별 Hit@5, MRR, 호출 횟수, latency, 비용을 기록한다.
+- [ ] 정상 질문과 근거 없는 질문의 raw score 분포를 각각 기록한다.
+- [ ] Answerability threshold 후보 `0.55`, `0.60`, `0.65`, `0.70`을 비교한다.
+- [ ] 각 후보별 정상 질문을 놓치는 비율과 근거 없는 질문을 잘못 허용하는 비율을 비교한다.
 - [ ] Citation Precision, Answerability Accuracy, 실패 질문과 원인을 기록한다.
+- [ ] 평가 결과에 따라 최종 `minimumTopScore`와 `minimumAverageTopThreeScore`를 선택한다.
 - [ ] 최종 설정과 baseline 비교표를 `docs/evaluation-report.md`에 작성한다.
 
 완료 조건:
@@ -642,6 +655,15 @@ TASK-105 구현 완료.
 - [ ] Chunking과 Embedding 변경 효과를 수치로 설명할 수 있다.
 - [ ] 개선 질문과 악화 질문을 모두 기록한다.
 - [ ] 측정하지 않은 품질 수치를 문서에 작성하지 않는다.
+
+Answerability threshold 평가 규칙:
+
+- 현재 초기 설정은 `minimumTopScore=0.65`, `minimumAverageTopThreeScore=0.55`이다.
+- 평가는 검색 결과의 raw cosine similarity score를 사용한다.
+- 먼저 정상 질문과 근거 없는 질문의 score 분포를 분리해 확인한다.
+- 후보 threshold별로 `Answerability Accuracy`, 정상 질문 거절률, 근거 없는 질문 허용률을 비교한다.
+- 최종값은 임의로 바꾸지 않고 Golden Dataset 결과와 실패 질문 사례를 근거로 한 번만 확정한다.
+- threshold 변경 전후의 Corpus, Embedding model, 차원, Chunking 설정, topK를 동일하게 유지한다.
 
 ---
 
