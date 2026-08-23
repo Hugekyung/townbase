@@ -546,22 +546,32 @@ TASK-103 완료.
 
 세부 작업:
 
-- [ ] MCP 질문의 `workspaceId`, `question`, `topK`를 검증한다.
-- [ ] TASK-103과 동일한 Embedding Model로 질문 벡터를 만든다.
-- [ ] 초기 `topK=5`로 고정하고, `topK`는 알고리즘이 아니라 반환할 상위 Chunk 개수로 취급한다.
-- [ ] `workspaceId`와 embedding 존재 여부로 검색 범위를 제한한다.
-- [ ] pgvector cosine similarity 기준으로 정렬하고 `topK`개를 반환한다.
-- [ ] 결과에 `chunkId`, `documentId`, title, section, filePath/sourceUrl, rank, vectorScore를 포함한다.
-- [ ] 검색 결과 Chunk를 DB에서 다시 읽어 실제 Source인지 검증한다.
-- [ ] P0에서는 sourceType, knowledgeType, sourcePriority, mode bonus를 점수에 반영하지 않는다.
+- [x] MCP 질문의 `workspaceId`, `question`, `topK`를 검증한다.
+- [x] TASK-103과 동일한 Embedding Model로 질문 벡터를 만든다.
+- [x] 초기 `topK=5`를 기본값으로 사용하고, `topK`는 알고리즘이 아니라 반환할 상위 Chunk 개수로 취급한다.
+- [x] `workspaceId`와 embedding 존재 여부로 검색 범위를 제한한다.
+- [x] pgvector cosine similarity 기준으로 정렬하고 `topK`개를 반환한다.
+- [x] 결과에 `chunkId`, `documentId`, title, section, filePath/sourceUrl, rank, vector score를 포함한다.
+- [x] 검색 결과 Chunk를 DB에서 다시 읽어 실제 Source인지 검증한다.
+- [x] P0에서는 sourceType, knowledgeType, sourcePriority, mode bonus를 점수에 반영하지 않는다.
 - [ ] 대표 질문 3개와 근거 없는 질문 1개를 실행한다.
 
 완료 조건:
 
 - [ ] 대표 질문의 기대 문서가 topK 안에 포함된다.
-- [ ] 검색 결과의 rank와 score가 재현된다.
-- [ ] 다른 workspace의 Chunk가 섞이지 않는다.
-- [ ] 검색 결과가 없는 경우 빈 결과를 안전하게 반환한다.
+- [x] 검색 결과의 rank와 score가 재현된다.
+- [x] 다른 workspace의 Chunk가 섞이지 않는다.
+- [x] 검색 결과가 없는 경우 빈 결과를 안전하게 반환한다.
+
+구현 및 자동 테스트는 완료했다. 대표 질문 실행과 기대 문서 포함 여부는 전체 P0 구현이 끝난 뒤 실제 평가 Corpus를 기준으로 일괄 검증한다.
+
+TASK-104 구현 완료.
+
+- MCP 질문 계약에 `topK`를 추가하고, 미입력 시 `5`를 사용하도록 했다.
+- `topK`는 `1~50` 범위의 양의 정수만 허용하고, MCP Tool schema에도 동일한 최대값을 반영했다.
+- 질문 embedding은 TASK-103과 동일한 모델·차원을 사용하며, `workspaceId`, embedding 존재 여부, 모델명, 차원으로 검색 범위를 제한한다.
+- pgvector cosine similarity 순서로 topK Chunk를 조회하고, 검색 결과를 DB에서 다시 읽어 Source metadata와 rank/score를 반환한다.
+- Vector Only P0에서는 metadata 기반 추가 ranking을 적용하지 않으며, 관련 API·DB·connector 테스트를 통과했다.
 
 ### TASK-105. MCP Source packet과 외부 Agent 답변
 

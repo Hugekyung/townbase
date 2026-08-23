@@ -18,6 +18,7 @@ const createService = (
     } as never,
     embedding: {
       model: "test-embedding",
+      dimensions: 3,
       embedText: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
       embedTexts: jest.fn(),
     },
