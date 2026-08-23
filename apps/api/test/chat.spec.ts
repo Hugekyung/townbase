@@ -119,10 +119,14 @@ describe("Chat MCP scaffold", () => {
     });
     expect(structuredContent.citations).toEqual([
       {
+        documentId: "document-1",
+        chunkId: "chunk-1",
         rank: 1,
         title: "README",
         sourceType: "repo_docs",
         sourceReference: "README.md",
+        sectionTitle: "Testing",
+        headingPath: ["Testing"],
         score: 0.92,
       },
     ]);

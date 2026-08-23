@@ -32,17 +32,25 @@ describe("citation builder", () => {
 
     expect(citations).toEqual([
       {
+        documentId: "doc-1",
+        chunkId: "chunk-1",
         rank: 1,
         title: "README",
         sourceType: "repo_docs",
         sourceReference: "packages/agent-core/README.md",
+        sectionTitle: "Intro",
+        headingPath: ["Intro"],
         score: 0.91,
       },
       {
+        documentId: "doc-2",
+        chunkId: "chunk-2",
         rank: 2,
         title: "Planning Note",
         sourceType: "notion_page",
         sourceReference: "https://notion.example/page",
+        sectionTitle: null,
+        headingPath: [],
         score: 0.84,
       },
     ]);
@@ -64,10 +72,14 @@ describe("citation builder", () => {
 
     expect(buildCitations([runtimeSource])).toEqual([
       {
+        documentId: "doc-3",
+        chunkId: "chunk-3",
         rank: 3,
         title: "Fallback Source",
         sourceType: "repo_docs",
         sourceReference: "doc-3",
+        sectionTitle: null,
+        headingPath: [],
         score: 0.77,
       },
     ]);

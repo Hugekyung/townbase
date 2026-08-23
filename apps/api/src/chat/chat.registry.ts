@@ -151,6 +151,7 @@ export class ChatToolRegistry {
           const parsedInput = parseChatQuestionInput(arguments_);
           const selection = resolveChatQuestionSelection(parsedInput);
           const result = await this.questionService.executeQuestion(parsedInput);
+          const { sources: _sources, ...resultWithoutSources } = result;
           const sourcePacket = result.sources.map((source) => ({
             content: source.content ?? "",
             documentId: source.documentId,
@@ -170,7 +171,7 @@ export class ChatToolRegistry {
             requestedMode: selection.requestedMode,
             resolvedMode: selection.resolvedMode,
             strategy: selection.strategy.mode,
-            result,
+            result: resultWithoutSources,
             sourcePacket,
             citations: buildCitations(result.sources),
           });
