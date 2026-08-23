@@ -79,8 +79,7 @@ describe("embedding service", () => {
     const documentUpdate = jest.fn(async () => undefined);
     const queryRaw = jest
       .fn()
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: "chunk-1", dimensions: 3 }, { id: "chunk-2", dimensions: 3 }]);
+      .mockResolvedValueOnce([]);
     const model: EmbeddingModel = {
       model: "test-embedding-model",
       dimensions: 3,
