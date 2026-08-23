@@ -1,5 +1,5 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-import { CHAT_QUESTION_MODES, MAX_TOP_K } from "./chat-contract";
+import { CHAT_QUESTION_MODES, DEFAULT_TOP_K, MAX_TOP_K } from "./chat-contract";
 import { DRAFT_GENERATION_TYPES } from "../knowledge-gaps/draft-generator";
 
 export const CHAT_MCP_SERVER_NAME = "@townbase/api-chat" as const;
@@ -44,7 +44,7 @@ export const CHAT_MCP_TOOLS = {
           type: "integer",
           minimum: 1,
           maximum: MAX_TOP_K,
-          default: 5,
+          default: DEFAULT_TOP_K,
         },
       },
       required: ["workspaceId", "question", "mode"],
