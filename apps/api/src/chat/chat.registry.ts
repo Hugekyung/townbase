@@ -151,7 +151,9 @@ export class ChatToolRegistry {
           const parsedInput = parseChatQuestionInput(arguments_);
           const selection = resolveChatQuestionSelection(parsedInput);
           const result = await this.questionService.executeQuestion(parsedInput);
-          const { sources: _sources, ...resultWithoutSources } = result;
+          const resultWithoutSources = Object.fromEntries(
+            Object.entries(result).filter(([key]) => key !== "sources"),
+          );
           const sourcePacket = result.sources.map((source) => ({
             content: source.content ?? "",
             documentId: source.documentId,
