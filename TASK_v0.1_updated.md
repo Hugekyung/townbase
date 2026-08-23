@@ -565,6 +565,14 @@ TASK-103 완료.
 
 구현 및 자동 테스트는 완료했다. 대표 질문 실행과 기대 문서 포함 여부는 전체 P0 구현이 끝난 뒤 실제 평가 Corpus를 기준으로 일괄 검증한다.
 
+TASK-104 구현 완료.
+
+- MCP 질문 계약에 `topK`를 추가하고, 미입력 시 `5`를 사용하도록 했다.
+- `topK`는 `1~50` 범위의 양의 정수만 허용하고, MCP Tool schema에도 동일한 최대값을 반영했다.
+- 질문 embedding은 TASK-103과 동일한 모델·차원을 사용하며, `workspaceId`, embedding 존재 여부, 모델명, 차원으로 검색 범위를 제한한다.
+- pgvector cosine similarity 순서로 topK Chunk를 조회하고, 검색 결과를 DB에서 다시 읽어 Source metadata와 rank/score를 반환한다.
+- Vector Only P0에서는 metadata 기반 추가 ranking을 적용하지 않으며, 관련 API·DB·connector 테스트를 통과했다.
+
 ### TASK-105. MCP Source packet과 외부 Agent 답변
 
 세부 작업:

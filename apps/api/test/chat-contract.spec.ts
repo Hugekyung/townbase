@@ -59,7 +59,16 @@ describe("chat question contract", () => {
         mode: "auto",
         topK: 0,
       }),
-    ).toThrow("topK must be a positive integer");
+    ).toThrow("topK must be an integer between 1 and 50");
+
+    expect(() =>
+      parseChatQuestionInput({
+        workspaceId: "workspace-1",
+        question: "What changed?",
+        mode: "auto",
+        topK: 51,
+      }),
+    ).toThrow("topK must be an integer between 1 and 50");
 
     expect(parseChatQuestionInput({
       workspaceId: "workspace-1",

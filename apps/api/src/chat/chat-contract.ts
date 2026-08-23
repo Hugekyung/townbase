@@ -65,7 +65,8 @@ const readQuestionMode = (value: Readonly<Record<string, unknown>>, key: string)
   return normalized;
 };
 
-const DEFAULT_TOP_K = 5;
+export const DEFAULT_TOP_K = 5;
+export const MAX_TOP_K = 50;
 
 const readTopK = (value: Readonly<Record<string, unknown>>): number => {
   const rawValue = value.topK;
@@ -74,8 +75,13 @@ const readTopK = (value: Readonly<Record<string, unknown>>): number => {
     return DEFAULT_TOP_K;
   }
 
-  if (typeof rawValue !== "number" || !Number.isInteger(rawValue) || rawValue < 1) {
-    throw new BadRequestException("topK must be a positive integer");
+  if (
+    typeof rawValue !== "number" ||
+    !Number.isInteger(rawValue) ||
+    rawValue < 1 ||
+    rawValue > MAX_TOP_K
+  ) {
+    throw new BadRequestException(`topK must be an integer between 1 and ${MAX_TOP_K}`);
   }
 
   return rawValue;
