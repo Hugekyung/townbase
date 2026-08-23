@@ -167,6 +167,7 @@ export const createDefaultDocumentRetriever = (
         {
           documentId: chunk.documentId,
           chunkId: chunk.id,
+          content: chunk.content,
           sourceType: chunk.sourceType,
           title: chunk.document.title,
           filePath: chunk.document.filePath,

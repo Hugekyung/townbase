@@ -577,19 +577,28 @@ TASK-104 구현 완료.
 
 세부 작업:
 
-- [ ] 기존 `workspace_knowledge.question` MCP tool의 입력 계약을 유지한다.
-- [ ] 질문, resolved mode, `isAnswerable`, 검색 Source, Citation, score, rank를 응답에 담는다.
-- [ ] Citation은 DB Source의 documentId/chunkId/title/filePath/sourceUrl/section으로 만든다.
-- [ ] Source packet에 없는 URL이나 경로를 LLM 결과로 임의 생성하지 않는다.
-- [ ] townbase 내부 Completion API나 OpenAI Chat/Responses API를 호출하지 않는다.
+- [x] 기존 `workspace_knowledge.question` MCP tool의 입력 계약을 유지한다.
+- [x] 질문, resolved mode, `isAnswerable`, 검색 Source, Citation, score, rank를 응답에 담는다.
+- [x] Citation은 DB Source의 documentId/chunkId/title/filePath/sourceUrl/section으로 만든다.
+- [x] Source packet에 없는 URL이나 경로를 LLM 결과로 임의 생성하지 않는다.
+- [x] townbase 실행 경로에서 OpenAI Chat/Responses 네트워크 API를 호출하지 않는다.
 - [ ] MCP Client Agent가 Source packet을 받아 최종 자연어 답변을 만드는 흐름을 수동 또는 통합 테스트한다.
-- [ ] MCP 응답을 JSON text와 structured content 양쪽에서 확인한다.
+- [x] MCP 응답을 JSON text와 structured content 양쪽에서 확인한다.
 
 완료 조건:
 
 - [ ] MCP Client가 Source packet만으로 답변을 작성할 수 있다.
-- [ ] Citation이 실제 DB Source와 일치한다.
-- [ ] townbase 실행 중 Chat/Responses API 호출이 발생하지 않는다.
+- [x] Citation이 실제 DB Source와 일치한다.
+- [x] townbase 실행 중 Chat/Responses API 호출이 발생하지 않는다.
+
+TASK-105 구현 완료.
+
+- `workspace_knowledge.question` 응답에 질문, mode, 검색 결과, Source packet, Citation을 함께 반환한다.
+- Source packet에는 실제 DB Chunk의 content와 documentId, chunkId, title, section, filePath/sourceUrl, rank, score를 포함한다.
+- Citation은 `PromptTraceSource`의 실제 DB 출처 정보에서만 생성해 임의의 URL·경로가 만들어지지 않도록 했다.
+- MCP 응답은 JSON text와 structured content 양쪽에 동일한 Source packet과 Citation을 포함한다.
+- 외부 MCP Client Agent가 packet을 읽어 최종 답변을 만들 수 있도록 하고, API 테스트에서 packet·Citation 구조를 검증했다.
+- OpenAI Chat/Responses 네트워크 호출 없이 동작하며, 외부 Agent 답변 생성에 대한 수동 검증은 전체 P0 완료 후 진행한다.
 
 ### TASK-106. Grounding·Answerability·Persistence
 
