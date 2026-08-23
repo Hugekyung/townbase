@@ -9,6 +9,8 @@ export type VectorSearchRow = Readonly<{
 export type DocumentChunkVectorSearchInput = Readonly<{
   workspaceId: string;
   embedding: readonly number[];
+  embeddingModel: string;
+  dimensions: number;
   topK: number;
   scoreThreshold?: number;
 }>;
@@ -17,6 +19,7 @@ export type DocumentChunkEmbeddingUpsertInput = Readonly<{
   workspaceId: string;
   chunkId: string;
   embedding: readonly number[];
+  embeddingModel: string;
 }>;
 
 export type DocumentChunkEmbeddingExecuteClient = Readonly<{
@@ -27,6 +30,47 @@ export type DocumentChunkEmbeddingQueryClient = DocumentChunkEmbeddingExecuteCli
   Readonly<{
     $queryRaw: <T>(query: Prisma.Sql) => Promise<T>;
   }>;
+
+export const listIndexedDocumentChunkIds = async (
+  client: Readonly<{ $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }>,
+  workspaceId: string,
+  chunkIds: readonly string[],
+  embeddingModel: string,
+  dimensions: number,
+): Promise<readonly string[]> => {
+  if (chunkIds.length === 0) {
+    return [];
+  }
+
+  const rows = await client.$queryRaw<readonly { readonly id: string }[]>(Prisma.sql`
+    SELECT "id"
+    FROM "DocumentChunk"
+    WHERE "workspaceId" = ${workspaceId}
+      AND "id" IN (${Prisma.join(chunkIds)})
+      AND "embedding" IS NOT NULL
+      AND "embeddingModel" = ${embeddingModel}
+      AND vector_dims("embedding") = ${dimensions}
+  `);
+
+  return rows.map(({ id }) => id);
+};
+
+export const readDocumentChunkEmbeddingDimensions = async (
+  client: Readonly<{ $queryRaw: <T>(query: Prisma.Sql) => Promise<T> }>,
+  workspaceId: string,
+  chunkIds: readonly string[],
+): Promise<readonly { readonly id: string; readonly dimensions: number | null }[]> => {
+  if (chunkIds.length === 0) {
+    return [];
+  }
+
+  return client.$queryRaw(Prisma.sql`
+    SELECT "id", vector_dims("embedding") AS "dimensions"
+    FROM "DocumentChunk"
+    WHERE "workspaceId" = ${workspaceId}
+      AND "id" IN (${Prisma.join(chunkIds)})
+  `);
+};
 
 const assertFiniteNumber = (value: number, label: string): number => {
   if (!Number.isFinite(value)) {
@@ -63,6 +107,8 @@ export const buildDocumentChunkVectorSearchQuery = (
     FROM "DocumentChunk"
     WHERE "workspaceId" = ${input.workspaceId}
       AND "embedding" IS NOT NULL
+      AND "embeddingModel" = ${input.embeddingModel}
+      AND vector_dims("embedding") = ${input.dimensions}
       ${thresholdClause}
     ORDER BY "embedding" <=> ${embeddingLiteral}::vector
     LIMIT ${input.topK}
@@ -77,6 +123,7 @@ export const buildDocumentChunkEmbeddingUpsertQuery = (
   return Prisma.sql`
     UPDATE "DocumentChunk"
     SET "embedding" = ${embeddingLiteral}::vector,
+        "embeddingModel" = ${input.embeddingModel},
         "updatedAt" = NOW()
     WHERE "workspaceId" = ${input.workspaceId}
       AND "id" = ${input.chunkId}

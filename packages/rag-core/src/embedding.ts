@@ -10,12 +10,14 @@ export type EmbeddingModelConfig = Readonly<{
 
 export type EmbeddingModel = Readonly<{
   model: string;
+  dimensions: number;
   embedText: (text: string) => Promise<EmbeddingVector>;
   embedTexts: (texts: readonly string[]) => Promise<readonly EmbeddingVector[]>;
 }>;
 
 const DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+export const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
 const assertNonEmpty = (value: string, label: string): string => {
   const trimmed = value.trim();
@@ -39,7 +41,10 @@ const normalizeDimensions = (dimensions: number | undefined): number | undefined
   return dimensions;
 };
 
-const parseEmbeddingResponse = async (response: Response): Promise<readonly EmbeddingVector[]> => {
+const parseEmbeddingResponse = async (
+  response: Response,
+  expectedDimensions: number,
+): Promise<readonly EmbeddingVector[]> => {
   const payload: unknown = await response.json();
 
   if (
@@ -64,6 +69,12 @@ const parseEmbeddingResponse = async (response: Response): Promise<readonly Embe
 
       return value;
     });
+
+    if (vector.length !== expectedDimensions) {
+      throw new Error(
+        `OpenAI embedding response item ${index} has ${vector.length} dimensions; expected ${expectedDimensions}`,
+      );
+    }
 
     return vector;
   });
@@ -98,7 +109,7 @@ const postEmbeddings = async (
     throw new Error(`OpenAI embedding request failed with status ${response.status}`);
   }
 
-  return parseEmbeddingResponse(response);
+  return parseEmbeddingResponse(response, config.dimensions ?? DEFAULT_EMBEDDING_DIMENSIONS);
 };
 
 export const createOpenAIEmbeddingModel = (
@@ -108,7 +119,14 @@ export const createOpenAIEmbeddingModel = (
   const model = config.model?.trim() || DEFAULT_OPENAI_EMBEDDING_MODEL;
   const baseUrl = config.baseUrl?.trim() || DEFAULT_OPENAI_BASE_URL;
   const fetchImpl = config.fetchImpl ?? fetch;
-  const dimensions = normalizeDimensions(config.dimensions);
+  const dimensions = normalizeDimensions(config.dimensions) ?? DEFAULT_EMBEDDING_DIMENSIONS;
+
+  if (model !== DEFAULT_OPENAI_EMBEDDING_MODEL) {
+    throw new Error(`Only ${DEFAULT_OPENAI_EMBEDDING_MODEL} is supported`);
+  }
+  if (dimensions !== DEFAULT_EMBEDDING_DIMENSIONS) {
+    throw new Error(`Only ${DEFAULT_EMBEDDING_DIMENSIONS} dimensions are supported`);
+  }
 
   if (typeof fetchImpl !== "function") {
     throw new Error("fetch implementation is required");
@@ -116,6 +134,7 @@ export const createOpenAIEmbeddingModel = (
 
   return {
     model,
+    dimensions,
     async embedText(text: string): Promise<EmbeddingVector> {
       const [embedding] = await postEmbeddings(
         {
@@ -123,7 +142,7 @@ export const createOpenAIEmbeddingModel = (
           model,
           baseUrl,
           fetchImpl,
-          ...(dimensions === undefined ? {} : { dimensions }),
+          dimensions,
         },
         [assertNonEmpty(text, "text")],
       );
@@ -146,7 +165,7 @@ export const createOpenAIEmbeddingModel = (
           model,
           baseUrl,
           fetchImpl,
-          ...(dimensions === undefined ? {} : { dimensions }),
+          dimensions,
         },
         normalizedTexts,
       );

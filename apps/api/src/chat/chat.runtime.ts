@@ -8,6 +8,8 @@ import {
 } from "@townbase/database";
 import {
   createOpenAIEmbeddingModel,
+  DEFAULT_EMBEDDING_DIMENSIONS,
+  DEFAULT_OPENAI_EMBEDDING_MODEL_NAME,
   type EmbeddingModel,
   type EmbeddingVector,
 } from "@townbase/rag-core";
@@ -109,23 +111,30 @@ const hashEmbedding = (text: string, dimension = 1536): readonly number[] => {
 
 export const createFallbackEmbeddingModel = (): EmbeddingModel => ({
   model: "hash-embedding-1536",
+  dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
   async embedText(text: string): Promise<readonly number[]> {
-    return hashEmbedding(text);
+    return hashEmbedding(text, DEFAULT_EMBEDDING_DIMENSIONS);
   },
   async embedTexts(texts: readonly string[]): Promise<readonly EmbeddingVector[]> {
-    return texts.map((text) => hashEmbedding(text));
+    return texts.map((text) => hashEmbedding(text, DEFAULT_EMBEDDING_DIMENSIONS));
   },
 });
 
 export const createDefaultDocumentRetriever = (
   prisma: PrismaClient,
   searchChunks: typeof searchDocumentChunksByEmbedding = searchDocumentChunksByEmbedding,
+  embeddingModel: Pick<EmbeddingModel, "model" | "dimensions"> = {
+    model: DEFAULT_OPENAI_EMBEDDING_MODEL_NAME,
+    dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
+  },
 ): ChatRetrievalExecutor["retrieve"] => {
   return async (input) => {
     const rows = await searchChunks(prisma, {
       workspaceId: input.workspaceId,
       embedding: input.embedding,
       topK: input.strategy.topK,
+      embeddingModel: embeddingModel.model,
+      dimensions: embeddingModel.dimensions,
     });
 
     if (rows.length === 0) {
@@ -174,20 +183,21 @@ export const createDefaultDocumentRetriever = (
 
 export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
   const prisma = createPrismaClient();
+  const embedding = process.env.OPENAI_API_KEY
+    ? createOpenAIEmbeddingModel({
+        apiKey: process.env.OPENAI_API_KEY,
+        ...(process.env.OPENAI_EMBEDDING_MODEL === undefined
+          ? {}
+          : { model: process.env.OPENAI_EMBEDDING_MODEL }),
+      })
+    : createFallbackEmbeddingModel();
 
   return {
     prisma,
-    embedding: process.env.OPENAI_API_KEY
-      ? createOpenAIEmbeddingModel({
-          apiKey: process.env.OPENAI_API_KEY,
-          ...(process.env.OPENAI_EMBEDDING_MODEL === undefined
-            ? {}
-            : { model: process.env.OPENAI_EMBEDDING_MODEL }),
-        })
-      : createFallbackEmbeddingModel(),
+    embedding,
     retrievalExecutionStrategy: resolveRetrievalExecutionStrategy(),
     retriever: {
-      retrieve: createDefaultDocumentRetriever(prisma),
+      retrieve: createDefaultDocumentRetriever(prisma, searchDocumentChunksByEmbedding, embedding),
     },
     completion: {
       model: process.env.OPENAI_CHAT_MODEL ?? "chat-scaffold",

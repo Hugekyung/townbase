@@ -4,6 +4,8 @@ export {
   buildDocumentChunkEmbeddingUpsertQuery,
   buildDocumentChunkVectorSearchQuery,
   persistDocumentChunkEmbedding,
+  listIndexedDocumentChunkIds,
+  readDocumentChunkEmbeddingDimensions,
   searchDocumentChunksByEmbedding,
   toPgVectorLiteral,
   type DocumentChunkEmbeddingExecuteClient,

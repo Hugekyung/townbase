@@ -1,5 +1,7 @@
 import {
   persistDocumentChunkEmbedding,
+  listIndexedDocumentChunkIds,
+  readDocumentChunkEmbeddingDimensions,
   searchDocumentChunksByEmbedding,
   type DocumentChunkEmbeddingUpsertInput,
   type DocumentChunkVectorSearchInput,
@@ -42,6 +44,7 @@ export type ChunkEmbeddingSearchInput = Readonly<{
 
 type PrismaEmbeddingClient = Readonly<{
   $transaction: (arg: unknown, options?: unknown) => Promise<unknown>;
+  $queryRaw: <T>(query: unknown) => Promise<T>;
   document: Readonly<{
     update: (input: unknown) => Promise<unknown>;
   }>;
@@ -49,6 +52,7 @@ type PrismaEmbeddingClient = Readonly<{
 
 type PrismaEmbeddingTransactionClient = Readonly<{
   $executeRaw: (query: unknown) => Promise<number>;
+  $queryRaw: <T>(query: unknown) => Promise<T>;
 }>;
 
 type PrismaEmbeddingQueryClient = Readonly<{
@@ -110,6 +114,9 @@ export const embedDocumentChunks = async (
     if (embedding === undefined) {
       throw new Error(`Missing embedding vector for chunk ${chunk.chunkId}`);
     }
+    if (embedding.length !== model.dimensions) {
+      throw new Error(`Embedding dimension mismatch for chunk ${chunk.chunkId}`);
+    }
 
     return {
       chunkId: chunk.chunkId,
@@ -136,7 +143,26 @@ export const indexDocumentChunks = async (
       };
     }
 
-    const indexedChunks = await embedDocumentChunks(model, chunks);
+    const indexedChunkIds = await listIndexedDocumentChunkIds(
+      prisma,
+      workspaceId,
+      chunks.map(({ chunkId }) => chunkId),
+      model.model,
+      model.dimensions,
+    );
+    const indexedChunkIdSet = new Set(indexedChunkIds);
+    const pendingChunks = chunks.filter(({ chunkId }) => !indexedChunkIdSet.has(chunkId));
+
+    if (pendingChunks.length === 0) {
+      await updateDocumentIndexStatus(prisma, workspaceId, documentId, "indexed");
+      return {
+        kind: "indexed",
+        documentId,
+        chunkCount: chunks.length,
+      };
+    }
+
+    const indexedChunks = await embedDocumentChunks(model, pendingChunks);
 
     await prisma.$transaction(async (transactionClient: PrismaEmbeddingTransactionClient) => {
       for (const indexedChunk of indexedChunks) {
@@ -144,10 +170,25 @@ export const indexDocumentChunks = async (
           workspaceId,
           chunkId: indexedChunk.chunkId,
           embedding: indexedChunk.embedding,
+          embeddingModel: model.model,
         } satisfies DocumentChunkEmbeddingUpsertInput);
 
         if (affectedRows !== 1) {
           throw new Error(`Failed to persist embedding for chunk ${indexedChunk.chunkId}`);
+        }
+      }
+
+      const persistedEmbeddings = await readDocumentChunkEmbeddingDimensions(
+        transactionClient,
+        workspaceId,
+        pendingChunks.map(({ chunkId }) => chunkId),
+      );
+      const persistedEmbeddingDimensions = new Map(
+        persistedEmbeddings.map(({ id, dimensions }) => [id, dimensions]),
+      );
+      for (const chunk of pendingChunks) {
+        if (persistedEmbeddingDimensions.get(chunk.chunkId) !== model.dimensions) {
+          throw new Error(`Embedding readback failed for chunk ${chunk.chunkId}`);
         }
       }
     });
@@ -178,6 +219,8 @@ export const searchSimilarChunksForQuestion = async (
   return searchDocumentChunksByEmbedding(prisma, {
     workspaceId: input.workspaceId,
     embedding,
+    embeddingModel: model.model,
+    dimensions: model.dimensions,
     topK: input.topK,
     ...(input.scoreThreshold === undefined ? {} : { scoreThreshold: input.scoreThreshold }),
   } satisfies DocumentChunkVectorSearchInput);

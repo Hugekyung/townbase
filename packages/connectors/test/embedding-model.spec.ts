@@ -25,8 +25,9 @@ describe("embedding model config", () => {
   });
 
   it("creates an embedding model with the configured OpenAI endpoint", async () => {
+    const vector = Array.from({ length: 1536 }, () => 0.1);
     const fetchImpl = jest.fn(async () =>
-      new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3] }] }), {
+      new Response(JSON.stringify({ data: [{ embedding: vector }] }), {
         status: 200,
         headers: {
           "Content-Type": "application/json",
@@ -41,7 +42,7 @@ describe("embedding model config", () => {
       fetchImpl,
     });
 
-    await expect(model.embedText("hello")).resolves.toEqual([1, 2, 3]);
+    await expect(model.embedText("hello")).resolves.toEqual(vector);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -56,9 +57,10 @@ describe("embedding model config", () => {
   });
 
   it("creates an optional embedding model when the embedding API key is configured", async () => {
+    const vector = Array.from({ length: 1536 }, () => 0.1);
     const originalEnv = process.env;
     const fetchImpl = jest.fn(async () =>
-      new Response(JSON.stringify({ data: [{ embedding: [1, 2, 3] }] }), {
+      new Response(JSON.stringify({ data: [{ embedding: vector }] }), {
         status: 200,
         headers: {
           "Content-Type": "application/json",
@@ -76,6 +78,6 @@ describe("embedding model config", () => {
     const model = createOptionalEmbeddingModel(process.env, fetchImpl);
 
     expect(model?.model).toBe("text-embedding-3-small");
-    await expect(model?.embedText("hello")).resolves.toEqual([1, 2, 3]);
+    await expect(model?.embedText("hello")).resolves.toEqual(vector);
   });
 });

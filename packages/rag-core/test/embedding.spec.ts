@@ -1,13 +1,19 @@
-import { createOpenAIEmbeddingModel, DEFAULT_OPENAI_EMBEDDING_MODEL_NAME } from "../src/embedding";
+import {
+  createOpenAIEmbeddingModel,
+  DEFAULT_EMBEDDING_DIMENSIONS,
+  DEFAULT_OPENAI_EMBEDDING_MODEL_NAME,
+} from "../src/embedding";
 
 describe("createOpenAIEmbeddingModel", () => {
   it("posts texts to the OpenAI embeddings endpoint and returns vectors", async () => {
+    const firstVector = Array.from({ length: 1536 }, (_, index) => (index === 0 ? 0.1 : 0));
+    const secondVector = Array.from({ length: 1536 }, (_, index) => (index === 0 ? 0.4 : 0));
     const fetchImpl = jest.fn(async () =>
       new Response(
         JSON.stringify({
           data: [
-            { embedding: [0.1, 0.2, 0.3] },
-            { embedding: [0.4, 0.5, 0.6] },
+            { embedding: firstVector },
+            { embedding: secondVector },
           ],
         }),
         {
@@ -26,12 +32,10 @@ describe("createOpenAIEmbeddingModel", () => {
       baseUrl: "https://api.openai.com/v1",
     });
 
-    await expect(model.embedText("hello world")).resolves.toEqual([0.1, 0.2, 0.3]);
-    await expect(model.embedTexts(["hello", "world"])).resolves.toEqual([
-      [0.1, 0.2, 0.3],
-      [0.4, 0.5, 0.6],
-    ]);
+    await expect(model.embedText("hello world")).resolves.toEqual(firstVector);
+    await expect(model.embedTexts(["hello", "world"])).resolves.toEqual([firstVector, secondVector]);
     expect(model.model).toBe(DEFAULT_OPENAI_EMBEDDING_MODEL_NAME);
+    expect(model.dimensions).toBe(DEFAULT_EMBEDDING_DIMENSIONS);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(fetchImpl).toHaveBeenNthCalledWith(
       1,
@@ -45,6 +49,7 @@ describe("createOpenAIEmbeddingModel", () => {
         body: JSON.stringify({
           model: "text-embedding-3-small",
           input: ["hello world"],
+          dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
         }),
       }),
     );
@@ -56,14 +61,16 @@ describe("createOpenAIEmbeddingModel", () => {
         body: JSON.stringify({
           model: "text-embedding-3-small",
           input: ["hello", "world"],
+          dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
         }),
       }),
     );
   });
 
   it("includes configured dimensions in the OpenAI request body", async () => {
+    const vector = Array.from({ length: 1536 }, () => 0.1);
     const fetchImpl = jest.fn(async () =>
-      new Response(JSON.stringify({ data: [{ embedding: [0.1, 0.2, 0.3] }] }), {
+      new Response(JSON.stringify({ data: [{ embedding: vector }] }), {
         status: 200,
         headers: {
           "Content-Type": "application/json",
@@ -79,7 +86,7 @@ describe("createOpenAIEmbeddingModel", () => {
       dimensions: 1536,
     });
 
-    await expect(model.embedText("hello world")).resolves.toEqual([0.1, 0.2, 0.3]);
+    await expect(model.embedText("hello world")).resolves.toEqual(vector);
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://api.openai.com/v1/embeddings",
       expect.objectContaining({
