@@ -20,6 +20,7 @@ export type PromptResponseSchema = Readonly<{
 export type PromptTraceSource = Readonly<{
   documentId: string;
   chunkId: string;
+  content?: string;
   sourceType: string;
   title: string;
   filePath: string | null;

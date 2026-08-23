@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { RetrievalMode } from "@townbase/database";
+import { buildCitations } from "@townbase/agent-core";
 
 import { CHAT_MCP_TOOLS } from "./chat.constants";
 import { parseChatQuestionInput, resolveChatQuestionSelection } from "./chat-contract";
@@ -150,12 +151,28 @@ export class ChatToolRegistry {
           const parsedInput = parseChatQuestionInput(arguments_);
           const selection = resolveChatQuestionSelection(parsedInput);
           const result = await this.questionService.executeQuestion(parsedInput);
+          const sourcePacket = result.sources.map((source) => ({
+            content: source.content ?? "",
+            documentId: source.documentId,
+            chunkId: source.chunkId,
+            sourceType: source.sourceType,
+            title: source.title,
+            filePath: source.filePath,
+            sourceUrl: source.sourceUrl,
+            sectionTitle: source.sectionTitle,
+            headingPath: source.headingPath,
+            rank: source.rank,
+            score: source.score,
+          }));
 
           return serialize({
+            question: parsedInput.question,
             requestedMode: selection.requestedMode,
             resolvedMode: selection.resolvedMode,
             strategy: selection.strategy.mode,
             result,
+            sourcePacket,
+            citations: buildCitations(result.sources),
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : "Invalid MCP question input";
