@@ -56,6 +56,7 @@ const rootPath = path.resolve(__dirname, "../../../..");
 const corpusPath = path.join(rootPath, "fixtures/evaluation/corpus.json");
 const goldenPath = path.join(rootPath, "fixtures/evaluation/golden-questions.json");
 const reportPath = path.join(rootPath, "docs/evaluation/task-107-vector-only-baseline.md");
+const finalReportPath = path.join(rootPath, "docs/evaluation-report.md");
 
 const loadJson = async <T>(filePath: string): Promise<T> =>
   JSON.parse(await fs.readFile(filePath, "utf8")) as T;
@@ -226,7 +227,7 @@ const writeReport = async (
 const writeThresholdReport = async (
   results: readonly BaselineResult[],
 ): Promise<void> => {
-  const candidates = [0.55, 0.6, 0.65, 0.7] as const;
+  const candidates = [0.35, 0.55, 0.6, 0.65, 0.7] as const;
   const scoreRows = results.map((result) => {
     const scores = result.results.map(({ score }) => score);
     const topScore = scores[0] ?? 0;
@@ -274,6 +275,80 @@ const writeThresholdReport = async (
     ...scoreRows.map(({ result, topScore, averageTopThree }) => `| ${result.id} | ${result.answerable} | ${topScore.toFixed(4)} | ${averageTopThree.toFixed(4)} |`),
   ];
   await fs.appendFile(reportPath, `\n${lines.join("\n")}\n`, "utf8");
+};
+
+const writeFinalEvaluationReport = async (
+  results: readonly BaselineResult[],
+  manifest: CorpusManifest,
+): Promise<void> => {
+  const answerableResults = results.filter((result) => result.answerable);
+  const citationMatches = answerableResults.flatMap((result) =>
+    result.results.map((row) => result.expectedDocumentPaths.includes(row.documentPath ?? "")),
+  );
+  const citationPrecision = citationMatches.length === 0
+    ? 0
+    : citationMatches.filter(Boolean).length / citationMatches.length;
+  const thresholdTop = 0.65;
+  const thresholdAverage = 0.55;
+  const provisionalTop = 0.35;
+  const provisionalAverage = 0.3;
+  const predictions = results.map((result) => {
+    const scores = result.results.map(({ score }) => score);
+    const topScore = scores[0] ?? 0;
+    const averageTopThree = scores.slice(0, 3).reduce((sum, score) => sum + score, 0) / Math.min(scores.length, 3);
+    return {
+      result,
+      predicted: topScore >= thresholdTop && averageTopThree >= thresholdAverage,
+    };
+  });
+  const answerabilityAccuracy = predictions.filter(({ result, predicted }) => result.answerable === predicted).length / predictions.length;
+  const provisionalAccuracy = results.filter((result) => {
+    const scores = result.results.map(({ score }) => score);
+    const topScore = scores[0] ?? 0;
+    const averageTopThree = scores.slice(0, 3).reduce((sum, score) => sum + score, 0) / Math.min(scores.length, 3);
+    return result.answerable === (topScore >= provisionalTop && averageTopThree >= provisionalAverage);
+  }).length / results.length;
+  const failures = predictions.filter(({ result, predicted }) => result.answerable !== predicted || (result.answerable && result.firstRelevantRank === null));
+  const lines = [
+    "# TASK-107 평가 보고서",
+    "",
+    `- 작성 시각: ${new Date().toISOString()}`,
+    `- Corpus: 6개 문서, Embedding=${manifest.embedding.model}, ${manifest.embedding.dimensions}차원`,
+    "- Embedding 모델 비교: 제외 (고정 정책)",
+    "- 기준 Chunking: 600/80",
+    "",
+    "## 평가 지표",
+    "",
+    `- Citation Precision: ${(citationPrecision * 100).toFixed(1)}% (정상 질문의 topK 결과 기준)`,
+    `- Answerability Accuracy: ${(answerabilityAccuracy * 100).toFixed(1)}% (현재 threshold ${thresholdTop}/${thresholdAverage} 기준)`,
+    `- 평가 전용 provisional threshold ${provisionalTop}/${provisionalAverage} Accuracy: ${(provisionalAccuracy * 100).toFixed(1)}%`,
+    "",
+    "## 실패 질문 및 원인",
+    "",
+    failures.length === 0 ? "실패 질문 없음" : "| ID | 기대 Answerable | 원인 |\n| --- | --- | --- |",
+    ...failures.map(({ result, predicted }) => {
+      const reason = result.answerable && result.firstRelevantRank === null
+        ? "기대 문서가 topK 검색 결과에 없음"
+        : result.answerable !== predicted
+          ? "threshold 판정과 기대 Answerable 불일치"
+          : "검색 출처 평가 실패";
+      return `| ${result.id} | ${result.answerable} | ${reason} |`;
+    }),
+    "",
+    "## 결론 및 보류 사항",
+    "",
+    "| 구분 | Chunking | Embedding | Hit@5 | MRR |",
+    "| --- | --- | --- | ---: | ---: |",
+    "| Vector Only baseline | 600/80 | text-embedding-3-small / 1536차원 | 60.0% | 0.3667 |",
+    "| Chunking 비교 | 400/50, 600/80, 800/100 | text-embedding-3-small / 1536차원 | 모두 60.0% | 모두 0.3667 |",
+    "",
+    "- 현재 Corpus와 Golden Question 규모가 작아 threshold 최종값은 확정하지 않았다.",
+    "- 기존 threshold는 정상 질문을 과도하게 거절하므로 추가 평가 데이터로 재검토해야 한다.",
+    "- provisional threshold는 평가용 참고값일 뿐 운영 코드에는 적용하지 않았다.",
+    "- Chunking 비교는 세 설정 모두 53개 Chunk, Hit@5 60.0%, MRR 0.3667로 차이가 없었다.",
+    "- 상세 질문별 score와 설정별 원자료는 `docs/evaluation/task-107-vector-only-baseline.md`에 기록했다.",
+  ];
+  await fs.writeFile(finalReportPath, `${lines.join("\n")}\n`, "utf8");
 };
 
 const main = async (): Promise<void> => {
@@ -349,6 +424,7 @@ const main = async (): Promise<void> => {
       }
     }
     await writeThresholdReport(baselineResults);
+    await writeFinalEvaluationReport(baselineResults, manifest);
     process.stdout.write(`Wrote ${reportPath}\n`);
   } finally {
     await disconnectPrismaClient();

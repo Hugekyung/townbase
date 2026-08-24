@@ -645,9 +645,9 @@ TASK-106 구현 완료.
 - [x] 정상 질문과 근거 없는 질문의 raw score 분포를 각각 기록한다. (`docs/evaluation/task-107-vector-only-baseline.md`)
 - [x] Answerability threshold 후보 `0.55`, `0.60`, `0.65`, `0.70`을 비교한다.
 - [x] 각 후보별 정상 질문을 놓치는 비율과 근거 없는 질문을 잘못 허용하는 비율을 비교한다.
-- [ ] Citation Precision, Answerability Accuracy, 실패 질문과 원인을 기록한다.
+- [x] Citation Precision, Answerability Accuracy, 실패 질문과 원인을 기록한다. (`docs/evaluation-report.md`)
 - [ ] 평가 결과에 따라 최종 `minimumTopScore`와 `minimumAverageTopThreeScore`를 선택한다.
-- [ ] 최종 설정과 baseline 비교표를 `docs/evaluation-report.md`에 작성한다.
+- [x] 최종 설정과 baseline 비교표를 `docs/evaluation-report.md`에 작성한다. (Embedding 모델은 고정 정책으로 비교 대상에서 제외)
 
 완료 조건:
 
@@ -670,6 +670,8 @@ Answerability threshold 평가 규칙:
 - 먼저 정상 질문과 근거 없는 질문의 score 분포를 분리해 확인한다.
 - 후보 threshold별로 `Answerability Accuracy`, 정상 질문 거절률, 근거 없는 질문 허용률을 비교한다.
 - 최종값은 임의로 바꾸지 않고 Golden Dataset 결과와 실패 질문 사례를 근거로 한 번만 확정한다.
+- 현재 평가에서는 `0.35 / 0.30`을 provisional 후보로만 비교했다. 정확도는 100%였지만 질문 10개·근거 없음 1개뿐이므로 운영값에 적용하지 않는다.
+- 운영 threshold는 현재 `0.65 / 0.55`를 유지하고, Golden Question을 확장한 뒤 재평가한다.
 - threshold 변경 전후의 Corpus, Embedding model, 차원, Chunking 설정, topK를 동일하게 유지한다.
 
 ---
