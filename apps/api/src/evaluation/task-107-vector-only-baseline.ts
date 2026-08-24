@@ -223,6 +223,59 @@ const writeReport = async (
   await fs.appendFile(reportPath, `\n${lines.join("\n")}\n`, "utf8");
 };
 
+const writeThresholdReport = async (
+  results: readonly BaselineResult[],
+): Promise<void> => {
+  const candidates = [0.55, 0.6, 0.65, 0.7] as const;
+  const scoreRows = results.map((result) => {
+    const scores = result.results.map(({ score }) => score);
+    const topScore = scores[0] ?? 0;
+    const averageTopThree = scores.slice(0, 3).reduce((sum, score) => sum + score, 0) / Math.min(scores.length, 3);
+    return { result, topScore, averageTopThree };
+  });
+  const lines = [
+    `## Answerability threshold 평가 결과 ${new Date().toISOString()}`,
+    "",
+    "- 기준: Chunking 600/80 baseline",
+    "- 정상 질문: 9개, 근거 없음 질문: 1개",
+    "- 판정식: `topScore >= 후보값` AND `averageTopThree >= 후보값 - 0.10`",
+    "",
+    "### Score 분포",
+    "",
+    "| 그룹 | 질문 수 | Top score 평균 | Top score 범위 | Top 3 평균 평균 | Top 3 평균 범위 |",
+    "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ...([true, false] as const).map((answerable) => {
+      const group = scoreRows.filter(({ result }) => result.answerable === answerable);
+      const topScores = group.map(({ topScore }) => topScore);
+      const averages = group.map(({ averageTopThree }) => averageTopThree);
+      return `| ${answerable ? "정상" : "근거 없음"} | ${group.length} | ${(topScores.reduce((sum, score) => sum + score, 0) / group.length).toFixed(4)} | ${Math.min(...topScores).toFixed(4)}~${Math.max(...topScores).toFixed(4)} | ${(averages.reduce((sum, score) => sum + score, 0) / group.length).toFixed(4)} | ${Math.min(...averages).toFixed(4)}~${Math.max(...averages).toFixed(4)} |`;
+    }),
+    "",
+    "### Threshold 후보 비교",
+    "",
+    "| Top threshold | Average Top 3 threshold | Accuracy | 정상 질문 거절 | 근거 없음 허용 |",
+    "| ---: | ---: | ---: | ---: | ---: |",
+    ...candidates.map((topThreshold) => {
+      const averageThreshold = topThreshold - 0.1;
+      const predictions = scoreRows.map(({ result, topScore, averageTopThree }) => ({
+        expected: result.answerable,
+        predicted: topScore >= topThreshold && averageTopThree >= averageThreshold,
+      }));
+      const correct = predictions.filter(({ expected, predicted }) => expected === predicted).length;
+      const rejectedAnswerable = predictions.filter(({ expected, predicted }) => expected && !predicted).length;
+      const allowedUnanswerable = predictions.filter(({ expected, predicted }) => !expected && predicted).length;
+      return `| ${topThreshold.toFixed(2)} | ${averageThreshold.toFixed(2)} | ${(correct / predictions.length * 100).toFixed(1)}% | ${rejectedAnswerable}/${predictions.filter(({ expected }) => expected).length} | ${allowedUnanswerable}/${predictions.filter(({ expected }) => !expected).length} |`;
+    }),
+    "",
+    "### 질문별 score",
+    "",
+    "| ID | 기대 Answerable | Top score | Average Top 3 |",
+    "| --- | --- | ---: | ---: |",
+    ...scoreRows.map(({ result, topScore, averageTopThree }) => `| ${result.id} | ${result.answerable} | ${topScore.toFixed(4)} | ${averageTopThree.toFixed(4)} |`),
+  ];
+  await fs.appendFile(reportPath, `\n${lines.join("\n")}\n`, "utf8");
+};
+
 const main = async (): Promise<void> => {
   dotenv.config({ path: path.join(rootPath, ".env") });
   const manifest = await loadJson<CorpusManifest>(corpusPath);
@@ -243,6 +296,7 @@ const main = async (): Promise<void> => {
   await prisma.$connect();
   try {
     const { workspaceId, dataSourceId } = await upsertEvaluationWorkspace(prisma, manifest.workspaceId);
+    let baselineResults: readonly BaselineResult[] = [];
     const experiments = [
       { label: "Chunking 400/50", maxTokens: 400, overlapTokens: 50 },
       { label: "Chunking 600/80 baseline", ...manifest.chunking },
@@ -290,7 +344,11 @@ const main = async (): Promise<void> => {
         });
       }
       await writeReport(experiment.label, experimentManifest, dataset, indexing, results);
+      if (experiment.label.includes("baseline")) {
+        baselineResults = results;
+      }
     }
+    await writeThresholdReport(baselineResults);
     process.stdout.write(`Wrote ${reportPath}\n`);
   } finally {
     await disconnectPrismaClient();

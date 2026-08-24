@@ -642,9 +642,9 @@ TASK-106 구현 완료.
 - [x] Chunk size/overlap만 바꾸고 재색인한 뒤 Hit@5, MRR, chunk 수, latency를 기록한다. (`docs/evaluation/task-107-vector-only-baseline.md`의 Chunking 400/50, 600/80, 800/100 결과)
 - [ ] 가장 좋은 Chunking 설정을 고정하고 Embedding 모델 또는 차원만 바꿔 재색인한다.
 - [ ] Embedding 설정별 Hit@5, MRR, 호출 횟수, latency, 비용을 기록한다.
-- [ ] 정상 질문과 근거 없는 질문의 raw score 분포를 각각 기록한다.
-- [ ] Answerability threshold 후보 `0.55`, `0.60`, `0.65`, `0.70`을 비교한다.
-- [ ] 각 후보별 정상 질문을 놓치는 비율과 근거 없는 질문을 잘못 허용하는 비율을 비교한다.
+- [x] 정상 질문과 근거 없는 질문의 raw score 분포를 각각 기록한다. (`docs/evaluation/task-107-vector-only-baseline.md`)
+- [x] Answerability threshold 후보 `0.55`, `0.60`, `0.65`, `0.70`을 비교한다.
+- [x] 각 후보별 정상 질문을 놓치는 비율과 근거 없는 질문을 잘못 허용하는 비율을 비교한다.
 - [ ] Citation Precision, Answerability Accuracy, 실패 질문과 원인을 기록한다.
 - [ ] 평가 결과에 따라 최종 `minimumTopScore`와 `minimumAverageTopThreeScore`를 선택한다.
 - [ ] 최종 설정과 baseline 비교표를 `docs/evaluation-report.md`에 작성한다.
