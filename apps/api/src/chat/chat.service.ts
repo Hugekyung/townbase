@@ -3,7 +3,6 @@ import {
   buildPromptContext,
   COMMON_SYSTEM_PROMPT,
   SOURCE_GROUNDED_ANSWER_RULE,
-  type PromptContext,
   type PromptTraceSource,
   resolvePromptTemplate,
   summarizeTraceSources,
@@ -74,21 +73,30 @@ export class ChatQuestionService {
     });
     const answerable = isRetrievalAnswerable(sources);
     const answerSources = answerable ? sources : [];
-    const context: PromptContext = buildPromptContext({
-      question: parsedInput.question,
-      requestedMode: selection.resolvedMode,
-      resolvedMode: selection.resolvedMode,
-      sources,
-    });
-    const promptTemplate = resolvePromptTemplate(selection.resolvedMode, sources.length);
-    const responseText = await this.deps.completion.complete({
-      systemPrompt: [COMMON_SYSTEM_PROMPT, SOURCE_GROUNDED_ANSWER_RULE].join(" "),
-      promptTemplate,
-      context,
-      citations: buildCitations(sources),
-      sourceSummary: summarizeTraceSources(sources),
-    });
-    const parsedResponse = parseChatQuestionResponse(responseText, sources.length);
+    const parsedResponse = answerable
+      ? parseChatQuestionResponse(
+          await this.deps.completion.complete({
+            systemPrompt: [COMMON_SYSTEM_PROMPT, SOURCE_GROUNDED_ANSWER_RULE].join(" "),
+            promptTemplate: resolvePromptTemplate(selection.resolvedMode, sources.length),
+            context: buildPromptContext({
+              question: parsedInput.question,
+              requestedMode: selection.resolvedMode,
+              resolvedMode: selection.resolvedMode,
+              sources,
+            }),
+            citations: buildCitations(sources),
+            sourceSummary: summarizeTraceSources(sources),
+          }),
+          sources.length,
+        )
+      : {
+          answer: "",
+          isAnswerable: false,
+          confidence: 0,
+          knowledgeGap: null,
+          suggestedFollowups: [],
+          tokenUsage: { input: 0, output: 0 },
+        };
     const confidence = scoreQuestionConfidence({
       parsedConfidence: parsedResponse.confidence,
       sourceCount: sources.length,
