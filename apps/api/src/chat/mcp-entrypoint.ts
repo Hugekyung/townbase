@@ -10,7 +10,7 @@ import { ChatMcpServer } from "./chat.server";
 
 dotenv.config({
   path: path.resolve(__dirname, "../../../../.env"),
-  override: true,
+  override: false,
 });
 
 export async function bootstrap(): Promise<void> {

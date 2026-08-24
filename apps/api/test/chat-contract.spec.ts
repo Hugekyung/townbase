@@ -10,7 +10,7 @@ describe("chat question contract", () => {
     );
   });
 
-  it("allows workspaceId to be resolved by the server default", () => {
+  it("omits workspaceId from the parsed input when not provided", () => {
     expect(parseChatQuestionInput({ question: "What changed?", mode: "auto" })).toEqual({
       question: "What changed?",
       mode: "auto",

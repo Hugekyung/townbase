@@ -62,6 +62,7 @@ export class ChatQuestionService {
   }
 
   public async executeQuestion(input: unknown): Promise<ChatQuestionExecutionResult> {
+    const startedAt = Date.now();
     const parsedInputWithoutWorkspace = parseChatQuestionInput(input);
     const defaultWorkspaceId = parsedInputWithoutWorkspace.workspaceId === undefined
       ? await this.deps.workspace?.resolveDefaultWorkspaceId()
@@ -75,7 +76,6 @@ export class ChatQuestionService {
       workspaceId,
     };
     const selection = resolveChatQuestionSelection(parsedInput);
-    const startedAt = Date.now();
     const questionEmbedding = await this.deps.embedding.embedText(parsedInput.question);
     const sources = await this.deps.retriever.retrieve({
       workspaceId: parsedInput.workspaceId,

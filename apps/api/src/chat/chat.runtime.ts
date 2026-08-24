@@ -3,6 +3,7 @@ import {
   persistKnowledgeGapCandidate,
   persistQuestionRetrievalSelection,
   searchDocumentChunksByEmbedding,
+  resolveDefaultWorkspaceName,
   type PrismaClient,
   type KnowledgeGapPersistInput,
 } from "@townbase/database";
@@ -199,9 +200,9 @@ export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
     workspace: {
       async resolveDefaultWorkspaceId(): Promise<string> {
         const workspace = await prisma.workspace.upsert({
-          where: { name: process.env.TOWNBASE_DEFAULT_WORKSPACE_NAME ?? "townbase" },
+          where: { name: resolveDefaultWorkspaceName() },
           update: {},
-          create: { name: process.env.TOWNBASE_DEFAULT_WORKSPACE_NAME ?? "townbase" },
+          create: { name: resolveDefaultWorkspaceName() },
         });
         return workspace.id;
       },

@@ -1,4 +1,8 @@
-export { DEFAULT_DATABASE_URL, DEFAULT_WORKSPACE_NAME } from "./runtime";
+export {
+  DEFAULT_DATABASE_URL,
+  DEFAULT_WORKSPACE_NAME,
+  resolveDefaultWorkspaceName,
+} from "./runtime";
 export { createPrismaClient, disconnectPrismaClient } from "./prisma-client";
 export {
   buildDocumentChunkEmbeddingUpsertQuery,

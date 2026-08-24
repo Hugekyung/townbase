@@ -7,11 +7,11 @@ import type {
 
 import {
   createPrismaClient,
-  DEFAULT_WORKSPACE_NAME,
   listActionDrafts,
   type KnowledgeGapListFilter,
   listKnowledgeGaps,
   persistActionDraft,
+  resolveDefaultWorkspaceName,
   updateKnowledgeGapStatus,
 } from "@townbase/database";
 import type { PromptTraceSource } from "@townbase/agent-core";
@@ -53,7 +53,7 @@ export class KnowledgeGapsService {
   private async getWorkspaceId(): Promise<string> {
     const workspace = await this.prisma.workspace.findUniqueOrThrow({
       where: {
-        name: DEFAULT_WORKSPACE_NAME,
+        name: resolveDefaultWorkspaceName(),
       },
       select: {
         id: true,
