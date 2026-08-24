@@ -35,6 +35,10 @@ export type ChatQuestionExecutionResult = Readonly<{
 
 export type ChatQuestionExecutionInput = ChatQuestionInput;
 
+type ResolvedChatQuestionInput = ChatQuestionInput & Readonly<{
+  workspaceId: string;
+}>;
+
 const isRetrievalAnswerable = (sources: readonly PromptTraceSource[]): boolean => {
   if (sources.length === 0) {
     return false;
@@ -58,7 +62,18 @@ export class ChatQuestionService {
   }
 
   public async executeQuestion(input: unknown): Promise<ChatQuestionExecutionResult> {
-    const parsedInput = parseChatQuestionInput(input);
+    const parsedInputWithoutWorkspace = parseChatQuestionInput(input);
+    const defaultWorkspaceId = parsedInputWithoutWorkspace.workspaceId === undefined
+      ? await this.deps.workspace?.resolveDefaultWorkspaceId()
+      : undefined;
+    const workspaceId = parsedInputWithoutWorkspace.workspaceId ?? defaultWorkspaceId;
+    if (workspaceId === undefined) {
+      throw new Error("A default workspace is required when workspaceId is omitted");
+    }
+    const parsedInput: ResolvedChatQuestionInput = {
+      ...parsedInputWithoutWorkspace,
+      workspaceId,
+    };
     const selection = resolveChatQuestionSelection(parsedInput);
     const startedAt = Date.now();
     const questionEmbedding = await this.deps.embedding.embedText(parsedInput.question);

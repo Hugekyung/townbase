@@ -1,9 +1,17 @@
 import "reflect-metadata";
 
+import path from "node:path";
+
 import { NestFactory } from "@nestjs/core";
+import dotenv from "dotenv";
 
 import { ChatModule } from "./chat.module";
 import { ChatMcpServer } from "./chat.server";
+
+dotenv.config({
+  path: path.resolve(__dirname, "../../../../.env"),
+  override: true,
+});
 
 export async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(ChatModule, {

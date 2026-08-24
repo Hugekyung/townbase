@@ -23,6 +23,7 @@ Use `.env.example` as the starting point. The main variables are:
 - `OPENAI_EMBEDDING_BASE_URL`
 - `NOTION_API_KEY`
 - `NOTION_ROOT_PAGE_ID`
+- `TOWNBASE_DEFAULT_WORKSPACE_NAME`
 - `REPO_ROOT_PATH`
 - `LOCAL_REPO_NAMES`
 
@@ -48,7 +49,7 @@ git clone --local . /absolute/path/to/repos/workspace-knowledge-agent
 pnpm --filter @townbase/connectors notion:sync
 ```
 
-`notion:sync` reads the live Notion root page configured in `.env`. Make sure the root page is shared with the integration token before you run it.
+`notion:sync` reads the live Notion root page configured in `.env` and stores it in the Workspace named by `TOWNBASE_DEFAULT_WORKSPACE_NAME` (default: `townbase`). Make sure the root page is shared with the integration token before you run it.
 
 If you need fixture replay for local smoke tests, run:
 

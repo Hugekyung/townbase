@@ -14,8 +14,8 @@ export const CHAT_MCP_SERVER_GUIDANCE = [
 ].join(" ");
 
 export const ANSWERABILITY_CONFIG = {
-  minimumTopScore: 0.65,
-  minimumAverageTopThreeScore: 0.55,
+  minimumTopScore: 0.45,
+  minimumAverageTopThreeScore: 0.4,
 } as const;
 
 const baseToolSchema = {
@@ -52,7 +52,7 @@ export const CHAT_MCP_TOOLS = {
           default: DEFAULT_TOP_K,
         },
       },
-      required: ["workspaceId", "question", "mode"],
+      required: ["question", "mode"],
     },
   } satisfies Tool,
   knowledgeGap: {

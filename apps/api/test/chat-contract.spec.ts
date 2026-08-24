@@ -4,10 +4,18 @@ import {
 } from "../src/chat";
 
 describe("chat question contract", () => {
-  it("rejects missing workspaceId, question, and mode", () => {
+  it("rejects missing question and mode", () => {
     expect(() => parseChatQuestionInput({})).toThrow(
-      "workspaceId, question, and mode are required",
+      "question and mode are required",
     );
+  });
+
+  it("allows workspaceId to be resolved by the server default", () => {
+    expect(parseChatQuestionInput({ question: "What changed?", mode: "auto" })).toEqual({
+      question: "What changed?",
+      mode: "auto",
+      topK: 5,
+    });
   });
 
   it("rejects blank or unsupported question fields", () => {
