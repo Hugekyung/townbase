@@ -1,0 +1,105 @@
+{
+  "version": "task-107-v1",
+  "questions": [
+    {
+      "id": "onboarding-001",
+      "question": "로컬에서 townbase를 실행하려면 어떤 순서로 준비해야 하나요?",
+      "requestedMode": "auto",
+      "expectedMode": "onboarding",
+      "expectedDocumentPaths": ["README.md", "docs/local-first-execution.md"],
+      "expectedSections": ["실행", "local"],
+      "answerable": true,
+      "expectedTerms": ["pnpm", "Docker", "환경 변수"]
+    },
+    {
+      "id": "onboarding-002",
+      "question": "개발 환경에서 테스트를 실행하는 기본 명령은 무엇인가요?",
+      "requestedMode": "auto",
+      "expectedMode": "onboarding",
+      "expectedDocumentPaths": ["README.md", "packages/rag-core/README.md"],
+      "expectedSections": ["test", "테스트"],
+      "answerable": true,
+      "expectedTerms": ["pnpm", "test"]
+    },
+    {
+      "id": "onboarding-003",
+      "question": "local-first 실행 방식은 외부 SaaS 배포와 어떻게 다른가요?",
+      "requestedMode": "auto",
+      "expectedMode": "onboarding",
+      "expectedDocumentPaths": ["docs/local-first-execution.md"],
+      "expectedSections": ["local-first", "실행"],
+      "answerable": true,
+      "expectedTerms": ["local", "self-hosted"]
+    },
+    {
+      "id": "product-history-001",
+      "question": "이 프로젝트가 Retrieval-first 구조를 선택한 이유는 무엇인가요?",
+      "requestedMode": "auto",
+      "expectedMode": "product_history",
+      "expectedDocumentPaths": ["README.md", "docs/local-dogfooding/README.md"],
+      "expectedSections": ["RAG", "Retrieval"],
+      "answerable": true,
+      "expectedTerms": ["근거", "Citation", "MCP"]
+    },
+    {
+      "id": "implementation-001",
+      "question": "rag-core 패키지는 어떤 역할을 담당하나요?",
+      "requestedMode": "auto",
+      "expectedMode": "documentation_gap",
+      "expectedDocumentPaths": ["packages/rag-core/README.md"],
+      "expectedSections": ["rag-core"],
+      "answerable": true,
+      "expectedTerms": ["chunk", "embedding", "retrieval"]
+    },
+    {
+      "id": "implementation-002",
+      "question": "database 패키지는 RAG 흐름에서 어떤 데이터를 저장하나요?",
+      "requestedMode": "auto",
+      "expectedMode": "documentation_gap",
+      "expectedDocumentPaths": ["packages/database/README.md"],
+      "expectedSections": ["database", "Prisma"],
+      "answerable": true,
+      "expectedTerms": ["Document", "Chunk", "vector"]
+    },
+    {
+      "id": "implementation-003",
+      "question": "Notion과 로컬 Git 문서 수집은 어느 패키지에서 담당하나요?",
+      "requestedMode": "auto",
+      "expectedMode": "documentation_gap",
+      "expectedDocumentPaths": ["packages/connectors/README.md"],
+      "expectedSections": ["connector", "Notion", "Git"],
+      "answerable": true,
+      "expectedTerms": ["connector", "sync"]
+    },
+    {
+      "id": "multi-document-001",
+      "question": "문서 수집부터 검색까지의 전체 데이터 흐름을 설명해 주세요.",
+      "requestedMode": "auto",
+      "expectedMode": "onboarding",
+      "expectedDocumentPaths": ["packages/connectors/README.md", "packages/rag-core/README.md", "packages/database/README.md"],
+      "expectedSections": ["sync", "chunk", "embedding", "search"],
+      "answerable": true,
+      "expectedTerms": ["수집", "Chunk", "Embedding", "Vector"]
+    },
+    {
+      "id": "multi-document-002",
+      "question": "검색 결과가 외부 Agent의 답변 근거로 전달되는 과정을 설명해 주세요.",
+      "requestedMode": "auto",
+      "expectedMode": "documentation_gap",
+      "expectedDocumentPaths": ["README.md", "docs/local-dogfooding/README.md"],
+      "expectedSections": ["MCP", "Source", "Citation"],
+      "answerable": true,
+      "expectedTerms": ["Source packet", "Citation", "MCP"]
+    },
+    {
+      "id": "unanswerable-001",
+      "question": "townbase의 2027년 매출 목표와 영업이익률은 얼마인가요?",
+      "requestedMode": "auto",
+      "expectedMode": "product_history",
+      "expectedDocumentPaths": [],
+      "expectedSections": [],
+      "answerable": false,
+      "expectedTerms": []
+    }
+  ]
+}
