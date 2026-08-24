@@ -3,7 +3,6 @@ import {
   buildPromptContext,
   COMMON_SYSTEM_PROMPT,
   SOURCE_GROUNDED_ANSWER_RULE,
-  type PromptContext,
   type PromptTraceSource,
   resolvePromptTemplate,
   summarizeTraceSources,
@@ -13,6 +12,7 @@ import type { ChatQuestionInput, ChatQuestionSelection } from "./chat-contract";
 import { parseChatQuestionInput, resolveChatQuestionSelection } from "./chat-contract";
 import { deriveKnowledgeGapCandidate } from "../knowledge-gaps/knowledge-gap-rules";
 import type { ChatMcpSurface } from "./chat.server";
+import { ANSWERABILITY_CONFIG } from "./chat.constants";
 import { parseChatQuestionResponse, scoreQuestionConfidence } from "./chat.utils";
 import { createDefaultChatDependencies, type ChatExecutionDependencies } from "./chat.runtime";
 
@@ -35,6 +35,21 @@ export type ChatQuestionExecutionResult = Readonly<{
 
 export type ChatQuestionExecutionInput = ChatQuestionInput;
 
+const isRetrievalAnswerable = (sources: readonly PromptTraceSource[]): boolean => {
+  if (sources.length === 0) {
+    return false;
+  }
+
+  const topScore = sources[0]?.score ?? 0;
+  const topThree = sources.slice(0, 3);
+  const averageTopThreeScore = topThree.reduce((total, source) => total + source.score, 0) / topThree.length;
+
+  return (
+    topScore >= ANSWERABILITY_CONFIG.minimumTopScore &&
+    averageTopThreeScore >= ANSWERABILITY_CONFIG.minimumAverageTopThreeScore
+  );
+};
+
 export class ChatQuestionService {
   public constructor(private readonly deps: ChatExecutionDependencies = createDefaultChatDependencies()) {}
 
@@ -56,36 +71,47 @@ export class ChatQuestionService {
       executionStrategy: this.deps.retrievalExecutionStrategy,
       embedding: questionEmbedding,
     });
-    const context: PromptContext = buildPromptContext({
-      question: parsedInput.question,
-      requestedMode: selection.resolvedMode,
-      resolvedMode: selection.resolvedMode,
-      sources,
-    });
-    const promptTemplate = resolvePromptTemplate(selection.resolvedMode, sources.length);
-    const responseText = await this.deps.completion.complete({
-      systemPrompt: [COMMON_SYSTEM_PROMPT, SOURCE_GROUNDED_ANSWER_RULE].join(" "),
-      promptTemplate,
-      context,
-      citations: buildCitations(sources),
-      sourceSummary: summarizeTraceSources(sources),
-    });
-    const parsedResponse = parseChatQuestionResponse(responseText, sources.length);
+    const answerable = isRetrievalAnswerable(sources);
+    const answerSources = answerable ? sources : [];
+    const parsedResponse = answerable
+      ? parseChatQuestionResponse(
+          await this.deps.completion.complete({
+            systemPrompt: [COMMON_SYSTEM_PROMPT, SOURCE_GROUNDED_ANSWER_RULE].join(" "),
+            promptTemplate: resolvePromptTemplate(selection.resolvedMode, sources.length),
+            context: buildPromptContext({
+              question: parsedInput.question,
+              requestedMode: selection.resolvedMode,
+              resolvedMode: selection.resolvedMode,
+              sources,
+            }),
+            citations: buildCitations(sources),
+            sourceSummary: summarizeTraceSources(sources),
+          }),
+          sources.length,
+        )
+      : {
+          answer: "",
+          isAnswerable: false,
+          confidence: 0,
+          knowledgeGap: null,
+          suggestedFollowups: [],
+          tokenUsage: { input: 0, output: 0 },
+        };
     const confidence = scoreQuestionConfidence({
       parsedConfidence: parsedResponse.confidence,
       sourceCount: sources.length,
       topScore: sources[0]?.score ?? 0,
-      isAnswerable: parsedResponse.isAnswerable,
+      isAnswerable: answerable,
     });
     const questionRecord = await this.deps.prisma.question.create({
       data: {
         workspaceId: parsedInput.workspaceId,
         question: parsedInput.question,
-        answer: parsedResponse.isAnswerable ? parsedResponse.answer : null,
+        answer: answerable ? parsedResponse.answer : null,
         requestedMode: parsedInput.mode,
         resolvedMode: selection.resolvedMode,
         confidence,
-        isAnswerable: parsedResponse.isAnswerable,
+        isAnswerable: answerable,
       },
     });
 
@@ -95,8 +121,8 @@ export class ChatQuestionService {
       requestedMode: parsedInput.mode,
       resolvedMode: selection.resolvedMode,
       confidence,
-      isAnswerable: parsedResponse.isAnswerable,
-      sources,
+      isAnswerable: answerable,
+      sources: answerSources,
     });
 
     const knowledgeGapCandidate = deriveKnowledgeGapCandidate({
@@ -105,9 +131,9 @@ export class ChatQuestionService {
       requestedMode: parsedInput.mode,
       resolvedMode: selection.resolvedMode,
       confidence,
-      isAnswerable: parsedResponse.isAnswerable,
+      isAnswerable: answerable,
       knowledgeGap: parsedResponse.knowledgeGap,
-      sources,
+      sources: answerSources,
     });
 
     if (knowledgeGapCandidate !== null) {
@@ -128,12 +154,12 @@ export class ChatQuestionService {
 
     return {
       questionId: questionRecord.id,
-      answer: parsedResponse.answer,
+      answer: answerable ? parsedResponse.answer : "",
       requestedMode: parsedInput.mode,
       resolvedMode: selection.resolvedMode,
-      sources,
+      sources: answerSources,
       confidence,
-      isAnswerable: parsedResponse.isAnswerable,
+      isAnswerable: answerable,
       knowledgeGapCreated: knowledgeGapCandidate !== null,
       model: this.deps.completion.model,
       latencyMs: Date.now() - startedAt,

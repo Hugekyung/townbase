@@ -7,6 +7,16 @@ const createService = (
   const questionCreate = jest.fn().mockResolvedValue({ id: "question-1" });
   const persistQuestionTrace = jest.fn().mockResolvedValue(undefined);
   const persistKnowledgeGapCandidate = jest.fn().mockResolvedValue(undefined);
+  const complete = jest.fn().mockResolvedValue(
+    JSON.stringify({
+      answer: "Use pnpm dev.",
+      isAnswerable: true,
+      confidence: 0.82,
+      knowledgeGap: null,
+      suggestedFollowups: ["How do I run tests?"],
+      tokenUsage: { input: 12, output: 7 },
+    }),
+  );
 
   const service = new ChatQuestionService({
     prisma: {
@@ -41,19 +51,7 @@ const createService = (
     },
     completion: {
       model: "chat-test",
-      complete: jest.fn().mockResolvedValue(
-        JSON.stringify({
-          answer: "Use pnpm dev.",
-          isAnswerable: true,
-          confidence: 0.82,
-          knowledgeGap: null,
-          suggestedFollowups: ["How do I run tests?"],
-          tokenUsage: {
-            input: 12,
-            output: 7,
-          },
-        }),
-      ),
+      complete,
     },
     persistence: {
       persistQuestionTrace,
@@ -78,6 +76,7 @@ const createService = (
     questionCreate,
     persistQuestionTrace,
     persistKnowledgeGapCandidate,
+    complete,
   };
 };
 
@@ -149,25 +148,9 @@ describe("ChatQuestionService", () => {
   });
 
   it("returns a deterministic non-answerable fallback when the retriever returns no sources", async () => {
-    const { service, persistKnowledgeGapCandidate } = createService({
+    const { service, persistKnowledgeGapCandidate, complete } = createService({
       retriever: {
         retrieve: jest.fn().mockResolvedValue([]),
-      },
-      completion: {
-        model: "chat-test",
-        complete: jest.fn().mockResolvedValue(
-          JSON.stringify({
-            answer: "",
-            isAnswerable: false,
-            confidence: 0.15,
-            knowledgeGap: "No sources selected.",
-            suggestedFollowups: [],
-            tokenUsage: {
-              input: 0,
-              output: 0,
-            },
-          }),
-        ),
       },
     });
 
@@ -190,7 +173,7 @@ describe("ChatQuestionService", () => {
       questionId: "question-1",
       category: "documentation",
       title: "Documentation gap: What is missing from the docs",
-      description: "No sources selected.",
+      description: "The current sources do not fully answer: What is missing from the docs.",
       suggestedDocumentTitle: "Document What is missing from the docs",
       suggestedMarkdownPath: "docs/gaps/documentation-what-is-missing-from-the-docs.md",
       suggestedGithubIssueTitle: "Document What is missing from the docs",
@@ -198,5 +181,63 @@ describe("ChatQuestionService", () => {
       relatedMode: "documentation_gap",
       similarQuestionCount: 0,
     });
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it("rejects low-score sources and persists a knowledge gap", async () => {
+    const { service, persistKnowledgeGapCandidate, questionCreate, complete } = createService({
+      retriever: {
+        retrieve: jest.fn().mockResolvedValue([
+          {
+            documentId: "document-1",
+            chunkId: "chunk-1",
+            sourceType: "repo_docs",
+            title: "README",
+            filePath: "README.md",
+            sourceUrl: null,
+            sectionTitle: "Setup",
+            headingPath: ["Setup"],
+            rank: 1,
+            score: 0.6,
+          },
+        ]),
+      },
+    });
+
+    await expect(
+      service.executeQuestion({
+        workspaceId: "workspace-1",
+        question: "What is missing from the docs?",
+        mode: "auto",
+      }),
+    ).resolves.toMatchObject({
+      answer: "",
+      isAnswerable: false,
+      knowledgeGapCreated: true,
+      sources: [],
+    });
+
+    expect(questionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          answer: null,
+          isAnswerable: false,
+        }),
+      }),
+    );
+    expect(persistKnowledgeGapCandidate).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      questionId: "question-1",
+      category: "documentation",
+      title: "Documentation gap: What is missing from the docs",
+      description: "The current sources do not fully answer: What is missing from the docs.",
+      suggestedDocumentTitle: "Document What is missing from the docs",
+      suggestedMarkdownPath: "docs/gaps/documentation-what-is-missing-from-the-docs.md",
+      suggestedGithubIssueTitle: "Document What is missing from the docs",
+      priority: "high",
+      relatedMode: "documentation_gap",
+      similarQuestionCount: 0,
+    });
+    expect(complete).not.toHaveBeenCalled();
   });
 });
