@@ -9,8 +9,10 @@ import type { PrismaClientLike } from "../src/database-runtime";
 import { createPrismaNotionSyncStore } from "../src/notion/prisma-store";
 
 import { syncNotionPages } from "../src/notion/sync";
+import { assertTestDatabase } from "./test-database-safety";
 
 const clearDatabase = async (prisma: ReturnType<typeof createPrismaClient>): Promise<void> => {
+  assertTestDatabase();
   await prisma.documentChunk.deleteMany();
   await prisma.document.deleteMany();
   await prisma.dataSource.deleteMany();
