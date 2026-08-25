@@ -8,7 +8,7 @@ import {
   DEFAULT_WORKSPACE_NAME,
   disconnectPrismaClient,
 } from "../../database/src";
-import { assertTestDatabase } from "./test-database-safety";
+import { assertTestDatabase } from "../../database/test/test-database-safety";
 import type { PrismaClientLike } from "../src/database-runtime";
 import { createPrismaLocalRepoSyncStore } from "../src/local-repo/prisma-store";
 import {
