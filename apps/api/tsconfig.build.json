@@ -3,5 +3,5 @@
   "compilerOptions": {
     "declaration": false
   },
-  "exclude": ["test", "**/*.spec.ts", "**/*.e2e-spec.ts"]
+  "exclude": ["test", "src/evaluation", "**/*.spec.ts", "**/*.e2e-spec.ts"]
 }

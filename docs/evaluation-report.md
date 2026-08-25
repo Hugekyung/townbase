@@ -10,6 +10,8 @@
 - Citation Precision: 33.3% (정상 질문의 topK 결과 기준)
 - Answerability Accuracy: 20.0% (현재 threshold 0.65/0.55 기준)
 - 평가 전용 provisional threshold 0.35/0.3 Accuracy: 100.0%
+- provisional Accuracy는 기대 문서의 topK 검색 여부를 검증하지 않고 threshold 판정만 측정한다.
+- 기대 문서가 topK에 포함되지 않은 정상 질문: 3/10개
 
 ## 실패 질문 및 원인
 

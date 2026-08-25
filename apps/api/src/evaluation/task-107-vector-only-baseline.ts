@@ -52,6 +52,15 @@ type BaselineResult = Readonly<{
   firstRelevantRank: number | null;
 }>;
 
+type EvaluationMetrics = Readonly<{
+  label: string;
+  maxTokens: number;
+  overlapTokens: number;
+  chunkCount: number;
+  hitAt5: number;
+  mrr: number;
+}>;
+
 const rootPath = path.resolve(__dirname, "../../../..");
 const corpusPath = path.join(rootPath, "fixtures/evaluation/corpus.json");
 const goldenPath = path.join(rootPath, "fixtures/evaluation/golden-questions.json");
@@ -187,7 +196,7 @@ const writeReport = async (
   dataset: GoldenDataset,
   indexing: Readonly<{ documentCount: number; chunkCount: number }>,
   results: readonly BaselineResult[],
-): Promise<void> => {
+): Promise<EvaluationMetrics> => {
   const hitAt5 = results.filter((result) => result.firstRelevantRank !== null).length;
   const reciprocalRank = results.reduce(
     (sum, result) => sum + (result.firstRelevantRank === null ? 0 : 1 / result.firstRelevantRank),
@@ -222,6 +231,14 @@ const writeReport = async (
   ];
   await fs.mkdir(path.dirname(reportPath), { recursive: true });
   await fs.appendFile(reportPath, `\n${lines.join("\n")}\n`, "utf8");
+  return {
+    label: experimentLabel,
+    maxTokens: manifest.chunking.maxTokens,
+    overlapTokens: manifest.chunking.overlapTokens,
+    chunkCount: indexing.chunkCount,
+    hitAt5,
+    mrr: reciprocalRank / results.length,
+  };
 };
 
 const writeThresholdReport = async (
@@ -280,6 +297,7 @@ const writeThresholdReport = async (
 const writeFinalEvaluationReport = async (
   results: readonly BaselineResult[],
   manifest: CorpusManifest,
+  experimentMetrics: readonly EvaluationMetrics[],
 ): Promise<void> => {
   const answerableResults = results.filter((result) => result.answerable);
   const citationMatches = answerableResults.flatMap((result) =>
@@ -309,6 +327,9 @@ const writeFinalEvaluationReport = async (
     return result.answerable === (topScore >= provisionalTop && averageTopThree >= provisionalAverage);
   }).length / results.length;
   const failures = predictions.filter(({ result, predicted }) => result.answerable !== predicted || (result.answerable && result.firstRelevantRank === null));
+  const sourceMissingCount = results.filter(
+    (result) => result.answerable && result.firstRelevantRank === null,
+  ).length;
   const lines = [
     "# TASK-107 평가 보고서",
     "",
@@ -322,6 +343,8 @@ const writeFinalEvaluationReport = async (
     `- Citation Precision: ${(citationPrecision * 100).toFixed(1)}% (정상 질문의 topK 결과 기준)`,
     `- Answerability Accuracy: ${(answerabilityAccuracy * 100).toFixed(1)}% (현재 threshold ${thresholdTop}/${thresholdAverage} 기준)`,
     `- 평가 전용 provisional threshold ${provisionalTop}/${provisionalAverage} Accuracy: ${(provisionalAccuracy * 100).toFixed(1)}%`,
+    "- provisional Accuracy는 기대 문서의 topK 검색 여부를 검증하지 않고 threshold 판정만 측정한다.",
+    `- 기대 문서가 topK에 포함되지 않은 정상 질문: ${sourceMissingCount}/${results.length}개`,
     "",
     "## 실패 질문 및 원인",
     "",
@@ -339,13 +362,15 @@ const writeFinalEvaluationReport = async (
     "",
     "| 구분 | Chunking | Embedding | Hit@5 | MRR |",
     "| --- | --- | --- | ---: | ---: |",
-    "| Vector Only baseline | 600/80 | text-embedding-3-small / 1536차원 | 60.0% | 0.3667 |",
-    "| Chunking 비교 | 400/50, 600/80, 800/100 | text-embedding-3-small / 1536차원 | 모두 60.0% | 모두 0.3667 |",
+    ...experimentMetrics.map(
+      (experiment) =>
+        `| ${experiment.label} | ${experiment.maxTokens}/${experiment.overlapTokens} | ${manifest.embedding.model} / ${manifest.embedding.dimensions}차원 | ${(experiment.hitAt5 / results.length * 100).toFixed(1)}% | ${experiment.mrr.toFixed(4)} |`,
+    ),
     "",
     "- 현재 Corpus와 Golden Question 규모가 작아 threshold 최종값은 확정하지 않았다.",
     "- 기존 threshold는 정상 질문을 과도하게 거절하므로 추가 평가 데이터로 재검토해야 한다.",
     "- provisional threshold는 평가용 참고값일 뿐 운영 코드에는 적용하지 않았다.",
-    "- Chunking 비교는 세 설정 모두 53개 Chunk, Hit@5 60.0%, MRR 0.3667로 차이가 없었다.",
+    `- Chunking 비교 결과: ${experimentMetrics.map((experiment) => `${experiment.label}=${experiment.chunkCount}개 Chunk, Hit@5 ${(experiment.hitAt5 / results.length * 100).toFixed(1)}%, MRR ${experiment.mrr.toFixed(4)}`).join("; ")}.`,
     "- 상세 질문별 score와 설정별 원자료는 `docs/evaluation/task-107-vector-only-baseline.md`에 기록했다.",
   ];
   await fs.writeFile(finalReportPath, `${lines.join("\n")}\n`, "utf8");
@@ -372,6 +397,7 @@ const main = async (): Promise<void> => {
   try {
     const { workspaceId, dataSourceId } = await upsertEvaluationWorkspace(prisma, manifest.workspaceId);
     let baselineResults: readonly BaselineResult[] = [];
+    const experimentMetrics: EvaluationMetrics[] = [];
     const experiments = [
       { label: "Chunking 400/50", maxTokens: 400, overlapTokens: 50 },
       { label: "Chunking 600/80 baseline", ...manifest.chunking },
@@ -418,13 +444,13 @@ const main = async (): Promise<void> => {
           firstRelevantRank: firstRelevant?.rank ?? null,
         });
       }
-      await writeReport(experiment.label, experimentManifest, dataset, indexing, results);
+      experimentMetrics.push(await writeReport(experiment.label, experimentManifest, dataset, indexing, results));
       if (experiment.label.includes("baseline")) {
         baselineResults = results;
       }
     }
     await writeThresholdReport(baselineResults);
-    await writeFinalEvaluationReport(baselineResults, manifest);
+    await writeFinalEvaluationReport(baselineResults, manifest, experimentMetrics);
     process.stdout.write(`Wrote ${reportPath}\n`);
   } finally {
     await disconnectPrismaClient();
