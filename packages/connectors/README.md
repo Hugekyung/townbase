@@ -8,6 +8,20 @@ Connector package for Notion and selected local repository ingestion.
 - `NOTION_ROOT_PAGE_ID`
 - `DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public`
 
+Database integration tests delete test data before and after each case. They refuse to
+run against a database whose name does not contain `test` as a standalone segment
+(delimited by the start, `_`, `-`, or end of the name). Create a separate test database
+and pass its URL when running the integration suite:
+
+```bash
+createdb townbase_test
+DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase_test?schema=public \
+  pnpm --filter @townbase/connectors test
+```
+
+Do not point the integration tests at the development database used by `notion:sync`
+or `local-repo:sync`.
+
 Local repository sync also uses:
 
 - `REPO_ROOT_PATH=./repos`

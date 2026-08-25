@@ -7,6 +7,7 @@
     "dev": "ts-node --project tsconfig.json src/main.ts",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "mcp:stdio": "ts-node --project tsconfig.json src/chat/mcp-entrypoint.ts",
+    "evaluation:task-107": "ts-node --project tsconfig.json src/evaluation/task-107-vector-only-baseline.ts",
     "start": "node dist/main.js",
     "test": "jest --runInBand"
   },
@@ -18,10 +19,12 @@
     "@townbase/agent-core": "workspace:*",
     "@townbase/database": "workspace:*",
     "@townbase/rag-core": "workspace:*",
+    "dotenv": "^17.4.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@townbase/connectors": "workspace:*",
     "@nestjs/testing": "^10.4.15",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.10",

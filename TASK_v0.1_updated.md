@@ -633,28 +633,35 @@ TASK-106 구현 완료.
 
 세부 작업:
 
-- [ ] 현재 로컬 프로젝트 문서 중 내용이 겹치지 않는 문서 5~10개를 평가 Corpus로 고정한다.
-- [ ] Corpus의 파일 목록, contentHash, Embedding 모델, 차원을 기록한다.
-- [ ] 사실 확인, 사용법, 설계 배경, 다중 문서, 근거 없음 질문을 포함해 Golden Question 10~20개를 만든다.
-- [ ] 각 질문에 `expectedDocumentIds`, `expectedChunkIds`, `isAnswerable`을 기록한다.
-- [ ] 긴 모범 답안 대신 필요한 경우 핵심 사실 또는 키워드 1~3개만 추가한다.
-- [ ] 동일 Corpus와 질문으로 현재 Chunking 설정의 Vector Only baseline을 실행한다.
-- [ ] Chunk size/overlap만 바꾸고 재색인한 뒤 Hit@5, MRR, chunk 수, latency를 기록한다.
+- [x] 현재 로컬 프로젝트 문서 중 내용이 겹치지 않는 문서 5~10개를 평가 Corpus로 고정한다. (`fixtures/evaluation/corpus.json`에 문서 6개 고정)
+- [x] Corpus의 파일 목록, contentHash, Embedding 모델, 차원을 기록한다. (Embedding 모델 `text-embedding-3-small`, 차원 `1536`)
+- [x] 사실 확인, 사용법, 설계 배경, 다중 문서, 근거 없음 질문을 포함해 Golden Question 10~20개를 만든다. (`fixtures/evaluation/golden-questions.json`에 10개 작성)
+- [x] 각 질문에 `expectedDocumentPaths`, `expectedSections`, `answerable`을 기록한다. (Chunk ID는 Chunking 설정 변경 시 달라지므로 평가 기준에서 제외)
+- [x] 긴 모범 답안 대신 필요한 경우 핵심 사실 또는 키워드 1~3개만 추가한다. (`expectedTerms`로 기록)
+- [x] 동일 Corpus와 질문으로 현재 Chunking 설정의 Vector Only baseline을 실행한다. (`docs/evaluation/task-107-vector-only-baseline.md`에 10개 질문 결과 기록)
+- [x] Chunk size/overlap만 바꾸고 재색인한 뒤 Hit@5, MRR, chunk 수, latency를 기록한다. (`docs/evaluation/task-107-vector-only-baseline.md`의 Chunking 400/50, 600/80, 800/100 결과)
 - [ ] 가장 좋은 Chunking 설정을 고정하고 Embedding 모델 또는 차원만 바꿔 재색인한다.
 - [ ] Embedding 설정별 Hit@5, MRR, 호출 횟수, latency, 비용을 기록한다.
-- [ ] 정상 질문과 근거 없는 질문의 raw score 분포를 각각 기록한다.
-- [ ] Answerability threshold 후보 `0.55`, `0.60`, `0.65`, `0.70`을 비교한다.
-- [ ] 각 후보별 정상 질문을 놓치는 비율과 근거 없는 질문을 잘못 허용하는 비율을 비교한다.
-- [ ] Citation Precision, Answerability Accuracy, 실패 질문과 원인을 기록한다.
+- [x] 정상 질문과 근거 없는 질문의 raw score 분포를 각각 기록한다. (`docs/evaluation/task-107-vector-only-baseline.md`)
+- [x] Answerability threshold 후보 `0.55`, `0.60`, `0.65`, `0.70`을 비교한다.
+- [x] 각 후보별 정상 질문을 놓치는 비율과 근거 없는 질문을 잘못 허용하는 비율을 비교한다.
+- [x] Citation Precision, Answerability Accuracy, 실패 질문과 원인을 기록한다. (`docs/evaluation-report.md`)
 - [ ] 평가 결과에 따라 최종 `minimumTopScore`와 `minimumAverageTopThreeScore`를 선택한다.
-- [ ] 최종 설정과 baseline 비교표를 `docs/evaluation-report.md`에 작성한다.
+- [x] 최종 설정과 baseline 비교표를 `docs/evaluation-report.md`에 작성한다. (Embedding 모델은 고정 정책으로 비교 대상에서 제외)
 
 완료 조건:
 
-- [ ] 동일 Dataset으로 baseline과 설정별 실험을 재현할 수 있다.
-- [ ] Chunking과 Embedding 변경 효과를 수치로 설명할 수 있다.
+- [x] 동일 Dataset으로 현재 설정의 Vector Only baseline을 재현할 수 있다. (설정별 비교 실험은 후속 작업)
+- [x] Chunking 비교 결과를 수치로 설명할 수 있다. (현재 Corpus에서는 세 설정의 검색 지표가 동일했으며, 문서 길이 한계로 실질적인 Chunking 차이가 제한됨)
 - [ ] 개선 질문과 악화 질문을 모두 기록한다.
 - [ ] 측정하지 않은 품질 수치를 문서에 작성하지 않는다.
+
+TASK-107 기반 준비 완료:
+
+- 평가 Corpus와 Golden Question은 `fixtures/evaluation/` 아래에 고정했다.
+- Corpus manifest에는 문서 경로, sourceType, SHA-256 contentHash, Embedding 모델·차원, 기본 Chunking 설정을 기록했다.
+- Golden Question에는 사용법, 설계 배경, 구현 확인, 다중 문서, 근거 없음 질문을 포함하고, 기대 문서·Section·핵심 용어·답변 가능 여부를 기록했다.
+- 실제 Vector Only baseline 실행, Chunking·Embedding 비교, score 분포와 threshold 측정, `docs/evaluation-report.md` 작성은 평가 Runner를 구현하는 TASK-301 이후에 수행한다.
 
 Answerability threshold 평가 규칙:
 
@@ -663,6 +670,8 @@ Answerability threshold 평가 규칙:
 - 먼저 정상 질문과 근거 없는 질문의 score 분포를 분리해 확인한다.
 - 후보 threshold별로 `Answerability Accuracy`, 정상 질문 거절률, 근거 없는 질문 허용률을 비교한다.
 - 최종값은 임의로 바꾸지 않고 Golden Dataset 결과와 실패 질문 사례를 근거로 한 번만 확정한다.
+- 현재 평가에서는 `0.35 / 0.30`을 provisional 후보로만 비교했다. 정확도는 100%였지만 질문 10개·근거 없음 1개뿐이므로 운영값에 적용하지 않는다.
+- 운영 threshold는 현재 `0.65 / 0.55`를 유지하고, Golden Question을 확장한 뒤 재평가한다.
 - threshold 변경 전후의 Corpus, Embedding model, 차원, Chunking 설정, topK를 동일하게 유지한다.
 
 ---

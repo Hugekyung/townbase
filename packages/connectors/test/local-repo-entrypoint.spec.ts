@@ -89,13 +89,16 @@ const createMockPrismaClient = (
 describe("runLocalRepoSync", () => {
   it("syncs explicit selected repo names without LOCAL_REPO_NAMES", async () => {
     const previousRepoNames = process.env.LOCAL_REPO_NAMES;
+    const previousApiKey = process.env.OPENAI_API_KEY;
     delete process.env.LOCAL_REPO_NAMES;
+    delete process.env.OPENAI_API_KEY;
     const rootPath = await fs.mkdtemp(path.join(os.tmpdir(), "tmp-local-repo-sync-"));
     const upserts: LocalRepoDocumentDraft[] = [];
     const prismaClient = createMockPrismaClient(upserts);
 
     const databaseRuntime: DatabaseRuntimeModule = {
       DEFAULT_WORKSPACE_NAME: "default-workspace",
+      resolveDefaultWorkspaceName: () => "default-workspace",
       createPrismaClient: () => prismaClient,
       async disconnectPrismaClient() {
         return undefined;
@@ -127,6 +130,11 @@ describe("runLocalRepoSync", () => {
       } else {
         process.env.LOCAL_REPO_NAMES = previousRepoNames;
       }
+      if (previousApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previousApiKey;
+      }
       await fs.rm(rootPath, { recursive: true, force: true });
     }
   });
@@ -139,6 +147,7 @@ describe("runLocalRepoSync", () => {
     });
     const databaseRuntime: DatabaseRuntimeModule = {
       DEFAULT_WORKSPACE_NAME: "default-workspace",
+      resolveDefaultWorkspaceName: () => "default-workspace",
       createPrismaClient: () => prismaClient,
       async disconnectPrismaClient() {
         return undefined;

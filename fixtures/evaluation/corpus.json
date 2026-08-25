@@ -1,0 +1,44 @@
+{
+  "version": "task-107-v1",
+  "workspaceId": "evaluation-workspace",
+  "embedding": {
+    "model": "text-embedding-3-small",
+    "dimensions": 1536
+  },
+  "chunking": {
+    "maxTokens": 600,
+    "overlapTokens": 80
+  },
+  "documents": [
+    {
+      "path": "README.md",
+      "sourceType": "repo_readme",
+      "contentHash": "6aca34fd02e2d5a94c765c93ad4f03d3163a95d292b930cf4e65cbc4d7f4f94b"
+    },
+    {
+      "path": "docs/local-first-execution.md",
+      "sourceType": "repo_docs",
+      "contentHash": "b1a71cf22e32e21e8c9269b73ff7cfbdf6b7a153bf7dbe38c21f7b66df326b72"
+    },
+    {
+      "path": "docs/local-dogfooding/README.md",
+      "sourceType": "repo_docs",
+      "contentHash": "d8b1d0d3a95607f956c7b0436d82bd7b633295c37c8ecf053869f5f9e7b6c5f5"
+    },
+    {
+      "path": "packages/rag-core/README.md",
+      "sourceType": "repo_docs",
+      "contentHash": "9b4760d57c4d57e0e4c94e7719d2258518e3ae5b34c1cc4a729079df0a290962"
+    },
+    {
+      "path": "packages/database/README.md",
+      "sourceType": "repo_docs",
+      "contentHash": "78bfe0b723b1a4c84b9f6c87e39b6b5cecf6f66fc890b9a1aef1d93f9d6c319e"
+    },
+    {
+      "path": "packages/connectors/README.md",
+      "sourceType": "repo_docs",
+      "contentHash": "e28497f60a6ff659dc90d6af40fb877ecf02fff50f2c9ae7bb34a5a56f26a73b"
+    }
+  ]
+}
