@@ -106,7 +106,7 @@ Node.js, TypeScript, pnpm, NestJS, Jest, ESLint, PostgreSQL, pgvector, Prisma, N
 5. **`auto`는 규칙 기반으로 시작한다.** 향후 LLM classifier로 확장할 수 있다.
 6. **외부 변경은 draft로 멈춘다.** GitHub Issue나 Notion page를 자동 생성하지 않고 사람이 검토할 초안을 저장한다.
 7. **초기 Embedding 차원은 1536으로 고정한다.** `text-embedding-3-small`의 기본 차원과 현재 pgvector schema `vector(1536)`을 맞춰 migration과 전체 재embedding 없이 PoC를 완성한다.
-8. **초기 평가는 로컬 문서 5~10개와 Golden Question 10~20개로 제한한다.** 질문별 기대 Document/Chunk ID와 답변 가능 여부를 정답 기준으로 저장해 Hit@5와 MRR을 재현하고, 대규모 Corpus 품질을 주장하지 않는다.
+8. **초기 평가는 Keeply 문서 21개와 Golden Question 23개를 기준으로 고정한다.** 질문별 기대 Document/Chunk ID와 답변 가능 여부를 정답 기준으로 저장해 Hit@5와 MRR을 재현한다. 이 수치는 현재 `evaluation_2` workspace에 저장된 Keeply `Document` 21개와 실제 평가 질문 23개를 기준으로 한 PoC 평가 범위이며, 대규모 Corpus 품질을 주장하지 않는다.
 
 상세 기준은 [PRD_v0_1_retrieval_modes.md](PRD_v0_1_retrieval_modes.md)와 [TASK_v0_1_retrieval_modes.md](TASK_v0_1_retrieval_modes.md)에서 확인할 수 있다.
 

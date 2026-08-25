@@ -344,7 +344,7 @@ const writeFinalEvaluationReport = async (
     `- Answerability Accuracy: ${(answerabilityAccuracy * 100).toFixed(1)}% (현재 threshold ${thresholdTop}/${thresholdAverage} 기준)`,
     `- 평가 전용 provisional threshold ${provisionalTop}/${provisionalAverage} Accuracy: ${(provisionalAccuracy * 100).toFixed(1)}%`,
     "- provisional Accuracy는 기대 문서의 topK 검색 여부를 검증하지 않고 threshold 판정만 측정한다.",
-    `- 기대 문서가 topK에 포함되지 않은 정상 질문: ${sourceMissingCount}/${results.length}개`,
+    `- 기대 문서가 topK에 포함되지 않은 정상 질문: ${sourceMissingCount}/${answerableResults.length}개`,
     "",
     "## 실패 질문 및 원인",
     "",
