@@ -1,5 +1,8 @@
 # TASK-107 Vector Only baseline 테스트 기록
 
+> 이 문서는 개발용 평가 Runner의 내부 기록이다. 공식 Keeply 평가 범위와 결과는
+> [evaluation-20260825.md](../../evaluation-20260825.md)와 [evaluation-report.md](../evaluation-report.md)를 기준으로 한다.
+
 ## 테스트 목적
 
 현재 기본 설정을 고정한 상태에서 평가 Corpus 6개를 색인하고 Golden Question 10개를

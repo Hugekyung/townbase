@@ -1,40 +1,30 @@
-# TASK-107 평가 보고서
+# Keeply RAG 평가 보고서
 
-- 작성 시각: 2026-08-24T09:55:43.464Z
-- Corpus: 6개 문서, Embedding=text-embedding-3-small, 1536차원
-- Embedding 모델 비교: 제외 (고정 정책)
-- 기준 Chunking: 600/80
+이 문서는 Keeply 문서와 MCP 질문을 기준으로 한 공식 RAG 평가의 요약본이다.
 
-## 평가 지표
+## 평가 범위
 
-- Citation Precision: 33.3% (정상 질문의 topK 결과 기준)
-- Answerability Accuracy: 20.0% (현재 threshold 0.65/0.55 기준)
-- 평가 전용 provisional threshold 0.35/0.3 Accuracy: 100.0%
-- provisional Accuracy는 기대 문서의 topK 검색 여부를 검증하지 않고 threshold 판정만 측정한다.
-- 기대 문서가 topK에 포함되지 않은 정상 질문: 3/10개
+- 평가 문서: Keeply `Document` 21개
+- 평가 질문: Golden Question 23개
+- 평가 workspace: `evaluation_2`
+- 질문 모드: `auto`
 
-## 실패 질문 및 원인
+## 핵심 결과
 
-| ID | 기대 Answerable | 원인 |
-| --- | --- | --- |
-| onboarding-001 | true | threshold 판정과 기대 Answerable 불일치 |
-| onboarding-002 | true | threshold 판정과 기대 Answerable 불일치 |
-| onboarding-003 | true | threshold 판정과 기대 Answerable 불일치 |
-| product-history-001 | true | threshold 판정과 기대 Answerable 불일치 |
-| implementation-001 | true | 기대 문서가 topK 검색 결과에 없음 |
-| implementation-002 | true | 기대 문서가 topK 검색 결과에 없음 |
-| multi-document-001 | true | 기대 문서가 topK 검색 결과에 없음 |
-| multi-document-002 | true | threshold 판정과 기대 Answerable 불일치 |
+- 최종 답변 성공: `23/23 (100%)`
+- 현재 RAG source만으로 정답 문서를 찾은 비율: `17/23 (73.9%)`
+- `sourcePacket` 반환: `17/23 (73.9%)`
+- Agent 이전 문맥 보정이 필요했던 문항: `6/23 (26.1%)`
+- 기대 결론 오답 및 비밀값 생성: `0건`
 
-## 결론 및 보류 사항
+최종 답변 성공률과 RAG 검색 성공률은 분리해 해석해야 한다. sourcePacket이 없는
+질문은 Agent의 이전 문맥에 따라 답변 가능 여부가 달라질 수 있으므로, RAG 자체의
+재현 가능한 성능으로 집계하지 않는다.
 
-| 구분 | Chunking | Embedding | Hit@5 | MRR |
-| --- | --- | --- | ---: | ---: |
-| Vector Only baseline | 600/80 | text-embedding-3-small / 1536차원 | 60.0% | 0.3667 |
-| Chunking 비교 | 400/50, 600/80, 800/100 | text-embedding-3-small / 1536차원 | 모두 60.0% | 모두 0.3667 |
+## 상세 평가 기록
 
-- 현재 Corpus와 Golden Question 규모가 작아 threshold 최종값은 확정하지 않았다.
-- 기존 threshold는 정상 질문을 과도하게 거절하므로 추가 평가 데이터로 재검토해야 한다.
-- provisional threshold는 평가용 참고값일 뿐 운영 코드에는 적용하지 않았다.
-- Chunking 비교는 세 설정 모두 53개 Chunk, Hit@5 60.0%, MRR 0.3667로 차이가 없었다.
-- 상세 질문별 score와 설정별 원자료는 `docs/evaluation/task-107-vector-only-baseline.md`에 기록했다.
+질문별 결과, 실패 원인, answerability 오판 분석은
+[evaluation-20260825.md](../evaluation-20260825.md)에서 확인한다.
+
+이 문서에는 공식 Keeply 평가만 기록하며, 개발 중 사용한 별도 테스트 데이터와
+fixture 실행 결과는 공식 평가 수치에 포함하지 않는다.

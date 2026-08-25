@@ -65,7 +65,7 @@ const rootPath = path.resolve(__dirname, "../../../..");
 const corpusPath = path.join(rootPath, "fixtures/evaluation/corpus.json");
 const goldenPath = path.join(rootPath, "fixtures/evaluation/golden-questions.json");
 const reportPath = path.join(rootPath, "docs/evaluation/task-107-vector-only-baseline.md");
-const finalReportPath = path.join(rootPath, "docs/evaluation-report.md");
+const finalReportPath = path.join(rootPath, "docs/evaluation/task-107-vector-only-baseline-summary.md");
 
 const loadJson = async <T>(filePath: string): Promise<T> =>
   JSON.parse(await fs.readFile(filePath, "utf8")) as T;
