@@ -197,7 +197,7 @@ export const runLocalRepoSync = async (
   const prisma = database.createPrismaClient();
   const repoRootPath = resolveRepoRootPath(options.repoRootPath);
   const selectedRepoNames = readSelectedRepoNames(options.selectedRepoNames);
-  const workspaceName = options.workspaceName ?? database.DEFAULT_WORKSPACE_NAME;
+  const workspaceName = options.workspaceName ?? database.resolveDefaultWorkspaceName();
   const dataSourceName = options.dataSourceName ?? DEFAULT_LOCAL_REPO_DATA_SOURCE_NAME;
   const embeddingModel = createOptionalEmbeddingModel();
 

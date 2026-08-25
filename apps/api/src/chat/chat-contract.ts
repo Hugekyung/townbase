@@ -15,7 +15,7 @@ export const CHAT_QUESTION_MODES = [
 export type ChatQuestionMode = (typeof CHAT_QUESTION_MODES)[number];
 
 export type ChatQuestionInput = Readonly<{
-  workspaceId: string;
+  workspaceId?: string;
   question: string;
   mode: ChatQuestionMode;
   topK: number;
@@ -89,15 +89,15 @@ const readTopK = (value: Readonly<Record<string, unknown>>): number => {
 
 export const parseChatQuestionInput = (value: unknown): ChatQuestionInput => {
   if (!isRecord(value)) {
-    throw new BadRequestException("workspaceId, question, and mode are required");
+    throw new BadRequestException("question and mode are required");
   }
 
-  if (value.workspaceId === undefined || value.question === undefined || value.mode === undefined) {
-    throw new BadRequestException("workspaceId, question, and mode are required");
+  if (value.question === undefined || value.mode === undefined) {
+    throw new BadRequestException("question and mode are required");
   }
 
   return {
-    workspaceId: readTrimmedString(value, "workspaceId"),
+    ...(value.workspaceId === undefined ? {} : { workspaceId: readTrimmedString(value, "workspaceId") }),
     question: readTrimmedString(value, "question"),
     mode: readQuestionMode(value, "mode"),
     topK: readTopK(value),

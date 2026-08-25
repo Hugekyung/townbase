@@ -53,6 +53,7 @@ export type DatabaseRuntimeModule = Readonly<{
   createPrismaClient: () => PrismaClientLike;
   disconnectPrismaClient: () => Promise<void>;
   DEFAULT_WORKSPACE_NAME: string;
+  resolveDefaultWorkspaceName: () => string;
 }>;
 
 export const resolveDatabaseRuntimePath = (

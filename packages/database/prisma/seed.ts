@@ -2,18 +2,19 @@ import {
   createPrismaClient,
   disconnectPrismaClient,
 } from "../src/prisma-client";
-import { DEFAULT_WORKSPACE_NAME } from "../src/runtime";
+import { resolveDefaultWorkspaceName } from "../src/runtime";
 
 async function main(): Promise<void> {
   const prisma = createPrismaClient();
+  const workspaceName = resolveDefaultWorkspaceName();
 
   try {
     await prisma.workspace.upsert({
       where: {
-        name: DEFAULT_WORKSPACE_NAME,
+        name: workspaceName,
       },
       create: {
-        name: DEFAULT_WORKSPACE_NAME,
+        name: workspaceName,
       },
       update: {},
     });

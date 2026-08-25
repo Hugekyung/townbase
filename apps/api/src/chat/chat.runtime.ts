@@ -3,6 +3,7 @@ import {
   persistKnowledgeGapCandidate,
   persistQuestionRetrievalSelection,
   searchDocumentChunksByEmbedding,
+  resolveDefaultWorkspaceName,
   type PrismaClient,
   type KnowledgeGapPersistInput,
 } from "@townbase/database";
@@ -89,7 +90,8 @@ export type ChatTransportSurface = Readonly<{
 }>;
 
 export type ChatExecutionDependencies = Readonly<{
-  prisma: Pick<PrismaClient, "question" | "questionSource" | "knowledgeGap" | "documentChunk" | "$transaction">;
+  prisma: Pick<PrismaClient, "question" | "questionSource" | "knowledgeGap" | "documentChunk" | "workspace" | "$transaction">;
+  workspace?: Readonly<{ resolveDefaultWorkspaceId: () => Promise<string> }>;
   embedding: EmbeddingModel;
   retrievalExecutionStrategy: RetrievalExecutionStrategy;
   retriever: ChatRetrievalExecutor;
@@ -195,6 +197,16 @@ export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
 
   return {
     prisma,
+    workspace: {
+      async resolveDefaultWorkspaceId(): Promise<string> {
+        const workspace = await prisma.workspace.upsert({
+          where: { name: resolveDefaultWorkspaceName() },
+          update: {},
+          create: { name: resolveDefaultWorkspaceName() },
+        });
+        return workspace.id;
+      },
+    },
     embedding,
     retrievalExecutionStrategy: resolveRetrievalExecutionStrategy(),
     retriever: {
@@ -203,11 +215,12 @@ export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
     completion: {
       model: process.env.OPENAI_CHAT_MODEL ?? "chat-scaffold",
       async complete(input) {
+        const hasSources = input.citations.length > 0;
         return JSON.stringify({
           answer: "",
-          isAnswerable: false,
-          confidence: input.citations.length === 0 ? 0 : 0.25,
-          knowledgeGap: input.citations.length === 0 ? "No traced sources selected." : null,
+          isAnswerable: hasSources,
+          confidence: hasSources ? 0.7 : 0,
+          knowledgeGap: hasSources ? null : "No traced sources selected.",
           suggestedFollowups: [],
           tokenUsage: {
             input: 0,

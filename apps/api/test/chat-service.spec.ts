@@ -184,6 +184,65 @@ describe("ChatQuestionService", () => {
     expect(complete).not.toHaveBeenCalled();
   });
 
+  it("answers when the top relevant source matches the calibrated vector score range", async () => {
+    const { service } = createService({
+      retriever: {
+        retrieve: jest.fn().mockResolvedValue([
+          {
+            documentId: "document-keeply-ux",
+            chunkId: "chunk-keeply-ux",
+            sourceType: "notion_page",
+            title: "19. 알림 권한·문구·설정 화면 UX 정책",
+            filePath: null,
+            sourceUrl: null,
+            sectionTitle: null,
+            headingPath: [],
+            rank: 1,
+            score: 0.5656528354666556,
+          },
+          {
+            documentId: "document-reminder",
+            chunkId: "chunk-reminder",
+            sourceType: "notion_page",
+            title: "10. ADR-003 로컬 알림 예약과 일일 중복 방지",
+            filePath: null,
+            sourceUrl: null,
+            sectionTitle: null,
+            headingPath: [],
+            rank: 2,
+            score: 0.5194754945286087,
+          },
+          {
+            documentId: "document-runbook",
+            chunkId: "chunk-runbook",
+            sourceType: "notion_page",
+            title: "15. Daily Reminder 기술 설계·운영 런북",
+            filePath: null,
+            sourceUrl: null,
+            sectionTitle: null,
+            headingPath: [],
+            rank: 3,
+            score: 0.4960400491193657,
+          },
+        ]),
+      },
+    });
+
+    await expect(
+      service.executeQuestion({
+        workspaceId: "workspace-1",
+        question: "설정 화면에서 앱 알림 ON이지만 OS 권한이 거부된 상태를 어떻게 표시해야 하는가?",
+        mode: "auto",
+        topK: 10,
+      }),
+    ).resolves.toMatchObject({
+      isAnswerable: true,
+      sources: expect.arrayContaining([
+        expect.objectContaining({ title: "19. 알림 권한·문구·설정 화면 UX 정책" }),
+      ]),
+    });
+  });
+
   it("rejects low-score sources and persists a knowledge gap", async () => {
     const { service, persistKnowledgeGapCandidate, questionCreate, complete } = createService({
       retriever: {
@@ -198,7 +257,7 @@ describe("ChatQuestionService", () => {
             sectionTitle: "Setup",
             headingPath: ["Setup"],
             rank: 1,
-            score: 0.6,
+            score: 0.4,
           },
         ]),
       },

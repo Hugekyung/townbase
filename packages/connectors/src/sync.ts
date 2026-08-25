@@ -140,7 +140,7 @@ export const runNotionSync = async (
   try {
     const workspaceId = await upsertWorkspace(
       prisma,
-      fixture?.workspaceName ?? database.DEFAULT_WORKSPACE_NAME,
+      fixture?.workspaceName ?? database.resolveDefaultWorkspaceName(),
     );
     const dataSourceId = await upsertDataSource(
       prisma,

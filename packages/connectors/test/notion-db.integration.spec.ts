@@ -5,12 +5,14 @@ import {
   DEFAULT_WORKSPACE_NAME,
   disconnectPrismaClient,
 } from "../../database/src";
+import { assertTestDatabase } from "../../database/test/test-database-safety";
 import type { PrismaClientLike } from "../src/database-runtime";
 import { createPrismaNotionSyncStore } from "../src/notion/prisma-store";
 
 import { syncNotionPages } from "../src/notion/sync";
 
 const clearDatabase = async (prisma: ReturnType<typeof createPrismaClient>): Promise<void> => {
+  assertTestDatabase();
   await prisma.documentChunk.deleteMany();
   await prisma.document.deleteMany();
   await prisma.dataSource.deleteMany();

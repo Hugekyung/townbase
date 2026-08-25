@@ -17,8 +17,10 @@ import {
   DEFAULT_WORKSPACE_NAME,
   disconnectPrismaClient,
 } from "../src";
+import { assertTestDatabase } from "./test-database-safety";
 
 const clearDatabase = async (prisma: PrismaClient): Promise<void> => {
+  assertTestDatabase();
   await prisma.actionDraft.deleteMany();
   await prisma.knowledgeGap.deleteMany();
   await prisma.questionSource.deleteMany();
