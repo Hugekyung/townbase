@@ -9,8 +9,9 @@ Connector package for Notion and selected local repository ingestion.
 - `DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public`
 
 Database integration tests delete test data before and after each case. They refuse to
-run against a database whose name does not contain `test`. Create a separate test
-database and pass its URL when running the integration suite:
+run against a database whose name does not contain `test` as a standalone segment
+(delimited by the start, `_`, `-`, or end of the name). Create a separate test database
+and pass its URL when running the integration suite:
 
 ```bash
 createdb townbase_test

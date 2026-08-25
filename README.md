@@ -110,6 +110,21 @@ Node.js, TypeScript, pnpm, NestJS, Jest, ESLint, PostgreSQL, pgvector, Prisma, N
 
 상세 기준은 [PRD_v0_1_retrieval_modes.md](PRD_v0_1_retrieval_modes.md)와 [TASK_v0_1_retrieval_modes.md](TASK_v0_1_retrieval_modes.md)에서 확인할 수 있다.
 
+## 평가
+
+2026-08-25 기준으로 Keeply 관련 Golden Question 23개를 MCP `auto` 모드에서 평가했다.
+최종 답변은 23/23개가 기대 결론에 도달했지만, 현재 RAG source만으로 정답 문서를 찾은
+문항은 17/23개로 Hit@K 73.9%였다. 19/23개는 `sourcePacket`을 반환했으며, 나머지는
+Agent의 이전 문맥이 답변을 보완한 사례가 포함되어 있다.
+
+이번 평가는 최종 답변 성공률과 RAG 검색 성공률을 분리해야 한다는 점을 확인했다. 내용
+오답이나 비밀값 생성은 없었지만, RAG 검색이 실패한 질문에서는 사용자별 local memory에
+따라 답변 재현성이 달라질 수 있다. 후속 개선은 threshold를 무작정 낮추기보다 질문 의도·
+동의어 정규화, 문서 유형별 우선순위, `isAnswerable` 판정, 출처 없는 fallback 분리를
+우선한다.
+
+질문별 판정과 원인 분석은 [evaluation-20260825.md](evaluation-20260825.md)에서 확인할 수 있다.
+
 ## 로컬 실행
 
 필수 도구는 Node.js, pnpm, Docker다.
