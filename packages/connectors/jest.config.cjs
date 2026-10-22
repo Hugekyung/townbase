@@ -4,6 +4,6 @@ module.exports = {
   testEnvironment: "node",
   testRegex: ".*\\.spec\\.ts$",
   transform: {
-    "^.+\\.(t|j)s$": ["ts-jest", { tsconfig: "tsconfig.test.json" }],
+    "^.+\\.ts$": ["ts-jest", { tsconfig: "tsconfig.test.json" }],
   },
 };

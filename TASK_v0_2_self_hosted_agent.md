@@ -2,7 +2,7 @@
 
 > 작성일: 2026-10-21 / 재작성: 2026-10-22  
 > 기준: [기본 PRD](PRD_v0_2_self_hosted_agent.md), [선택·승인 기록](DECISIONS_v0_2_basic.md), 루트 [AGENTS.md](AGENTS.md)  
-> 상태: 기본 기능 작업 분해와 모델 외 기본 선택 확정 완료. S01·S03~S14는 사용자 위임에 따라 채택했다. S02는 도입자 Key·지원 답변 모델 선택·임베딩 small/1536 고정 정책을 반영했다. 최초 답변 모델 ID/API는 C에서 확인한다. A03 명세와 A04 실행 결과는 아래 증거를 따른다. B01 저장 기반은 로컬 구현·검증했고 사용자가 이번 변경의 main 직접 커밋·푸시를 승인했다. B02 이후는 미착수다.
+> 상태: 기본 기능 작업 분해와 모델 외 기본 선택 확정 완료. S01·S03~S14는 사용자 위임에 따라 채택했다. S02는 도입자 Key·지원 답변 모델 선택·임베딩 small/1536 고정 정책을 반영했다. 최초 답변 모델 ID/API는 C에서 확인한다. A03 명세와 A04 실행 결과는 아래 증거를 따른다. B01은 main 커밋 `80cb3ab`로 전달했다. B02 배포·초기 웹은 별도 브랜치에서 로컬 구현·검증했고 저장소 전달 대기다. 이후 단계는 미착수다.
 
 ## 0. 사용법·범위
 
@@ -61,8 +61,8 @@
 
 | 상태 | TASK | 수행·산출물 | 검증 |
 | --- | --- | --- | --- |
-| 로컬 구현·검증 / main 직접 전달 승인 | V02B-B01 | 필요한 관리자·설정·소유·중요 변경 기록의 최소 DB/migration, 비밀·파일 경계와 신규/기존 DB 적용 설계 | [설계·적용 절차](docs/implementation/v0.2-b01-storage.md)·[검증 기록](docs/implementation/v0.2-b01-verification.md). 새 DB/구버전8개 모델 보존·재실행·11개 테이블 복원/readback, 신규11개 포함149 tests. 운영 복구·로그인/파일 구현과 구분 |
-| 미착수 | V02B-B02 | API·초기 웹·DB·migration 배포, health·volume·host 노출·TLS 계약. 빌드 산출물 소비 경로 정리 | 빈 지원 환경에서 초기 화면, migration 중복 기동·실패 명시, DB 비공개 |
+| main 전달 완료 (`80cb3ab`) | V02B-B01 | 필요한 관리자·설정·소유·중요 변경 기록의 최소 DB/migration, 비밀·파일 경계와 신규/기존 DB 적용 설계 | [설계·적용 절차](docs/implementation/v0.2-b01-storage.md)·[검증 기록](docs/implementation/v0.2-b01-verification.md). 새 DB/구버전8개 모델 보존·재실행·11개 테이블 복원/readback, 신규11개 포함149 tests. 운영 복구·로그인/파일 구현과 구분 |
+| 로컬 구현·검증 / 전달 대기 | V02B-B02 | API·초기 웹·DB·migration 배포, health·volume·host 노출·TLS 계약. 빌드 산출물 소비 경로 정리 | [실행 안내](docs/self-hosted-deployment.md)·[검증 기록](docs/implementation/v0.2-b02-verification.md): Linux amd64 에뮬레이션에서 빈 volume 기동·중복/실패 차단·DB/파일 재시작 유지·실제 UI 오류/회복, 202 tests. 네이티브 장비/실제 조직 TLS는 별도 |
 | 미착수 | V02B-B03 | 최초 관리자 1회 생성·일회성 초기 토큰·동시 등록 제어 | 미인증 bootstrap 차단, 토큰 만료/재사용/경합, 완료 후 초기화 진입 닫힘 |
 | 미착수 | V02B-B04 | 로그인·logout·비밀번호 변경·세션·메일 없는 로컬 복구·중요 변경 기록 | 세션 무효화·복구 후 이전 세션 거절·데이터 보존·시도 제한 |
 | 미착수 | V02B-B05 | 서버 공통 요청자/설치 접근 검사, 기존 API/MCP/CLI 노출 목록·배포 프로필 | 문서/대화/Key/Gap/실행·파일 직접 API와 비활성 경로 차단, workspaceId 위조 거절 |
@@ -182,9 +182,10 @@ package.json 정적 목록이다. 2026-10-23에 실제 실행한 범위·제외�
 
 | 명령 | 확인 범위 |
 | --- | --- |
-| `pnpm build` | API 빌드. 모든 workspace 빌드를 대신하지 않음 |
+| `pnpm build` | database→rag-core→agent-core→connectors→API→web 빌드. B02부터 전체 배포 산출물 생성 |
 | `pnpm lint` | API lint |
 | `pnpm test` | API Jest |
+| `pnpm deploy:prepare` / `pnpm test:deployment` | 로컬 배포 secret 준비(덮어쓰기 없음) / secret·초기 설정 회귀 |
 | `pnpm --filter @townbase/rag-core build` / `pnpm --filter @townbase/rag-core test` | rag-core 빌드·계약/단위 검사 |
 | `pnpm --filter @townbase/agent-core build` / `pnpm --filter @townbase/agent-core test` | agent-core 빌드·prompt/context/citation 검사 |
 | `pnpm connectors:build` / `pnpm connectors:test` | Connector 빌드·fixture/단위 검사 |
@@ -198,4 +199,4 @@ package.json 정적 목록이다. 2026-10-23에 실제 실행한 범위·제외�
 
 각 단계 종료 시 적용 S 값·관련 TASK 상태·변경 파일·실행 명령·DB/파일/실행 ID 재조회·정상/실패 증거·남은 제한·저장소 전달 상태를 기록한다. 비밀값·사내 원문은 증거에서 제외한다. 증거 저장 위치는 구현 시작 시 정하고 문서화한다.
 
-A03 평가 명세와 A04 기존 코드 baseline 확인을 마쳤다. A 단계 준비 산출물은 갖췄으며 v0.2 제품 기능/품질 구현 완료와 구분한다. B01 저장 기반을 `codex/v02-b01-storage-foundation`에서 로컬 구현·검증했다. 사용자가 이번 변경은 main에 직접 커밋·푸시하도록 승인했으며 다음 구현은 B02 배포·초기 웹·산출물 소비 경로다. S02의 초기 답변 모델 ID/API 검증은 C에서 하며 B와 분리한다. 현재 제품 변경은 B01 Prisma schema·migration·DB 통합 테스트까지이며 인증 API/웹/파일 저장 구현은 아직 없다. 이번 전달은 사용자 요청에 따라 PR 없이 main 직접 커밋·푸시로 진행한다. 실제 전달 결과는 Git 이력으로 확인한다.
+A03/A04 준비와 B01 저장 기반을 main `80cb3ab`로 전달했다. B02는 `codex/v02-b02-deployment-foundation`에서 배포·초기 웹·산출물 소비 경로를 로컬 구현·검증했다. [B02 검증 기록](docs/implementation/v0.2-b02-verification.md)을 따르며 저장소 전달은 대기다. 다음은 B03 최초 관리자 등록이다. S02의 초기 답변 모델 ID/API 검증은 C에서 하며 B와 분리한다. 이번 작업의 commit/push/PR은 아직 수행하지 않았고 이전 main 직접 푸시 승인은 이전 작업에 대한 기록으로 유지한다.

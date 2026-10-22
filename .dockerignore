@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/coverage
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+.townbase
+.omo
+.pnpm-store
+interview.md
+repos
+docs
+fixtures
+*.log

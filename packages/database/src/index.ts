@@ -46,4 +46,4 @@ export {
   type ActionDraftQueryClient,
   type ActionDraftStatusUpdateInput,
 } from "./action-draft";
-export type { PrismaClient } from "@prisma/client";
+export { PrismaClient } from "@prisma/client";

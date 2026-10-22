@@ -4,6 +4,8 @@ Notion과 로컬 Git 저장소에 흩어진 제품·개발 문서를 한곳에 �
 
 > 현재 프로젝트 이름과 패키지 이름은 `townbase`를 사용한다. 제품 방향은 `Workspace Knowledge Agent`로 정의되어 있다.
 
+> v0.2 개발 중: Docker 기본 배포에 초기 웹·상태 확인을 추가했다. 관리자 등록·로그인·문서 업로드·독립 채팅은 아직 사용할 수 없다. [v0.2 실행 안내](docs/self-hosted-deployment.md)를 따른다. 아래 기존 수집/MCP 설명은 v0.1 개발 경로다.
+
 ## 프로젝트 개요
 
 이 프로젝트는 범용 사내 검색 AI나 Notion AI 대체재가 아니다. 개발팀이 실제로 자주 묻는 다음 질문에 집중한다.
@@ -125,14 +127,27 @@ Agent의 이전 문맥이 답변을 보완한 사례가 포함되어 있다.
 
 질문별 판정과 원인 분석은 [evaluation-20260825.md](evaluation-20260825.md)에서 확인할 수 있다.
 
-## 로컬 실행
+## v0.2 초기 웹 실행
+
+Docker와 Compose plugin이 필요하다. 저장소 루트에서 비밀 파일을 준비한 뒤 실행한다. 기존 DB는 자동 재사용하지 않는다.
+
+```bash
+node deployment/prepare.mjs
+docker compose up -d --build
+```
+
+`http://127.0.0.1:3000`에서 상태 화면을 확인한다. DB 포트는 외부에 열리지 않는다. 외부 접속/TLS와 오류 복구는 [배포 안내](docs/self-hosted-deployment.md)를 따른다.
+
+## 기존 v0.1 로컬 개발 실행
 
 필수 도구는 Node.js, pnpm, Docker다.
 
 ```bash
 cp .env.example .env
 pnpm install
-docker compose up -d
+docker compose -f compose.legacy.yml up -d
+pnpm db:generate
+pnpm build
 pnpm db:deploy
 pnpm dev
 ```

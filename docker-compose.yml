@@ -1,15 +1,73 @@
+name: townbase
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: townbase-postgres
+    platform: ${TOWNBASE_PLATFORM:-linux/amd64}
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-townbase}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-townbase}
-      POSTGRES_DB: ${POSTGRES_DB:-townbase}
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: townbase
+      POSTGRES_DB: townbase
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
     volumes:
-      - townbase-postgres-data:/var/lib/postgresql/data
+      - postgres-data-v02:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U townbase -d townbase"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migration:
+    platform: ${TOWNBASE_PLATFORM:-linux/amd64}
+    build:
+      context: .
+      target: migration
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      TOWNBASE_DEFAULT_WORKSPACE_NAME: townbase
+    secrets: [postgres_password]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    platform: ${TOWNBASE_PLATFORM:-linux/amd64}
+    build:
+      context: .
+      target: runtime
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    ports:
+      - "127.0.0.1:${TOWNBASE_PORT:-3000}:3000"
+    volumes:
+      - documents:/var/lib/townbase/documents
+      - attachments:/var/lib/townbase/attachments
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 8s
+      retries: 6
+      start_period: 10s
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
 
 volumes:
-  townbase-postgres-data:
+  postgres-data-v02:
+  documents:
+  attachments:
+
+secrets:
+  postgres_password:
+    file: ./.townbase/secrets/postgres_password

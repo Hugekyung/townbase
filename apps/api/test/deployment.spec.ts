@@ -1,0 +1,121 @@
+import { INestApplication } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
+import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import request from "supertest";
+
+import { DeploymentDatabase } from "../src/deployment/deployment-database";
+import { DeploymentModule } from "../src/deployment/deployment.module";
+import { resolveRuntimeProfile } from "../src/runtime-profile";
+
+describe("runtime profiles", () => {
+  it("defaults production to the isolated self-hosted module", () => {
+    expect(resolveRuntimeProfile({ NODE_ENV: "production" })).toBe(
+      "self_hosted",
+    );
+    expect(resolveRuntimeProfile({})).toBe("legacy_development");
+  });
+  it("rejects legacy production and unknown profiles", () => {
+    expect(() =>
+      resolveRuntimeProfile({
+        NODE_ENV: "production",
+        TOWNBASE_RUNTIME_PROFILE: "legacy_development",
+      }),
+    ).toThrow();
+    expect(() =>
+      resolveRuntimeProfile({ TOWNBASE_RUNTIME_PROFILE: "typo" }),
+    ).toThrow();
+  });
+});
+
+describe("self-hosted deployment surface", () => {
+  let app: INestApplication;
+  let directory: string;
+  const original = {
+    documents: process.env.TOWNBASE_DOCUMENTS_PATH,
+    attachments: process.env.TOWNBASE_ATTACHMENTS_PATH,
+  };
+  const check = jest.fn();
+
+  beforeEach(async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), "townbase-deployment-"));
+    process.env.TOWNBASE_DOCUMENTS_PATH = path.join(directory, "documents");
+    process.env.TOWNBASE_ATTACHMENTS_PATH = path.join(directory, "attachments");
+    await mkdir(process.env.TOWNBASE_DOCUMENTS_PATH);
+    await mkdir(process.env.TOWNBASE_ATTACHMENTS_PATH);
+    check.mockResolvedValue({ database: "ready", schema: "ready" });
+    const module = await Test.createTestingModule({
+      imports: [DeploymentModule],
+    })
+      .overrideProvider(DeploymentDatabase)
+      .useValue({ check })
+      .compile();
+    app = module.createNestApplication();
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+    await rm(directory, { recursive: true, force: true });
+    if (original.documents == null) delete process.env.TOWNBASE_DOCUMENTS_PATH;
+    else process.env.TOWNBASE_DOCUMENTS_PATH = original.documents;
+    if (original.attachments == null)
+      delete process.env.TOWNBASE_ATTACHMENTS_PATH;
+    else process.env.TOWNBASE_ATTACHMENTS_PATH = original.attachments;
+  });
+
+  it("reports infrastructure readiness without claiming signup or chat is available", async () => {
+    await request(app.getHttpServer())
+      .get("/readyz")
+      .expect(200)
+      .expect("Cache-Control", "no-store")
+      .expect({
+        database: "ready",
+        schema: "ready",
+        storage: "ready",
+        setup: "unavailable",
+        capabilities: { administratorSetup: false, chat: false },
+      });
+  });
+
+  it("returns 503 for database and migration failures", async () => {
+    check.mockResolvedValue({ database: "unavailable", schema: "unavailable" });
+    await request(app.getHttpServer()).get("/readyz").expect(503);
+    check.mockResolvedValue({ database: "ready", schema: "unavailable" });
+    await request(app.getHttpServer()).get("/readyz").expect(503);
+    await request(app.getHttpServer()).get("/health").expect(200);
+  });
+
+  it("returns 503 for missing or shared storage", async () => {
+    process.env.TOWNBASE_ATTACHMENTS_PATH = path.join(directory, "missing");
+    await request(app.getHttpServer()).get("/readyz").expect(503);
+    process.env.TOWNBASE_ATTACHMENTS_PATH = process.env.TOWNBASE_DOCUMENTS_PATH;
+    await request(app.getHttpServer()).get("/readyz").expect(503);
+    const nested = path.join(process.env.TOWNBASE_DOCUMENTS_PATH!, "..nested");
+    await mkdir(nested);
+    process.env.TOWNBASE_ATTACHMENTS_PATH = nested;
+    await request(app.getHttpServer()).get("/readyz").expect(503);
+    const alias = path.join(directory, "alias");
+    await symlink(process.env.TOWNBASE_DOCUMENTS_PATH!, alias);
+    process.env.TOWNBASE_ATTACHMENTS_PATH = alias;
+    await request(app.getHttpServer()).get("/readyz").expect(503);
+  });
+
+  it("does not register legacy ingestion, gap, draft or MCP routes", async () => {
+    await request(app.getHttpServer())
+      .post("/admin/sync/repos")
+      .send({})
+      .expect(404);
+    await request(app.getHttpServer())
+      .post("/admin/sync/notion")
+      .send({})
+      .expect(404);
+    await request(app.getHttpServer()).get("/knowledge-gaps").expect(404);
+    await request(app.getHttpServer())
+      .post("/knowledge-gaps/id/draft")
+      .send({})
+      .expect(404);
+    await request(app.getHttpServer()).post("/mcp").send({}).expect(404);
+  });
+});

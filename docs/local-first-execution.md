@@ -30,7 +30,7 @@ Use `.env.example` as the starting point. The main variables are:
 ## 3. Local bootstrap
 
 ```bash
-docker compose up -d
+docker compose -f compose.legacy.yml up -d
 pnpm install
 DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public pnpm --filter @townbase/database prisma:migrate:deploy
 pnpm --filter @townbase/api dev
