@@ -6,20 +6,23 @@
 
 ## 기준 문서
 
-- `PRD_v0_1_retrieval_modes.md`와 `TASK_v0.1_updated.md`를 제품 및 구현의 1차 기준으로 본다.
-- 이 저장소의 다른 구버전 계획 문서와 충돌하면 updated 버전을 우선한다.
+- v0.2 신규 개발은 `PRD_v0_2_self_hosted_agent.md`와 `TASK_v0_2_self_hosted_agent.md`를 1차 기준으로 본다. 구체적인 선택·수치·승인 상태는 `DECISIONS_v0_2_basic.md`를 확인한다.
+- `PRD_v0_1_retrieval_modes.md`와 `TASK_v0.1_updated.md`는 기존 구현·retrieval mode·평가의 회귀 기준으로 유지한다. 신규 출시 범위는 현재 기본 v0.2 PRD를 우선한다.
+- `PRD_v0_2_full_scope_reference.md`와 `TASK_v0_2_full_scope_reference.md`는 과거 범위 보관용이다. `PRD_v0_2_scope_review.md`의 추가 기능도 구현 여부가 미정인 후보이며 실행 요구로 취급하지 않는다.
 - 문서에 근거하지 않은 제품 동작은 임의로 추가하지 않는다.
 
 ## 제품 범위
 
-- v0.1에서는 local-first 및 self-hosted 방향을 유지한다.
+- local-first 및 self-hosted 방향을 유지한다. 한 설치를 한 조직 또는 개인이 관리한다.
 - 오픈소스 도구라는 성격을 유지한다.
-- 범위는 Notion + 로컬 Git 저장소 수집, 메타데이터 기반 retrieval mode, 출처 기반 Q&A, Knowledge Gap 추적, draft 생성에 한정한다.
-- SaaS, 멀티테넌시, Slack bot, GitHub App/OAuth 기반 issue 자동화, Redis/BullMQ, worker 분리, 외부 클라우드 배포는 문서가 명시적으로 갱신되기 전까지 비범위로 둔다.
+- v0.2 기본은 단일 관리자 인증·파일 등록/색인/삭제·수동 실행/이력·기본 Agent 한 개·독립 출처 답변/거절/Gap·일회성 첨부·웹·기본 보안/운영/복구다. 세부 범위는 B01~B14를 따른다.
+- 회원가입·메일 인증·예약 동기화·새 문서 서비스·Slack·다중 Agent·그룹/문서별 권한은 기본 기능의 선행 조건이나 완료 조건이 아니다.
+- 기존 Notion·로컬 Git·MCP·draft 계약은 보존한다. 기본 운영 배포의 노출 여부는 선택 기록의 승인값을 따른다. 노출 경로는 인증·접근·전송·삭제/보관 보호가 필요하며 보호하지 못하면 비활성화한다.
+- SaaS·멀티테넌시·전체 코드 색인·무제한 자율 실행·임의 플러그인 실행은 비범위다. Redis/BullMQ·별도 worker·외부 클라우드 배포를 기본 구현에 자동 추가하지 않는다.
 
-## Retrieval Mode 규칙(P0 구현 단계에서는 제외)
+## Retrieval Mode 규칙
 
-- v0.1 모드는 문서에 정의된 것만 지원한다: `auto`, `onboarding`, `product_history`, `documentation_gap`.
+- 기존 mode 계약을 유지한다: `auto`, `onboarding`, `product_history`, `documentation_gap`. 별도 새 모드나 고도화를 기본 기능에 임의 추가하지 않는다.
 - `change_impact`는 향후 확장 옵션으로만 둔다.
 - retrieval mode는 단순 UI 라벨이 아니라 출처 선택, prompt 전략, 답변 형식에 모두 영향을 주어야 한다.
 - `auto`는 우선 규칙 기반이어야 하며, 애매한 기본값처럼 동작하면 안 된다.
@@ -34,6 +37,14 @@
 - 요구사항에 `create`, `save`, `store`, `persist`, `write`, `generate`가 포함되면 계산/판정 신호만으로 끝내지 말고 실제 저장 경로와 readback 검증까지 포함한다.
 - `signal`, `candidate`, `shouldCreate*` 계열은 중간 산출물로만 취급하고, 완료 기준은 persisted row 또는 관측 가능한 side effect여야 한다.
 
+## 일회성 첨부와 접근 보호
+
+- 관리자 문서 등록과 채팅 첨부는 별도 경로다. 첨부 원문·추출문·요약·초안·답변·파생 질의·후속 대화를 공용 RAG·임베딩·벡터·Gap·draft·평가 데이터로 자동 전파하지 않는다. 외부 file-search/vector-store도 자동 생성하지 않는다.
+- 생성한 첨부 요약·초안·답변은 소유자 전용 대화/작업 결과로 실제 저장·재조회한다. 공용 ActionDraft 저장과 구분하고 보관·삭제 승인값을 적용한다.
+- 임시 파일·추출 데이터는 지속 자료와 분리하고 만료·물리 삭제·백업 제외를 검증한다. RAG와 함께 쓰면 사용자가 별도로 입력한 검색 질문만 임베딩에 전달한다.
+- 서버는 요청자·설치·자료/작업 범위를 검사한다. `workspaceId`는 인증 수단이 아니며 단일 관리자라도 접근 검사를 생략하지 않는다.
+- 외부 전송은 임베딩·답변·첨부·노출된 MCP/draft를 포함해 호출 전에 검사한다. self-hosted를 외부 미전송으로 설명하지 않는다.
+
 ## 개발 제한
 
 - retrieval pipeline을 이해 가능하게 유지하는 작은 단위의 변경을 우선한다.
@@ -41,6 +52,20 @@
 - 출처 기반 원칙을 약화시켜 답변이 더 그럴듯해 보이게 만들지 않는다.
 - 근거 부족을 숨기는 조용한 대체 동작을 추가하지 않는다.
 - 향후 코드도 로컬 Docker 우선 실행과 충돌하지 않게 유지한다.
+- 현재 필요한 책임·입력/결과·접근/전송·소유/보관 경계만 나눈다. 미래 기능용 테이블·범용 플러그인·분산 큐를 선개발하지 않는다. 실제 요구에 따라 작은 리팩터링과 migration으로 확장한다.
+- 도입자 Key로 검증된 지원 답변 모델을 선택하게 한다. 임베딩은 `text-embedding-3-small`·1536차원 고정이며 관리자 화면/API에서 변경하지 못한다. Key 교체와 모델 변경을 구분한다. 임베딩 모델 변경은 제품 업그레이드·재색인·품질/복구 시험으로만 다룬다.
+- 운영에서 hash/fake embedding·다른 모델·인증 생략으로 조용히 대체하지 않는다. 모델 장애·전송 불허·문서 부족을 구분한다.
+
+## 실제 실행 명령과 적용 상태
+
+- 현재 루트 script는 `pnpm build`(API), `pnpm lint`(API), `pnpm test`(API), `pnpm connectors:build`, `pnpm connectors:test`, `pnpm db:generate`, `pnpm db:validate`, `pnpm db:test`, `pnpm db:deploy`다. 패키지별 build/test는 해당 package.json을 확인한다.
+- DB 변경·테스트는 대상 환경을 먼저 확인한다. `db:deploy`는 읽기 검사가 아니라 migration 실행이다. 운영 DB에 무단 적용하지 않는다.
+- B01 설치/관리자/감사 저장 기반은 `docs/implementation/v0.2-b01-storage.md`를 따른다. custom SQL CHECK를 포함하므로 Prisma schema만으로 DB를 만드는 `db push`로 migration을 대체하지 않는다. 현재 로그인/API 보호 구현 완료와 구분한다.
+- database 패키지의 DB 없는 단위 시험은 `--testPathIgnorePatterns=integration.spec.ts`로 전체 DB 통합 suite를 제외한다. 특정 옛 파일 하나만 제외하면 새 통합 시험이 남는다.
+- 현재 Compose의 DB 실행과 목표인 앱·웹·DB 묶음 배포를 구분한다. 아직 구현하지 않은 웹/E2E/복구 script를 실행 가능한 것으로 문서화하지 않는다.
+- v0.2 평가 명세/합성 문서·120문항은 `docs/evaluation/v0.2/README.md`를 따른다. A04 실행/미실행 결과는 같은 경로의 `baseline-2026-10-23.md`를 확인한다.
+- 기본 TASK의 문서 완료와 코드/실모델/품질 검증 완료를 구분한다. 추천 S 값은 승인 전 기본값이 아니며 해당 작업 착수 전에 결정한다.
+- 2026-10-22 사용자는 모델 외 기본 기술·수치 선택을 판단해 확정하도록 위임했다. `DECISIONS_v0_2_basic.md`의 S01·S03~S14를 적용하고 동일 항목의 승인을 반복 요청하지 않는다. 파서 버전·TLS 구성 등 범위 내 구현 세부는 공식 지원·현재 코드와 맞춰 기록한다. S02 답변 모델 전환·제품 범위 확대·보호 약화·외부 공개·커밋/푸시 승인은 이 위임과 구분한다.
 
 ## 반복 리뷰 주의
 

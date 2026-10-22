@@ -83,6 +83,69 @@ enum ActionDraftStatus {
   discarded
 }
 
+enum AuditActorType {
+  server
+  administrator
+}
+
+enum InstallationAuditAction {
+  installation_created
+  installation_settings_changed
+  administrator_created
+}
+
+enum AuditOutcome {
+  succeeded
+  failed
+}
+
+// SQL CHECK restricts this table to the single "primary" installation.
+// Existing workspaces are linked explicitly at setup, never during migration.
+model Installation {
+  id                  String                   @id @default("primary")
+  workspaceId         String                   @unique
+  name                String                   @db.VarChar(128)
+  timeZone            String                   @db.VarChar(64)
+  initializedAt       DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  workspace           Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  administrator       Administrator?
+  auditEvents         InstallationAuditEvent[]
+}
+
+model Administrator {
+  id                  String                   @id @default(cuid())
+  installationId      String                   @unique
+  username            String                   @db.VarChar(128)
+  passwordHash        String                   @db.VarChar(512)
+  disabledAt          DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  installation        Installation             @relation(fields: [installationId], references: [id], onDelete: Restrict)
+  auditEvents         InstallationAuditEvent[]
+
+  @@unique([installationId, id])
+}
+
+// No free-form payload: passwords, API keys, questions and file bodies do not
+// belong in the audit trail. Extend typed actions alongside their feature.
+model InstallationAuditEvent {
+  id                    String                  @id @default(cuid())
+  installationId        String
+  actorType             AuditActorType
+  actorAdministratorId  String?
+  action                InstallationAuditAction
+  outcome               AuditOutcome
+  requestId             String                  @db.VarChar(128)
+  occurredAt            DateTime                @default(now())
+  installation          Installation            @relation(fields: [installationId], references: [id], onDelete: Restrict)
+  actorAdministrator    Administrator?          @relation(fields: [installationId, actorAdministratorId], references: [installationId, id], onDelete: Restrict)
+
+  @@index([installationId, occurredAt])
+  @@index([installationId, requestId])
+}
+
 model Workspace {
   id              String           @id @default(cuid())
   name            String           @unique
@@ -95,6 +158,7 @@ model Workspace {
   questionSources QuestionSource[]
   knowledgeGaps   KnowledgeGap[]
   actionDrafts    ActionDraft[]
+  installation    Installation?
 }
 
 model DataSource {
