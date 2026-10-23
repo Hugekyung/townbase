@@ -22,6 +22,7 @@ RUN pnpm --filter @townbase/api deploy --legacy --prod /out/api
 RUN node deployment/copy-prisma-client.mjs /out/api
 
 FROM build AS migration
+USER node
 CMD ["node", "deployment/migrate.mjs"]
 
 FROM base AS runtime

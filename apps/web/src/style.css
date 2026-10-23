@@ -95,7 +95,7 @@ h1 {
   gap: 16px;
 }
 .section-label {
-  color: #6f7c73;
+  color: #5f6c63;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.3px;
@@ -141,7 +141,7 @@ button:disabled {
 }
 .check-number {
   font-size: 11px;
-  color: #7c8c80;
+  color: #5f6c63;
   background: #f3f5f0;
   padding: 10px 8px;
   border-radius: 8px;
@@ -178,7 +178,7 @@ h3 {
   background: #edf5eb;
 }
 .pending {
-  color: #67756c;
+  color: #5f6c63;
   background: #f2f3f0;
 }
 .error {
@@ -217,7 +217,7 @@ h3 {
   font-size: 16px;
 }
 .next-panel p {
-  color: #68756c;
+  color: #5f6c63;
   font-size: 12px;
   line-height: 1.9;
   margin: 11px 0 0;
@@ -234,12 +234,12 @@ h3 {
 footer {
   display: flex;
   gap: 16px;
-  color: #7b897e;
+  color: #5f6c63;
   font-size: 11px;
   padding: 30px 2px 40px;
 }
 footer span {
-  color: #65756a;
+  color: #5f6c63;
 }
 @media (max-width: 600px) {
   .shell {

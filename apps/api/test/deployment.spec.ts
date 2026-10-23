@@ -1,6 +1,7 @@
 import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, readdir } from "node:fs/promises";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import request from "supertest";
@@ -8,6 +9,7 @@ import request from "supertest";
 import { DeploymentDatabase } from "../src/deployment/deployment-database";
 import { DeploymentModule } from "../src/deployment/deployment.module";
 import { resolveRuntimeProfile } from "../src/runtime-profile";
+import { ChatMcpServer } from "../src/chat/chat.server";
 
 describe("runtime profiles", () => {
   it("defaults production to the isolated self-hosted module", () => {
@@ -56,6 +58,7 @@ describe("self-hosted deployment surface", () => {
   });
 
   afterEach(async () => {
+    jest.restoreAllMocks();
     await app.close();
     await rm(directory, { recursive: true, force: true });
     if (original.documents == null) delete process.env.TOWNBASE_DOCUMENTS_PATH;
@@ -102,6 +105,38 @@ describe("self-hosted deployment surface", () => {
     await request(app.getHttpServer()).get("/readyz").expect(503);
   });
 
+  it("removes successful write probes from both storage directories", async () => {
+    await request(app.getHttpServer()).get("/readyz").expect(200);
+    expect(await readdir(process.env.TOWNBASE_DOCUMENTS_PATH!)).toEqual([]);
+    expect(await readdir(process.env.TOWNBASE_ATTACHMENTS_PATH!)).toEqual([]);
+  });
+
+  it("rejects full storage even when directory permissions allow access", async () => {
+    jest
+      .spyOn(fs, "open")
+      .mockRejectedValueOnce(
+        Object.assign(new Error("private-path-canary"), { code: "ENOSPC" }),
+      );
+    const response = await request(app.getHttpServer())
+      .get("/readyz")
+      .expect(503);
+    expect(response.body.storage).toBe("unavailable");
+    expect(JSON.stringify(response.body)).not.toContain("private-path-canary");
+  });
+
+  it("closes and deletes a probe when writing fails after creating it", async () => {
+    const originalOpen = fs.open;
+    jest.spyOn(fs, "open").mockImplementationOnce(async (...args) => {
+      const file = await originalOpen(...args);
+      jest
+        .spyOn(file, "writeFile")
+        .mockRejectedValueOnce(new Error("disk-full"));
+      return file;
+    });
+    await request(app.getHttpServer()).get("/readyz").expect(503);
+    expect(await readdir(process.env.TOWNBASE_DOCUMENTS_PATH!)).toEqual([]);
+  });
+
   it("does not register legacy ingestion, gap, draft or MCP routes", async () => {
     await request(app.getHttpServer())
       .post("/admin/sync/repos")
@@ -117,5 +152,6 @@ describe("self-hosted deployment surface", () => {
       .send({})
       .expect(404);
     await request(app.getHttpServer()).post("/mcp").send({}).expect(404);
+    expect(() => app.get(ChatMcpServer, { strict: false })).toThrow();
   });
 });

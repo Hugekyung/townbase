@@ -6,12 +6,14 @@
 
 지원 검증 목표는 Linux x86_64, 4 vCPU·8GiB RAM·40GiB 여유 공간이다. Docker Engine/Desktop·Compose plugin과 이미지/패키지 다운로드 연결이 필요하다. Node를 설치하지 않았다면 비밀 파일 준비만 아래 컨테이너 명령을 사용한다.
 
+설치마다 고유한 프로젝트 이름(예: `my-townbase`)을 정한다. 아래 모든 명령의 `my-townbase`를 해당 이름으로 바꾸고, 재시작·로그·종료·업그레이드에도 같은 `-p`를 사용한다. 같은 서버에 두 번째 설치를 만들 때는 프로젝트 이름과 호스트 포트를 모두 다르게 지정한다. 이름을 생략하면 설치 디렉터리 이름이 사용되므로 같은 이름의 디렉터리끼리도 충돌할 수 있다.
+
 저장소 루트에서:
 
 ```bash
 node deployment/prepare.mjs
-docker compose up -d --build
-docker compose ps -a
+docker compose -p my-townbase up -d --build --wait --wait-timeout 180
+docker compose -p my-townbase ps -a
 curl -f http://127.0.0.1:3000/readyz
 ```
 
@@ -21,7 +23,9 @@ Node가 없는 호스트의 비밀 파일 준비 대안:
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" -w /workspace node:24.19.0-bookworm-slim node deployment/prepare.mjs
 ```
 
-브라우저에서 `http://127.0.0.1:3000`을 연다. 포트 변경은 `TOWNBASE_PORT=3100 docker compose up -d --build`. 기본 컨테이너 아키텍처는 `linux/amd64`다. ARM 개발 장비에서 에뮬레이션 없이 시험하려면 `TOWNBASE_PLATFORM=linux/arm64`를 명시하되 별도 지원 검증으로 구분한다.
+브라우저에서 `http://127.0.0.1:3000`을 연다. 포트 변경은 `TOWNBASE_PORT=3100 docker compose -p my-townbase up -d --build --wait --wait-timeout 180`. 이 경우 브라우저와 상태 확인 주소도 `http://127.0.0.1:3100`으로 바꾼다. 기본 컨테이너 아키텍처는 `linux/amd64`다. ARM 개발 장비에서 에뮬레이션 없이 시험하려면 `TOWNBASE_PLATFORM=linux/arm64`를 명시하되 별도 지원 검증으로 구분한다.
+
+기존 PR #34 초기 버전을 `townbase` 프로젝트로 시험했다면 새 이름으로 옮기지 말고 `-p townbase`를 계속 사용한다. 이름을 바꾸면 다른 volume을 참조해 데이터가 사라진 것처럼 보일 수 있다. 기존 DB·비밀 파일은 유지한 채 준비 명령을 재실행해 API용 비밀 파일을 추가하고, 업데이트한 migration을 실행한다. migration 완료 뒤 API 컨테이너도 재생성해야 새 제한 계정과 secret mount가 적용된다. `down -v`로 초기화하지 않는다.
 
 ## 2. 기동과 공개 범위
 
@@ -36,23 +40,24 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" -w /workspace no
 | 위치 | 내용·처리 |
 | --- | --- |
 | `.townbase/secrets/postgres_password` | 최초 준비 시 32-byte 난수 생성. 재실행해도 덮어쓰지 않음. 상위 폴더0700, 파일 읽기 전용. 호스트에서 상위 폴더 권한 유지 필수 |
-| Compose secret `/run/secrets/postgres_password` | DB/migration/API에만 읽기 전용 마운트. API·migration은 여기서 DB URL을 구성하고 URL 자체를 로그에 출력하지 않음 |
+| Compose secret `/run/secrets/postgres_password` | DB/migration에만 읽기 전용 마운트. API에는 전달하지 않음 |
+| `.townbase/secrets/runtime_password` → `/run/secrets/runtime_password` | 별도 32-byte 난수. migration/API에만 읽기 전용 마운트. API는 제한 계정 URL을 구성하고 로그에 출력하지 않음. 재실행 시 값 보존·파일0444·상위 폴더0700 |
 | `postgres-data-v02` volume | 기존 v0.1 DB volume과 다름. 기존 DB에 새 비밀번호로 자동 연결하거나 데이터를 자동 가져오지 않음 |
 | `documents` volume | 지속 문서용. 원본 API/수집은 이후 구현하며 지금 정적 웹에 공개하지 않음 |
 | `attachments` volume | 일회성 첨부용, 지속 문서와 별도 경로/volume. 백업 제외·만료 삭제는 F/I에서 구현 |
 
 `.env`나 API Key·고객 파일을 Docker 이미지에 넣지 않는다. `.dockerignore`는 `.env*`(예시 제외)·`.townbase`·repos·fixtures·로컬 node_modules/dist를 제외한다. API Key/master key와 관리자 복구 토큰 저장은 B03/B04/C에서 추가한다. 현재 DB secret을 잃어버려도 기존 DB가 자동 초기화되거나 비밀번호가 자동 교체되지는 않는다. 별도 안전한 위치에 보관하고 분실 시 운영자가 DB 복구 절차를 수행해야 한다.
 
-`docker compose down`은 volume을 남긴다. **`down -v`는 DB와 파일 volume을 삭제하므로 운영 자료에 사용하지 않는다.** 코드 업데이트/배포 전 백업은 여전히 운영자 책임이며 자동 백업 기능은 없다.
+`docker compose -p my-townbase down`은 volume을 남긴다. **`down -v`는 DB와 파일 volume을 삭제하므로 운영 자료에 사용하지 않는다.** 코드 업데이트/배포 전 백업은 여전히 운영자 책임이며 자동 백업 기능은 없다.
 
-업그레이드는 쓰기를 중단하고 백업한 뒤 `docker compose stop api` → `docker compose up -d --build`로 수행한다. 이미 실행 중인 구버전 API가 migration 실패 시 자동으로 중지되는 것은 아니다. 준비 상태 확인 후에만 reverse proxy로 다시 공개한다.
+업그레이드는 쓰기를 중단하고 백업한 뒤 `docker compose -p my-townbase stop api` → `docker compose -p my-townbase up -d --build --wait --wait-timeout 180`로 수행한다. 이미 실행 중인 구버전 API가 migration 실패 시 자동으로 중지되는 것은 아니다. 준비 상태 확인 후에만 reverse proxy로 다시 공개한다.
 
 ## 4. 실패 확인과 재실행
 
 ```bash
-docker compose ps -a
-docker compose logs --tail=60 migration api
-docker compose up -d --build
+docker compose -p my-townbase ps -a
+docker compose -p my-townbase logs --tail=60 migration api
+docker compose -p my-townbase up -d --build --wait --wait-timeout 180
 ```
 
 - secret 미준비: `node deployment/prepare.mjs`. 기존 파일을 삭제해서 해결하지 않는다.
@@ -90,13 +95,22 @@ server {
 기존 localhost5432 DB·Notion/Git·MCP 개발은 `compose.legacy.yml`을 사용한다. v0.1용 `.env`는 이 경로에 속한다.
 
 ```bash
-docker compose -f compose.legacy.yml up -d
+docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm install --frozen-lockfile
 pnpm db:generate
 pnpm build
+pnpm db:deploy
 pnpm dev
 ```
 
 root `pnpm build`는 database→rag-core→agent-core→connectors→API→web 순서로 빌드한다. 패키지 직접 실행 전에도 필요한 dist가 있어야 한다. v0.1 CLI/fixture 회귀와 운영 프로필 노출 승인은 별개다.
 
 공식 참고: [Compose 기동 조건](https://docs.docker.com/compose/how-tos/startup-order/), [Compose secrets](https://docs.docker.com/reference/compose-file/secrets/), [pnpm Docker](https://pnpm.io/docker), [Vite 실행 요건](https://vite.dev/guide/). 파일 기반 Compose secret의 uid/gid/mode 재매핑을 신뢰하지 않고 호스트 상위 디렉터리와 서비스별 마운트로 접근을 제한한다.
+
+## PR #34 리뷰 보완 계약
+
+- DB 소유자 `townbase`와 API 계정 `townbase_runtime`을 분리한다. `postgres_password`는 DB·migration에만, 별도 `runtime_password`는 migration·API에만 마운트한다. API는 B02 상태 확인에 필요한 네 테이블 SELECT와 DB 연결·schema USAGE만 허용한다. 테이블 생성·수정·삭제, 역할 관리, migration 실행 권한은 주지 않는다. 이후 기능에서 필요한 권한은 해당 변경과 함께 명시적으로 추가한다.
+- migration이 실행 잠금 안에서 제한 계정을 생성/갱신하고 기존 직접 권한·역할 membership을 정리한다. API 계정 비밀번호는 보호된 파일에서 읽으며 로그에 남기지 않는다. 기존 DB 비밀번호는 자동 변경하지 않는다. 비밀 파일을 분실했을 때 새로 생성해 기존 DB가 복구된다고 가정하지 않는다.
+- API와 migration은 모두 node 사용자·읽기 전용 root·capability 제거·권한 상승 금지로 실행한다. migration의 임시 캐시는 `/tmp` tmpfs에 둔다. 비밀 파일은 새 생성과 재실행 모두 `0444`, 상위 디렉터리는 `0700`을 적용하며 값은 보존한다.
+- `/readyz`는 두 저장소 각각에서 임의 이름의 작은 파일을 배타 생성·쓰기·동기화·삭제한 뒤 준비 완료를 표시한다. 검사 순간의 쓰기 가능 여부이며 이후 모든 저장의 성공을 보장하지 않는다. DB 확인 도중 실패하면 연결을 다시 확인해 구조 오류와 연결 장애를 구분한다.
+- 시작 오류는 실패 단계와 허용된 OS 오류 코드만 기록한다. 예: `listen:EADDRINUSE`, `web-artifacts:ENOENT`. 메시지·stack·경로·연결 문자열은 출력하지 않는다.

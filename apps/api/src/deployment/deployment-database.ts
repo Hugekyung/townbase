@@ -53,7 +53,13 @@ export class DeploymentDatabase implements OnApplicationShutdown {
         !unfinished;
       return { database: "ready", schema: ready ? "ready" : "unavailable" };
     } catch {
-      return { database: "ready", schema: "unavailable" };
+      // Schema/filesystem errors and a connection lost mid-probe are distinct.
+      try {
+        await this.prisma.$queryRaw`SELECT 1`;
+        return { database: "ready", schema: "unavailable" };
+      } catch {
+        return { database: "unavailable", schema: "unavailable" };
+      }
     }
   }
 

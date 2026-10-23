@@ -1,5 +1,13 @@
 import { Controller, Get, Header, Res } from "@nestjs/common";
-import { access, constants, realpath, stat } from "node:fs/promises";
+import {
+  access,
+  constants,
+  realpath,
+  stat,
+  open,
+  unlink,
+} from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { DeploymentDatabase } from "./deployment-database";
 
@@ -52,6 +60,23 @@ export class ReadinessController {
       );
       if (stats.some((entry) => !entry.isDirectory()))
         throw new Error("Storage must be directories");
+      for (const location of resolved) {
+        const filename = path.join(
+          location,
+          `.townbase-readiness-${randomUUID()}`,
+        );
+        const file = await open(filename, "wx", 0o600);
+        try {
+          await file.writeFile("ready");
+          await file.sync();
+        } finally {
+          try {
+            await file.close();
+          } finally {
+            await unlink(filename);
+          }
+        }
+      }
       storage = "ready";
     } catch {
       // Return state only. Filesystem paths, credentials and DB errors stay private.

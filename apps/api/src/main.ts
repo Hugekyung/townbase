@@ -9,19 +9,25 @@ import path from "node:path";
 import { DeploymentModule } from "./deployment/deployment.module";
 import { parsePort } from "./port";
 import { resolveRuntimeProfile } from "./runtime-profile";
+import { startupFailure, type StartupStage } from "./startup-failure";
+
+let startupStage: StartupStage = "runtime-profile";
 
 async function bootstrap(): Promise<void> {
   const profile = resolveRuntimeProfile(process.env);
+  startupStage = "module-loading";
   const rootModule =
     profile === "self_hosted"
       ? DeploymentModule
       : (await import("./app.module")).AppModule;
+  startupStage = "application";
   const app = await NestFactory.create<NestExpressApplication>(rootModule, {
     logger: ["error", "warn", "log"],
   });
   app.enableShutdownHooks();
 
   if (profile === "self_hosted") {
+    startupStage = "web-artifacts";
     const webRoot = path.resolve(__dirname, "../../web/dist");
     await access(path.join(webRoot, "index.html"));
     app.use(
@@ -42,15 +48,15 @@ async function bootstrap(): Promise<void> {
     app.useStaticAssets(webRoot, { dotfiles: "deny", index: "index.html" });
   }
 
+  startupStage = "port-configuration";
   const port = parsePort(process.env.PORT);
 
+  startupStage = "listen";
   await app.listen(port, process.env.HOST ?? "127.0.0.1");
   Logger.log(`townbase API listening on port ${port}`);
 }
 
-void bootstrap().catch(() => {
-  Logger.error(
-    "Townbase startup failed. Check runtime profile, web build and deployment configuration.",
-  );
+void bootstrap().catch((error: unknown) => {
+  Logger.error(startupFailure(startupStage, error));
   process.exit(1);
 });

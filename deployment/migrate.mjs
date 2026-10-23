@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { promisify } from "node:util";
 import { databaseEnvironment } from "./database-env.mjs";
+import { configureRuntimeRole } from "./runtime-role.mjs";
 
 let prisma;
 try {
@@ -32,6 +33,7 @@ try {
         create: { name },
         update: {},
       });
+      await configureRuntimeRole(tx);
     },
     { timeout: 300000, maxWait: 10000 },
   );

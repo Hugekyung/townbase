@@ -76,9 +76,20 @@ describe("deployment migration readiness", () => {
     query
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([finished])
-      .mockRejectedValueOnce(new Error("secret-canary"));
+      .mockRejectedValueOnce(new Error("secret-canary"))
+      .mockResolvedValueOnce([]);
     await expect(service.check()).resolves.toEqual({
       database: "ready",
+      schema: "unavailable",
+    });
+  });
+  it("reports a connection lost after the first successful probe as unavailable", async () => {
+    query
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("connection-lost-secret-canary"))
+      .mockRejectedValueOnce(new Error("connection-lost-secret-canary"));
+    await expect(service.check()).resolves.toEqual({
+      database: "unavailable",
       schema: "unavailable",
     });
   });

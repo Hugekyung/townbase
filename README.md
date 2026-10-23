@@ -129,11 +129,11 @@ Agent의 이전 문맥이 답변을 보완한 사례가 포함되어 있다.
 
 ## v0.2 초기 웹 실행
 
-Docker와 Compose plugin이 필요하다. 저장소 루트에서 비밀 파일을 준비한 뒤 실행한다. 기존 DB는 자동 재사용하지 않는다.
+Docker와 Compose plugin이 필요하다. 아래 준비 명령에는 Node.js가 필요하며, Node가 없는 호스트는 [컨테이너 준비 대안](docs/self-hosted-deployment.md#1-첫-실행)을 사용한다. 기존 v0.1 DB volume은 자동 재사용하지 않으며 같은 프로젝트의 v0.2 volume은 재실행 시 유지한다. 설치마다 고유한 Compose 프로젝트 이름을 정하고 이후에도 같은 이름을 사용한다.
 
 ```bash
 node deployment/prepare.mjs
-docker compose up -d --build
+docker compose -p my-townbase up -d --build --wait --wait-timeout 180
 ```
 
 `http://127.0.0.1:3000`에서 상태 화면을 확인한다. DB 포트는 외부에 열리지 않는다. 외부 접속/TLS와 오류 복구는 [배포 안내](docs/self-hosted-deployment.md)를 따른다.
@@ -145,7 +145,7 @@ docker compose up -d --build
 ```bash
 cp .env.example .env
 pnpm install
-docker compose -f compose.legacy.yml up -d
+docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm db:generate
 pnpm build
 pnpm db:deploy
