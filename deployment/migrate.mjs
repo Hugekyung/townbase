@@ -38,7 +38,12 @@ try {
     { timeout: 300000, maxWait: 10000 },
   );
   console.log("Database migrations and workspace seed completed.");
-} catch {
+} catch (error) {
+  if (error?.code === "TOWNBASE_UNSAFE_RUNTIME_GRANTS") {
+    console.error(
+      "TOWNBASE_UNSAFE_RUNTIME_GRANTS: inspect PUBLIC table/column/sequence grants and migration-owner global/public default grants before retrying. No runtime permission changes were committed.",
+    );
+  }
   // Do not echo CLI/connection errors which may contain credentials.
   console.error(
     "Database preparation failed. Check database health, migration state and concurrent runners before retrying.",

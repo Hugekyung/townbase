@@ -35,4 +35,36 @@ export async function configureRuntimeRole(tx, env = process.env) {
     await tx.$executeRawUnsafe(sql);
   await tx.$executeRaw`GRANT USAGE ON SCHEMA public TO townbase_runtime`;
   await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent" TO townbase_runtime`;
+  // Direct REVOKEs do not override PUBLIC or future default grants. Refuse an
+  // unsafe reused DB rather than silently changing grants for other consumers.
+  const [grants] = await tx.$queryRaw`SELECT
+    has_schema_privilege('townbase_runtime', 'public', 'CREATE')
+    OR has_database_privilege('townbase_runtime', current_database(), 'CREATE,TEMPORARY')
+    OR EXISTS (
+      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE CASE WHEN n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f') THEN (
+        has_table_privilege('townbase_runtime', c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+        OR has_any_column_privilege('townbase_runtime', c.oid, 'INSERT,UPDATE,REFERENCES')
+        OR (c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent')
+          AND (has_table_privilege('townbase_runtime', c.oid, 'SELECT')
+            OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT')))
+      ) ELSE false END
+    )
+    OR EXISTS (
+      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE CASE WHEN n.nspname = 'public' AND c.relkind = 'S'
+        THEN has_sequence_privilege('townbase_runtime', c.oid, 'SELECT,USAGE,UPDATE')
+        ELSE false END
+    )
+    OR EXISTS (
+      SELECT 1 FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) acl
+      WHERE d.defaclrole = current_user::regrole AND d.defaclobjtype IN ('r', 'S')
+      AND (d.defaclnamespace = 0 OR d.defaclnamespace = 'public'::regnamespace)
+      AND acl.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = 'townbase_runtime'))
+    ) AS unsafe`;
+  if (grants.unsafe) {
+    throw Object.assign(new Error("Unsafe runtime database privileges"), {
+      code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
+    });
+  }
 }

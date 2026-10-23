@@ -59,10 +59,11 @@
 ## 실제 실행 명령과 적용 상태
 
 - 현재 루트 script는 `pnpm build`(공유 패키지→API→웹), `pnpm lint`(API), `pnpm test`(API), `pnpm connectors:build`, `pnpm connectors:test`, `pnpm db:generate`, `pnpm db:validate`, `pnpm db:test`, `pnpm db:deploy`, `pnpm deploy:prepare`, `pnpm test:deployment`다. 패키지별 build/test는 해당 package.json을 확인한다.
+- 배포 권한 DB 통합 시험은 `deployment/test/runtime-role.integration.mjs`다. 일반 `pnpm test:deployment`에는 포함하지 않으며 `postgres` 호스트의 `townbase_pr34_*_test` 격리 DB에서 명시 실행한다.
 - DB 변경·테스트는 대상 환경을 먼저 확인한다. `db:deploy`는 읽기 검사가 아니라 migration 실행이다. 운영 DB에 무단 적용하지 않는다.
 - B01 설치/관리자/감사 저장 기반은 `docs/implementation/v0.2-b01-storage.md`를 따른다. custom SQL CHECK를 포함하므로 Prisma schema만으로 DB를 만드는 `db push`로 migration을 대체하지 않는다. 현재 로그인/API 보호 구현 완료와 구분한다.
 - database 패키지의 DB 없는 단위 시험은 `--testPathIgnorePatterns=integration.spec.ts`로 전체 DB 통합 suite를 제외한다. 특정 옛 파일 하나만 제외하면 새 통합 시험이 남는다.
-- 기본 Compose는 API/웹·내부 DB·일회성 migration을 함께 실행한다. `node deployment/prepare.mjs`로 DB 소유자/API 전용 secret을 준비하며 설치별 고유 Compose 프로젝트 이름(`-p`)을 유지한다. API는 `townbase_runtime` 제한 계정을 사용하고 B02 상태 확인 SELECT만 허용한다. migration/API 모두 비특권·읽기 전용 root로 실행하며 호스트 API는 loopback에만 게시한다. 현재 웹은 상태 확인 전용으로 관리자 등록/채팅은 아직 없다. 실행/비밀/volume/TLS 계약은 `docs/self-hosted-deployment.md`를 따른다.
+- 기본 Compose는 API/웹·내부 DB·일회성 migration을 함께 실행한다. `node deployment/prepare.mjs`로 DB 소유자/API 전용 secret을 준비하며 설치별 고유 Compose 프로젝트 이름(`-p`)과 포트 설정 파일(`--env-file .townbase/compose.env`)을 유지한다. API는 `townbase_runtime` 제한 계정을 사용하고 B02 상태 확인 SELECT만 허용한다. PUBLIC/기본 권한으로 제한이 우회되는 DB는 migration을 거절한다. migration/API 모두 비특권·읽기 전용 root로 실행하며 호스트 API는 loopback에만 게시한다. 현재 웹은 상태 확인 전용으로 관리자 등록/채팅은 아직 없다. 실행/비밀/volume/TLS 계약은 `docs/self-hosted-deployment.md`를 따른다.
 - 기존 v0.1 DB 개발은 `compose.legacy.yml`을 명시한다. 새 운영 배포에서 이전 DB volume이나 `.env`를 자동 재사용하지 않는다. `self_hosted`와 `legacy_development`를 구분하고 production의 legacy 프로필은 시작을 거절한다. 아직 구현하지 않은 웹/E2E/복구 script를 실행 가능한 것으로 문서화하지 않는다.
 - v0.2 평가 명세/합성 문서·120문항은 `docs/evaluation/v0.2/README.md`를 따른다. A04 실행/미실행 결과는 같은 경로의 `baseline-2026-10-23.md`를 확인한다.
 - 기본 TASK의 문서 완료와 코드/실모델/품질 검증 완료를 구분한다. 추천 S 값은 승인 전 기본값이 아니며 해당 작업 착수 전에 결정한다.

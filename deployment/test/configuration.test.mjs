@@ -65,3 +65,32 @@ test("prepare preserves an existing secret and protects its parent directory", (
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+for (const name of ["postgres_password", "runtime_password"]) {
+  test(`prepare identifies invalid ${name} without replacing it or disclosing its value`, () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "townbase-invalid-secret-"));
+    const prepare = fileURLToPath(new URL("../prepare.mjs", import.meta.url));
+    try {
+      execFileSync(process.execPath, [prepare], { cwd: dir });
+      const filename = path.join(dir, ".townbase/secrets", name);
+      chmodSync(filename, 0o600);
+      writeFileSync(filename, "short-secret-canary");
+      assert.throws(
+        () =>
+          execFileSync(process.execPath, [prepare], {
+            cwd: dir,
+            stdio: "pipe",
+          }),
+        (error) => {
+          const output = error.stderr.toString();
+          assert.ok(output.includes(`Existing ${name} secret is invalid`));
+          assert.ok(!output.includes("short-secret-canary"));
+          return true;
+        },
+      );
+      assert.equal(readFileSync(filename, "utf8"), "short-secret-canary");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}

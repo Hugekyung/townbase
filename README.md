@@ -133,17 +133,20 @@ Docker와 Compose plugin이 필요하다. 아래 준비 명령에는 Node.js가 
 
 ```bash
 node deployment/prepare.mjs
-docker compose -p my-townbase up -d --build --wait --wait-timeout 180
+if [ ! -e .townbase/compose.env ]; then
+  printf 'TOWNBASE_PORT=3000\n' > .townbase/compose.env
+fi
+docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --wait --wait-timeout 180
 ```
 
-`http://127.0.0.1:3000`에서 상태 화면을 확인한다. DB 포트는 외부에 열리지 않는다. 외부 접속/TLS와 오류 복구는 [배포 안내](docs/self-hosted-deployment.md)를 따른다.
+`http://127.0.0.1:3000`에서 상태 화면을 확인한다. 포트 변경은 `.townbase/compose.env`에 저장하며 이후 모든 Compose 명령에도 같은 `--env-file`과 `-p`를 사용한다. DB 포트는 외부에 열리지 않는다. 외부 접속/TLS와 오류 복구는 [배포 안내](docs/self-hosted-deployment.md)를 따른다.
 
 ## 기존 v0.1 로컬 개발 실행
 
 필수 도구는 Node.js, pnpm, Docker다.
 
 ```bash
-cp .env.example .env
+if [ ! -e .env ]; then cp .env.example .env; fi
 pnpm install
 docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm db:generate

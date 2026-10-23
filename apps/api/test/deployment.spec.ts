@@ -126,14 +126,17 @@ describe("self-hosted deployment surface", () => {
 
   it("closes and deletes a probe when writing fails after creating it", async () => {
     const originalOpen = fs.open;
+    let close: jest.SpyInstance | undefined;
     jest.spyOn(fs, "open").mockImplementationOnce(async (...args) => {
       const file = await originalOpen(...args);
+      close = jest.spyOn(file, "close");
       jest
         .spyOn(file, "writeFile")
         .mockRejectedValueOnce(new Error("disk-full"));
       return file;
     });
     await request(app.getHttpServer()).get("/readyz").expect(503);
+    expect(close).toHaveBeenCalledTimes(1);
     expect(await readdir(process.env.TOWNBASE_DOCUMENTS_PATH!)).toEqual([]);
   });
 

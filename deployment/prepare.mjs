@@ -37,7 +37,7 @@ for (const name of ["postgres_password", "runtime_password"]) {
       readFileSync(filename, "utf8").trim().length < 32
     ) {
       throw new Error(
-        "Existing database secret is invalid; it was not replaced",
+        `Existing ${name} secret is invalid; it was not replaced`,
       );
     }
   }
