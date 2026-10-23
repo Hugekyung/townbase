@@ -139,7 +139,7 @@ fi
 docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --wait --wait-timeout 180
 ```
 
-`http://127.0.0.1:3000`에서 상태 화면을 확인한다. 포트 변경은 `.townbase/compose.env`에 저장하며 이후 모든 Compose 명령에도 같은 `--env-file`과 `-p`를 사용한다. DB 포트는 외부에 열리지 않는다. 외부 접속/TLS와 오류 복구는 [배포 안내](docs/self-hosted-deployment.md)를 따른다.
+기본 포트의 상태 화면은 `http://127.0.0.1:3000`이다. `TOWNBASE_PORT`를 바꿨다면 브라우저 주소도 해당 포트를 사용한다(예:3100이면 `http://127.0.0.1:3100`). 실제 게시 주소는 `docker compose --env-file .townbase/compose.env -p my-townbase port api 3000`으로 확인한다. 포트 변경은 `.townbase/compose.env`에 저장하며 이후 모든 Compose 명령에도 같은 `--env-file`과 `-p`를 사용한다. DB 포트는 외부에 열리지 않는다. 외부 접속/TLS와 오류 복구는 [배포 안내](docs/self-hosted-deployment.md)를 따른다.
 
 ## 기존 v0.1 로컬 개발 실행
 

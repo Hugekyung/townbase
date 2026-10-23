@@ -21,13 +21,41 @@ async function reset() {
   await db.$executeRaw`REVOKE ALL ON TABLE "_ReviewAclProbe" FROM PUBLIC`;
   await db.$executeRaw`REVOKE SELECT (id) ON TABLE "_ReviewAclProbe" FROM PUBLIC`;
   await db.$executeRaw`REVOKE ALL ON SEQUENCE "_ReviewAclSequence" FROM PUBLIC`;
-  for (const schema of ["", "IN SCHEMA public"]) {
-    for (const kind of ["TABLES", "SEQUENCES"]) {
-      // All fragments are constants; no configuration or secrets enter SQL.
-      await db.$executeRawUnsafe(
-        `ALTER DEFAULT PRIVILEGES ${schema} REVOKE ALL ON ${kind} FROM PUBLIC, townbase_runtime`,
-      );
+  await db.$executeRaw`REVOKE SELECT (id) ON public."Installation" FROM townbase_runtime`;
+  await db.$executeRaw`REVOKE ALL ON ALL TABLES IN SCHEMA "_ReviewShared" FROM PUBLIC, townbase_runtime`;
+  await db.$executeRaw`REVOKE SELECT (id) ON "_ReviewShared"."Installation" FROM PUBLIC, townbase_runtime`;
+  await db.$executeRaw`REVOKE ALL ON ALL SEQUENCES IN SCHEMA "_ReviewShared" FROM PUBLIC, townbase_runtime`;
+  await db.$executeRaw`REVOKE ALL ON SCHEMA "_ReviewShared" FROM PUBLIC, townbase_runtime`;
+  for (const routine of [
+    'public."_ReviewDefiner"()',
+    'public."_ReviewInvoker"()',
+    'public."_ReviewProcedure"()',
+    '"_ReviewShared"."_ReviewDefiner"()',
+  ]) {
+    await db.$executeRawUnsafe(
+      `REVOKE ALL ON ROUTINE ${routine} FROM PUBLIC, townbase_runtime`,
+    );
+  }
+  await db.$executeRaw`ALTER FUNCTION public.vector_dims(public.vector) SECURITY INVOKER`;
+  for (const creator of ["", 'FOR ROLE "_ReviewAclCreator"']) {
+    for (const schema of [
+      "",
+      "IN SCHEMA public",
+      'IN SCHEMA "_ReviewShared"',
+    ]) {
+      for (const kind of ["TABLES", "SEQUENCES", "FUNCTIONS"]) {
+        // All fragments are constants; no configuration or secrets enter SQL.
+        await db.$executeRawUnsafe(
+          `ALTER DEFAULT PRIVILEGES ${creator} ${schema} REVOKE ALL ON ${kind} FROM PUBLIC, townbase_runtime`,
+        );
+      }
     }
+    await db.$executeRawUnsafe(
+      `ALTER DEFAULT PRIVILEGES ${creator} GRANT EXECUTE ON FUNCTIONS TO PUBLIC`,
+    );
+    await db.$executeRawUnsafe(
+      `ALTER DEFAULT PRIVILEGES ${creator} REVOKE ALL ON SCHEMAS FROM PUBLIC, townbase_runtime`,
+    );
   }
 }
 
@@ -35,12 +63,26 @@ before(async () => {
   await configure();
   await db.$executeRaw`CREATE TABLE "_ReviewAclProbe" (id integer)`;
   await db.$executeRaw`CREATE SEQUENCE "_ReviewAclSequence"`;
+  await db.$executeRaw`CREATE SCHEMA "_ReviewShared"`;
+  await db.$executeRaw`CREATE TABLE "_ReviewShared"."Installation" (id integer)`;
+  await db.$executeRaw`CREATE SEQUENCE "_ReviewShared"."_ReviewSequence"`;
+  await db.$executeRaw`CREATE FUNCTION public."_ReviewDefiner"() RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 42'`;
+  await db.$executeRaw`CREATE FUNCTION public."_ReviewInvoker"() RETURNS integer LANGUAGE sql SECURITY INVOKER AS 'SELECT 42'`;
+  await db.$executeRaw`CREATE PROCEDURE public."_ReviewProcedure"() LANGUAGE plpgsql SECURITY DEFINER AS 'BEGIN NULL; END'`;
+  await db.$executeRaw`CREATE FUNCTION "_ReviewShared"."_ReviewDefiner"() RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 42'`;
+  await db.$executeRaw`CREATE ROLE "_ReviewAclCreator" NOLOGIN`;
+  await reset();
 });
 after(async () => {
   try {
     await reset();
     await db.$executeRaw`DROP TABLE "_ReviewAclProbe"`;
     await db.$executeRaw`DROP SEQUENCE "_ReviewAclSequence"`;
+    await db.$executeRaw`DROP SCHEMA "_ReviewShared" CASCADE`;
+    await db.$executeRaw`DROP FUNCTION public."_ReviewDefiner"()`;
+    await db.$executeRaw`DROP FUNCTION public."_ReviewInvoker"()`;
+    await db.$executeRaw`DROP PROCEDURE public."_ReviewProcedure"()`;
+    await db.$executeRaw`DROP ROLE "_ReviewAclCreator"`;
   } finally {
     await db.$disconnect();
   }
@@ -52,6 +94,51 @@ test("clean DB can be reconfigured without granting unrelated table reads", asyn
     await db.$queryRaw`SELECT has_table_privilege('townbase_runtime', '"_ReviewAclProbe"', 'SELECT') AS readable`;
   assert.equal(row.readable, false);
 });
+
+test("required vector invoker routines and readiness reads remain available", async () => {
+  await configure();
+  await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL ROLE townbase_runtime`;
+    const [row] =
+      await tx.$queryRaw`SELECT public.vector_dims('[1,2,3]'::public.vector) AS dimensions, (SELECT count(*) FROM public."Installation")::int AS installations`;
+    assert.equal(row.dimensions, 3);
+    assert.equal(typeof row.installations, "number");
+  });
+});
+
+test("successful setup intentionally removes PUBLIC schema and database DDL rights", async () => {
+  await db.$executeRaw`GRANT CREATE ON SCHEMA public TO PUBLIC`;
+  const [grant] =
+    await db.$queryRaw`SELECT format('GRANT CREATE, TEMPORARY ON DATABASE %I TO PUBLIC', current_database()) AS sql`;
+  await db.$executeRawUnsafe(grant.sql);
+  await configure();
+  const [rights] =
+    await db.$queryRaw`SELECT has_schema_privilege('public', 'public', 'CREATE') AS schema_create, has_database_privilege('public', current_database(), 'CREATE,TEMPORARY') AS database_ddl`;
+  assert.deepEqual(rights, { schema_create: false, database_ddl: false });
+});
+
+test("setup removes direct column delegation while retaining readiness SELECT", async () => {
+  await db.$executeRaw`GRANT SELECT (id) ON public."Installation" TO townbase_runtime WITH GRANT OPTION`;
+  await configure();
+  const [rights] =
+    await db.$queryRaw`SELECT has_any_column_privilege('townbase_runtime', 'public."Installation"', 'SELECT WITH GRANT OPTION') AS delegation, has_table_privilege('townbase_runtime', 'public."Installation"', 'SELECT') AS readable`;
+  assert.deepEqual(rights, { delegation: false, readable: true });
+});
+
+async function snapshot() {
+  return {
+    relations:
+      await db.$queryRaw`SELECT n.nspname, c.relname, c.relacl::text AS acl FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public', '_ReviewShared') ORDER BY n.nspname,c.relname`,
+    columns:
+      await db.$queryRaw`SELECT n.nspname, c.relname, a.attname, a.attacl::text AS acl FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public', '_ReviewShared') AND a.attnum > 0 AND NOT a.attisdropped ORDER BY n.nspname,c.relname,a.attnum`,
+    routines:
+      await db.$queryRaw`SELECT p.oid::text, p.proacl::text AS acl, p.prosecdef FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public', '_ReviewShared') ORDER BY p.oid`,
+    schemas:
+      await db.$queryRaw`SELECT nspname, nspacl::text AS acl FROM pg_namespace WHERE nspname IN ('public', '_ReviewShared') ORDER BY nspname`,
+    defaults:
+      await db.$queryRaw`SELECT oid::text, defaclacl::text AS acl FROM pg_default_acl ORDER BY oid`,
+  };
+}
 
 for (const [name, sql] of [
   ["PUBLIC table grant", 'GRANT SELECT ON "_ReviewAclProbe" TO PUBLIC'],
@@ -76,25 +163,76 @@ for (const [name, sql] of [
     "owner schema runtime sequence defaults",
     "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO townbase_runtime",
   ],
+  [
+    "other schema USAGE",
+    'GRANT USAGE ON SCHEMA "_ReviewShared" TO townbase_runtime',
+  ],
+  ["other schema CREATE", 'GRANT CREATE ON SCHEMA "_ReviewShared" TO PUBLIC'],
+  [
+    "same-named readiness table in another schema",
+    'GRANT SELECT ON "_ReviewShared"."Installation" TO townbase_runtime',
+  ],
+  [
+    "other schema column grant",
+    'GRANT SELECT (id) ON "_ReviewShared"."Installation" TO PUBLIC',
+  ],
+  [
+    "other schema sequence grant",
+    'GRANT USAGE ON SEQUENCE "_ReviewShared"."_ReviewSequence" TO townbase_runtime',
+  ],
+  [
+    "PUBLIC definer EXECUTE",
+    'GRANT EXECUTE ON FUNCTION public."_ReviewDefiner"() TO PUBLIC',
+  ],
+  [
+    "runtime definer EXECUTE",
+    'GRANT EXECUTE ON FUNCTION public."_ReviewDefiner"() TO townbase_runtime',
+  ],
+  [
+    "custom invoker EXECUTE",
+    'GRANT EXECUTE ON FUNCTION public."_ReviewInvoker"() TO PUBLIC',
+  ],
+  [
+    "procedure EXECUTE",
+    'GRANT EXECUTE ON PROCEDURE public."_ReviewProcedure"() TO townbase_runtime',
+  ],
+  [
+    "other schema definer EXECUTE",
+    'GRANT EXECUTE ON FUNCTION "_ReviewShared"."_ReviewDefiner"() TO townbase_runtime',
+  ],
+  [
+    "other schema table defaults",
+    'ALTER DEFAULT PRIVILEGES IN SCHEMA "_ReviewShared" GRANT SELECT ON TABLES TO PUBLIC',
+  ],
+  [
+    "global function defaults",
+    "ALTER DEFAULT PRIVILEGES GRANT EXECUTE ON FUNCTIONS TO townbase_runtime",
+  ],
+  [
+    "schema function defaults",
+    "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO townbase_runtime",
+  ],
+  [
+    "future schema defaults",
+    "ALTER DEFAULT PRIVILEGES GRANT USAGE ON SCHEMAS TO townbase_runtime",
+  ],
+  [
+    "other creator function defaults",
+    'ALTER DEFAULT PRIVILEGES FOR ROLE "_ReviewAclCreator" GRANT EXECUTE ON FUNCTIONS TO townbase_runtime',
+  ],
+  [
+    "definer masquerading as vector routine",
+    "ALTER FUNCTION public.vector_dims(public.vector) SECURITY DEFINER",
+  ],
 ]) {
   test(`refuses ${name}, preserves its ACL, then recovers after explicit cleanup`, async () => {
     await reset();
     await db.$executeRawUnsafe(sql);
-    const aclBefore =
-      await db.$queryRaw`SELECT relname, relacl::text AS acl FROM pg_class WHERE relname IN ('_ReviewAclProbe', '_ReviewAclSequence') ORDER BY relname`;
-    const defaultsBefore =
-      await db.$queryRaw`SELECT oid::text, defaclacl::text AS acl FROM pg_default_acl ORDER BY oid`;
+    const before = await snapshot();
     await assert.rejects(configure(), {
       code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
     });
-    assert.deepEqual(
-      await db.$queryRaw`SELECT relname, relacl::text AS acl FROM pg_class WHERE relname IN ('_ReviewAclProbe', '_ReviewAclSequence') ORDER BY relname`,
-      aclBefore,
-    );
-    assert.deepEqual(
-      await db.$queryRaw`SELECT oid::text, defaclacl::text AS acl FROM pg_default_acl ORDER BY oid`,
-      defaultsBefore,
-    );
+    assert.deepEqual(await snapshot(), before);
     await reset();
     await configure();
   });

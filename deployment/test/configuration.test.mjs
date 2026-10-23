@@ -82,7 +82,7 @@ for (const name of ["postgres_password", "runtime_password"]) {
             stdio: "pipe",
           }),
         (error) => {
-          const output = error.stderr.toString();
+          const output = Buffer.concat([error.stdout, error.stderr]).toString();
           assert.ok(output.includes(`Existing ${name} secret is invalid`));
           assert.ok(!output.includes("short-secret-canary"));
           return true;

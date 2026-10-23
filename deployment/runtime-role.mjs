@@ -35,31 +35,53 @@ export async function configureRuntimeRole(tx, env = process.env) {
     await tx.$executeRawUnsafe(sql);
   await tx.$executeRaw`GRANT USAGE ON SCHEMA public TO townbase_runtime`;
   await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent" TO townbase_runtime`;
-  // Direct REVOKEs do not override PUBLIC or future default grants. Refuse an
-  // unsafe reused DB rather than silently changing grants for other consumers.
+  // The PUBLIC schema/database DDL revokes above are intentional. Object and
+  // default ACLs belonging to other consumers are inspected, not auto-rewritten.
+  // Only public's four readiness tables and invoker routines installed by the
+  // required vector extension are allowed outside PostgreSQL system schemas.
   const [grants] = await tx.$queryRaw`SELECT
     has_schema_privilege('townbase_runtime', 'public', 'CREATE')
     OR has_database_privilege('townbase_runtime', current_database(), 'CREATE,TEMPORARY')
     OR EXISTS (
+      SELECT 1 FROM pg_namespace n
+      WHERE n.nspname !~ '^pg_' AND n.nspname NOT IN ('public', 'information_schema')
+      AND has_schema_privilege('townbase_runtime', n.oid, 'USAGE,CREATE')
+    )
+    OR EXISTS (
       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE CASE WHEN n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f') THEN (
+      WHERE CASE WHEN n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+        AND c.relkind IN ('r', 'p', 'v', 'm', 'f') THEN (
         has_table_privilege('townbase_runtime', c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
         OR has_any_column_privilege('townbase_runtime', c.oid, 'INSERT,UPDATE,REFERENCES')
-        OR (c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent')
+        OR has_table_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION')
+        OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION')
+        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent'))
           AND (has_table_privilege('townbase_runtime', c.oid, 'SELECT')
             OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT')))
       ) ELSE false END
     )
     OR EXISTS (
       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE CASE WHEN n.nspname = 'public' AND c.relkind = 'S'
+      WHERE CASE WHEN n.nspname !~ '^pg_' AND n.nspname <> 'information_schema' AND c.relkind = 'S'
         THEN has_sequence_privilege('townbase_runtime', c.oid, 'SELECT,USAGE,UPDATE')
         ELSE false END
     )
     OR EXISTS (
+      SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+      AND has_function_privilege('townbase_runtime', p.oid, 'EXECUTE')
+      AND (p.prosecdef OR NOT EXISTS (
+        SELECT 1 FROM pg_depend dep JOIN pg_extension ext ON ext.oid = dep.refobjid
+        WHERE dep.classid = 'pg_proc'::regclass AND dep.objid = p.oid
+        AND dep.refclassid = 'pg_extension'::regclass AND dep.deptype = 'e'
+        AND ext.extname = 'vector'
+      ))
+    )
+    OR EXISTS (
       SELECT 1 FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) acl
-      WHERE d.defaclrole = current_user::regrole AND d.defaclobjtype IN ('r', 'S')
-      AND (d.defaclnamespace = 0 OR d.defaclnamespace = 'public'::regnamespace)
+      LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
+      WHERE d.defaclobjtype IN ('r', 'S', 'f', 'n')
+      AND (d.defaclnamespace = 0 OR (n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'))
       AND acl.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = 'townbase_runtime'))
     ) AS unsafe`;
   if (grants.unsafe) {

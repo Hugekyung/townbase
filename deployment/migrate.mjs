@@ -41,7 +41,7 @@ try {
 } catch (error) {
   if (error?.code === "TOWNBASE_UNSAFE_RUNTIME_GRANTS") {
     console.error(
-      "TOWNBASE_UNSAFE_RUNTIME_GRANTS: inspect PUBLIC table/column/sequence grants and migration-owner global/public default grants before retrying. No runtime permission changes were committed.",
+      "TOWNBASE_UNSAFE_RUNTIME_GRANTS: inspect user-schema access, table/column/sequence grants, routine EXECUTE and default grants before retrying. No runtime permission changes were committed.",
     );
   }
   // Do not echo CLI/connection errors which may contain credentials.

@@ -18,7 +18,8 @@ if [ ! -e .townbase/compose.env ]; then
 fi
 docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --wait --wait-timeout 180
 docker compose --env-file .townbase/compose.env -p my-townbase ps -a
-curl -f http://127.0.0.1:3000/readyz
+TOWNBASE_STATUS_ADDRESS=$(docker compose --env-file .townbase/compose.env -p my-townbase port api 3000)
+curl -f "http://${TOWNBASE_STATUS_ADDRESS}/readyz"
 ```
 
 Node가 없는 호스트의 비밀 파일 준비 대안:
@@ -27,7 +28,7 @@ Node가 없는 호스트의 비밀 파일 준비 대안:
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" -w /workspace node:24.19.0-bookworm-slim node deployment/prepare.mjs
 ```
 
-브라우저에서 `http://127.0.0.1:3000`을 연다. 포트를 바꾸려면 `.townbase/compose.env`의 값을 `TOWNBASE_PORT=3100`으로 저장한 뒤 같은 기동 명령을 실행한다. 모든 재기동·업그레이드·재시도에도 위와 같이 `--env-file .townbase/compose.env`를 사용한다. 이 파일에는 포트·시험 플랫폼 같은 배포 설정만 두고 기존 v0.1 `.env`나 API Key를 복사하지 않는다. 이 경우 브라우저와 상태 확인 주소도 `http://127.0.0.1:3100`으로 바꾼다. 기본 컨테이너 아키텍처는 `linux/amd64`다. ARM 개발 장비에서 에뮬레이션 없이 시험하려면 설정 파일에 `TOWNBASE_PLATFORM=linux/arm64`를 저장하되 별도 지원 검증으로 구분한다.
+브라우저 주소는 `http://` 뒤에 위 `TOWNBASE_STATUS_ADDRESS` 값을 붙인다. 기본 설정이면 `http://127.0.0.1:3000`이다. 포트를 바꾸려면 `.townbase/compose.env`의 값을 `TOWNBASE_PORT=3100`으로 저장한 뒤 같은 기동 명령을 실행한다. 모든 재기동·업그레이드·재시도에도 위와 같이 `--env-file .townbase/compose.env`를 사용한다. 이 파일에는 포트·시험 플랫폼 같은 배포 설정만 두고 기존 v0.1 `.env`나 API Key를 복사하지 않는다. 이 경우 브라우저와 상태 확인 주소도 `http://127.0.0.1:3100`으로 바꾼다. 기본 컨테이너 아키텍처는 `linux/amd64`다. ARM 개발 장비에서 에뮬레이션 없이 시험하려면 설정 파일에 `TOWNBASE_PLATFORM=linux/arm64`를 저장하되 별도 지원 검증으로 구분한다.
 
 기존 PR #34 초기 버전을 `townbase` 프로젝트로 시험했다면 새 이름으로 옮기지 말고 `-p townbase`를 계속 사용한다. 이름을 바꾸면 다른 volume을 참조해 데이터가 사라진 것처럼 보일 수 있다. 기존 DB·비밀 파일은 유지한 채 준비 명령을 재실행해 API용 비밀 파일을 추가하고, 업데이트한 migration을 실행한다. migration 완료 뒤 API 컨테이너도 재생성해야 새 제한 계정과 secret mount가 적용된다. `down -v`로 초기화하지 않는다.
 
@@ -74,7 +75,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --w
 
 현재 기본 주소는 로컬 HTTP이며 로그인 기능이 없다. 향후 관리자 로그인은 HTTPS로만 공개한다. 조직이 준비한 reverse proxy·인증서를 사용하고 API·웹을 같은 HTTPS origin으로 제공한다. localhost 포트를 전체 인터페이스에 직접 공개하지 않는다.
 
-호스트 Nginx 설정 예시(도메인·인증서 경로는 운영자가 제공, 이번 저장소에서 인증서를 발급하지 않음):
+호스트 Nginx 설정 예시(도메인·인증서 경로는 운영자가 제공, 이번 저장소에서 인증서를 발급하지 않음). 아래는 기본 포트3000 기준이며 포트를 변경했다면 `proxy_pass`도 실제 게시 포트로 맞춘다:
 
 ```nginx
 server {
@@ -120,4 +121,7 @@ root `pnpm build`는 database→rag-core→agent-core→connectors→API→web �
 - `/readyz`는 두 저장소 각각에서 임의 이름의 작은 파일을 배타 생성·쓰기·동기화·삭제한 뒤 준비 완료를 표시한다. 검사 순간의 쓰기 가능 여부이며 이후 모든 저장의 성공을 보장하지 않는다. DB 확인 도중 실패하면 연결을 다시 확인해 구조 오류와 연결 장애를 구분한다.
 - 시작 오류는 실패 단계와 허용된 OS 오류 코드만 기록한다. 예: `listen:EADDRINUSE`, `web-artifacts:ENOENT`. 메시지·stack·경로·연결 문자열은 출력하지 않는다.
 
-- 재사용 DB에 PUBLIC 테이블/열/sequence 권한 또는 migration 소유자의 전역·public schema 기본 권한이 남아 API 제한을 우회하면 migration은 `TOWNBASE_UNSAFE_RUNTIME_GRANTS`로 실패하고 API 시작을 차단한다. 다른 소비자의 권한을 자동 삭제하지 않으며 트랜잭션 변경도 되돌린다. 설치 DB를 확인한 운영자가 필요한 권한만 명시적으로 정리한 뒤 재시도한다.
+- 재사용 DB에 허용 범위를 넘는 사용자 schema·객체·기본 권한이 남아 API 제한을 우회하면 migration은 `TOWNBASE_UNSAFE_RUNTIME_GRANTS`로 실패하고 API 시작을 차단한다. 우회 권한이 발견되면 트랜잭션 변경을 되돌린다. API 계정의 직접 public schema·테이블·sequence·DB 권한과 역할 소속은 설정 과정에서 정리한다. PUBLIC 및 다른 계정의 객체·기본 ACL은 일괄 삭제하지 않는다. 단 PUBLIC의 public schema CREATE와 현재 DB CREATE/TEMPORARY 권한은 성공한 설정에서 제거한다. 이 DDL 제한은 같은 DB의 모든 계정에 적용된다. 설치 DB를 확인한 운영자가 필요한 권한만 명시적으로 정리한 뒤 재시도한다.
+
+- B02 운영 DB는 설치 전용이다. PostgreSQL 시스템 schema를 제외한 모든 사용자 schema를 검사한다. API는 public 외 사용자 schema의 USAGE/CREATE를 허용하지 않으며 테이블 허용 목록은 schema까지 포함한 public의 네 테이블이다. 모든 사용자 schema의 테이블/열/sequence 권한과 모든 생성 역할의 관련 전역/schema 기본 ACL을 검사한다.
+- 사용자 schema의 실행 가능한 임의 함수·프로시저는 차단한다. migration에 필요한 vector extension에 실제 소속된 SECURITY INVOKER 루틴만 기본 허용하며, SECURITY DEFINER는 extension 소속이어도 차단한다. 루틴·schema를 포함한 API/PUBLIC 기본 ACL 우회도 거절한다. PostgreSQL 시스템 schema와 필요한 vector extension이 신뢰 경계이며, DB 최고 관리자의 임의 객체 변조까지 방어하는 별도 DB 보안 제품을 뜻하지 않는다.
