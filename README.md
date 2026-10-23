@@ -4,6 +4,8 @@ Notion과 로컬 Git 저장소에 흩어진 제품·개발 문서를 한곳에 �
 
 > 현재 프로젝트 이름과 패키지 이름은 `townbase`를 사용한다. 제품 방향은 `Workspace Knowledge Agent`로 정의되어 있다.
 
+> v0.2 개발 중: Docker 기본 배포에 초기 웹·상태 확인을 추가했다. 관리자 등록·로그인·문서 업로드·독립 채팅은 아직 사용할 수 없다. [v0.2 실행 안내](docs/self-hosted-deployment.md)를 따른다. 아래 기존 수집/MCP 설명은 v0.1 개발 경로다.
+
 ## 프로젝트 개요
 
 이 프로젝트는 범용 사내 검색 AI나 Notion AI 대체재가 아니다. 개발팀이 실제로 자주 묻는 다음 질문에 집중한다.
@@ -125,14 +127,30 @@ Agent의 이전 문맥이 답변을 보완한 사례가 포함되어 있다.
 
 질문별 판정과 원인 분석은 [evaluation-20260825.md](evaluation-20260825.md)에서 확인할 수 있다.
 
-## 로컬 실행
+## v0.2 초기 웹 실행
+
+Docker와 Compose plugin이 필요하다. 아래 준비 명령에는 Node.js가 필요하며, Node가 없는 호스트는 [컨테이너 준비 대안](docs/self-hosted-deployment.md#1-첫-실행)을 사용한다. 기존 v0.1 DB volume은 자동 재사용하지 않으며 같은 프로젝트의 v0.2 volume은 재실행 시 유지한다. 설치마다 고유한 Compose 프로젝트 이름을 정하고 이후에도 같은 이름을 사용한다.
+
+```bash
+node deployment/prepare.mjs
+if [ ! -e .townbase/compose.env ]; then
+  printf 'TOWNBASE_PORT=3000\n' > .townbase/compose.env
+fi
+docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --wait --wait-timeout 180
+```
+
+기본 포트의 상태 화면은 `http://127.0.0.1:3000`이다. `TOWNBASE_PORT`를 바꿨다면 브라우저 주소도 해당 포트를 사용한다(예:3100이면 `http://127.0.0.1:3100`). 실제 게시 주소는 `docker compose --env-file .townbase/compose.env -p my-townbase port api 3000`으로 확인한다. 포트 변경은 `.townbase/compose.env`에 저장하며 이후 모든 Compose 명령에도 같은 `--env-file`과 `-p`를 사용한다. DB 포트는 외부에 열리지 않는다. 외부 접속/TLS와 오류 복구는 [배포 안내](docs/self-hosted-deployment.md)를 따른다.
+
+## 기존 v0.1 로컬 개발 실행
 
 필수 도구는 Node.js, pnpm, Docker다.
 
 ```bash
-cp .env.example .env
+if [ ! -e .env ]; then cp .env.example .env; fi
 pnpm install
-docker compose up -d
+docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
+pnpm db:generate
+pnpm build
 pnpm db:deploy
 pnpm dev
 ```

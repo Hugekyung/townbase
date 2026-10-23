@@ -29,10 +29,16 @@ Use `.env.example` as the starting point. The main variables are:
 
 ## 3. Local bootstrap
 
+Create the local configuration first. Preserve an existing `.env`; for a new checkout copy `.env.example` to `.env` and set `DATABASE_URL` and the matching PostgreSQL credentials before running the commands below.
+
 ```bash
-docker compose up -d
+# New checkout only; do not overwrite an existing .env.
+if [ ! -e .env ]; then cp .env.example .env; fi
+docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm install
-DATABASE_URL=postgresql://townbase:townbase@localhost:5432/townbase?schema=public pnpm --filter @townbase/database prisma:migrate:deploy
+pnpm db:generate
+pnpm build
+pnpm db:deploy
 pnpm --filter @townbase/api dev
 ```
 

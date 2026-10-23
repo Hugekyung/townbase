@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.33.2",
   "scripts": {
-    "build": "pnpm --filter @townbase/api build",
+    "build": "pnpm --filter @townbase/database build && pnpm --filter @townbase/rag-core build && pnpm --filter @townbase/agent-core build && pnpm --filter @townbase/connectors build && pnpm --filter @townbase/api build && pnpm --filter @townbase/web build",
     "dev": "pnpm --filter @townbase/api dev",
     "db:generate": "pnpm --filter @townbase/database prisma:generate",
     "db:validate": "pnpm --filter @townbase/database prisma:validate",
@@ -17,7 +17,9 @@
     "connectors:test": "pnpm --filter @townbase/connectors test",
     "lint": "pnpm --filter @townbase/api lint",
     "start": "pnpm --filter @townbase/api start",
-    "test": "pnpm --filter @townbase/api test"
+    "test": "pnpm --filter @townbase/api test",
+    "deploy:prepare": "node deployment/prepare.mjs",
+    "test:deployment": "node --test deployment/test/*.test.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.31.0",
