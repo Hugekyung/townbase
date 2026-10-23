@@ -152,3 +152,10 @@ docker compose --env-file .townbase/compose.env -p my-townbase exec -T api cat /
 DB 상태·발급 감사·파일 쓰기는 같은 등록 잠금 안에서 처리한다. 파일과 DB를 하나의 원자적 저장으로 묶을 수는 없으므로, 파일 교체 뒤 DB commit 전에 프로세스가 죽으면 파일/DB가 어긋날 수 있다. 등록은 일치하지 않는 토큰을 거절한다. 초기화 전이면 로컬 재발급으로 복구한다. 등록 완료 DB를 자동 초기화하지 않는다.
 
 소비한 토큰 파일은 등록 직후 삭제한다. 만료 토큰은 즉시 거절하고 API 기동 시와 60초 주기로 파일/digest를 정리한다. 삭제 장애는 비밀값 없는 경고를 남기고 다시 시도한다. API 중단 중에는 물리 삭제가 미뤄진다. `bootstrap` volume은 문서·첨부·DB 백업에 합치지 않는다. [구현·검증 기록](implementation/v0.2-b03-administrator.md)을 참고한다.
+
+
+### 개발용 웹 서버
+
+기본 운영/검증 경로는 Docker의 API와 같은 origin에서 제공하는 웹이다. 웹 화면을 Vite로 수정할 때 `pnpm --filter @townbase/web dev`는 `/readyz`와 `/setup`을 로컬 API 포트3000으로 전달한다. API는 self_hosted 프로필·별도 시험 DB/저장소·명시적 로컬 HTTP 허용으로 실행해야 한다. `pnpm dev`의 기존 legacy 프로필은 setup 경로를 제공하지 않는다. Vite가 Host/Origin을 바꾸거나 전달 헤더를 임의로 추가하지 않게 유지하며, 공개 origin을 설정한 운영 API의 HTTPS 보호를 개발 proxy로 우회하지 않는다.
+
+초기 발급 오류는 `already_initialized`, `workspace_mismatch`, `workspace_unavailable`, `storage_unavailable`, `unavailable`의 안전한 코드/고정 안내만 출력한다. 알 수 없는 DB·파일 오류의 원문/stack은 출력하지 않는다. 파일 교체는 파일 내용과 상위 디렉터리를 순서대로 동기화한다. 파일/DB 사이의 별도 저장 경계와 재발급 복구 계약은 유지한다.

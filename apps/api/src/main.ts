@@ -7,6 +7,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 
 import { DeploymentModule } from "./deployment/deployment.module";
+import { configureSelfHostedHttp } from "./deployment/self-hosted-http";
 import { parsePort } from "./port";
 import { resolveRuntimeProfile } from "./runtime-profile";
 import { startupFailure, type StartupStage } from "./startup-failure";
@@ -28,51 +29,10 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   if (profile === "self_hosted") {
-    app.useBodyParser("json", { limit: "8kb", strict: true });
-    app.use(
-      (
-        error: unknown,
-        _request: unknown,
-        response: { status(code: number): { json(body: unknown): void } },
-        next: (error: unknown) => void,
-      ) => {
-        const type =
-          error != null && typeof error === "object" && "type" in error
-            ? error.type
-            : undefined;
-        if (
-          typeof type === "string" &&
-          [
-            "entity.parse.failed",
-            "entity.too.large",
-            "charset.unsupported",
-            "encoding.unsupported",
-          ].includes(type)
-        ) {
-          response
-            .status(type === "entity.too.large" ? 413 : 400)
-            .json({ code: "invalid_json" });
-        } else next(error);
-      },
-    );
+    configureSelfHostedHttp(app);
     startupStage = "web-artifacts";
     const webRoot = path.resolve(__dirname, "../../web/dist");
     await access(path.join(webRoot, "index.html"));
-    app.use(
-      (
-        _request: unknown,
-        response: { setHeader(name: string, value: string): void },
-        next: () => void,
-      ) => {
-        response.setHeader("X-Content-Type-Options", "nosniff");
-        response.setHeader("Referrer-Policy", "no-referrer");
-        response.setHeader(
-          "Content-Security-Policy",
-          "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
-        );
-        next();
-      },
-    );
     app.useStaticAssets(webRoot, { dotfiles: "deny", index: "index.html" });
   }
 

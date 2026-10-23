@@ -1,11 +1,12 @@
 import { Test } from "@nestjs/testing";
-import type { INestApplication } from "@nestjs/common";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import { configureSelfHostedHttp } from "../src/deployment/self-hosted-http";
 import request from "supertest";
 import { SetupController } from "../src/setup/setup.controller";
 import { SetupService } from "../src/setup/setup.service";
 
 describe("setup HTTP boundary", () => {
-  let app: INestApplication;
+  let app: NestExpressApplication;
   const register = jest.fn();
   const status = jest.fn();
   const original = {
@@ -21,7 +22,10 @@ describe("setup HTTP boundary", () => {
       controllers: [SetupController],
       providers: [{ provide: SetupService, useValue: { register, status } }],
     }).compile();
-    app = module.createNestApplication();
+    app = module.createNestApplication<NestExpressApplication>({
+      bodyParser: false,
+    });
+    configureSelfHostedHttp(app);
     await app.init();
   });
   beforeEach(() => {
@@ -54,8 +58,48 @@ describe("setup HTTP boundary", () => {
         password: "synthetic-password",
       })
       .expect(201)
+      .expect("Cache-Control", "no-store")
       .expect({ state: "complete", administratorCreated: true });
   });
+  it.each([
+    ["malformed", '{"password":"secret-canary",', {}, 400],
+    [
+      "oversized",
+      JSON.stringify({ password: "secret-canary" + "x".repeat(8192) }),
+      {},
+      413,
+    ],
+    [
+      "charset",
+      '{"password":"secret-canary"}',
+      { "Content-Type": "application/json; charset=bogus" },
+      415,
+    ],
+    [
+      "encoding",
+      '{"password":"secret-canary"}',
+      { "Content-Encoding": "bogus" },
+      415,
+    ],
+  ] as const)(
+    "protects %s JSON errors using the real entrypoint configuration",
+    async (_label, payload, headers, code) => {
+      const response = await post()
+        .set("Content-Type", "application/json")
+        .set(headers)
+        .send(payload)
+        .expect(code);
+      expect(response.body).toEqual({ code: "invalid_json" });
+      expect(response.text).not.toContain("secret-canary");
+      expect(response.headers["cache-control"]).toBe("no-store");
+      expect(response.headers["x-content-type-options"]).toBe("nosniff");
+      expect(response.headers["referrer-policy"]).toBe("no-referrer");
+      expect(response.headers["content-security-policy"]).toContain(
+        "form-action 'self'",
+      );
+      expect(register).not.toHaveBeenCalled();
+    },
+  );
   it("rejects foreign origins before calling registration", async () => {
     await post().set("Origin", "https://evil.example").send({}).expect(403);
     expect(register).not.toHaveBeenCalled();

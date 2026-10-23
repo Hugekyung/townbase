@@ -57,6 +57,12 @@ describe("bootstrap transport boundary", () => {
     expect(setupTransportAllowed(req, env)).toBe(false);
     req.socket.remoteAddress = "::ffff:172.18.0.1";
     expect(setupTransportAllowed(req, env)).toBe(true);
+    expect(
+      setupTransportAllowed(req, {
+        ...env,
+        TOWNBASE_TRUSTED_PROXY_IP: "::FFFF:172.18.0.1",
+      }),
+    ).toBe(true);
     req.headers["x-forwarded-proto"] = "http";
     expect(setupTransportAllowed(req, env)).toBe(false);
     expect(setupTransportAllowed(local(), env)).toBe(false);

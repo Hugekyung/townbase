@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-export function SetupForm({ onRegistered }: { onRegistered(): void }) {
+export function SetupForm({
+  onRegistered,
+  onBusyChange,
+  blocked = false,
+}: {
+  onRegistered(): void;
+  onBusyChange?(busy: boolean): void;
+  blocked?: boolean;
+}) {
   const [token, setToken] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -12,7 +20,18 @@ export function SetupForm({ onRegistered }: { onRegistered(): void }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (pending.current) return;
+    if (pending.current || blocked) return;
+    const normalizedUsername = username.trim();
+    if (
+      !normalizedUsername ||
+      [...normalizedUsername].length > 128 ||
+      /[\p{Cc}]/u.test(normalizedUsername)
+    ) {
+      setMessage(
+        "관리자 이름은 공백만 입력할 수 없고 제어문자 없이 1~128자로 입력해 주세요.",
+      );
+      return;
+    }
     if (password !== confirmation) {
       setMessage("비밀번호 확인이 일치하지 않아요.");
       return;
@@ -25,6 +44,7 @@ export function SetupForm({ onRegistered }: { onRegistered(): void }) {
     pending.current = controller;
     const timer = setTimeout(() => controller.abort(), 35000);
     setBusy(true);
+    onBusyChange?.(true);
     setMessage("");
     try {
       const response = await fetch("/setup/administrator", {
@@ -33,7 +53,7 @@ export function SetupForm({ onRegistered }: { onRegistered(): void }) {
           "Content-Type": "application/json",
           "X-Townbase-Setup": "1",
         },
-        body: JSON.stringify({ token, username, password }),
+        body: JSON.stringify({ token, username: normalizedUsername, password }),
         signal: controller.signal,
         cache: "no-store",
       });
@@ -62,6 +82,7 @@ export function SetupForm({ onRegistered }: { onRegistered(): void }) {
       setPassword("");
       setConfirmation("");
       setBusy(false);
+      onBusyChange?.(false);
     }
   }
 
@@ -82,7 +103,7 @@ export function SetupForm({ onRegistered }: { onRegistered(): void }) {
         maxLength={43}
         autoComplete="off"
         spellCheck={false}
-        disabled={busy}
+        disabled={busy || blocked}
       />
       <label htmlFor="setup-username">관리자 이름</label>
       <input
@@ -90,9 +111,9 @@ export function SetupForm({ onRegistered }: { onRegistered(): void }) {
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         required
-        maxLength={128}
+        maxLength={256}
         autoComplete="username"
-        disabled={busy}
+        disabled={busy || blocked}
       />
       <label htmlFor="setup-password">비밀번호</label>
       <input
@@ -104,7 +125,7 @@ export function SetupForm({ onRegistered }: { onRegistered(): void }) {
         maxLength={256}
         autoComplete="new-password"
         aria-describedby="password-help"
-        disabled={busy}
+        disabled={busy || blocked}
       />
       <span id="password-help" className="form-help">
         15~128자. 문자 종류를 강제로 조합하지 않아도 돼요.
@@ -118,12 +139,12 @@ export function SetupForm({ onRegistered }: { onRegistered(): void }) {
         required
         maxLength={256}
         autoComplete="new-password"
-        disabled={busy}
+        disabled={busy || blocked}
       />
       <p className="form-message" role="alert">
         {message}
       </p>
-      <button type="submit" disabled={busy}>
+      <button type="submit" disabled={busy || blocked}>
         {busy ? "등록 확인 중…" : "최초 관리자 등록"}
       </button>
     </form>

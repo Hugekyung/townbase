@@ -34,10 +34,10 @@ export function setupTransportAllowed(
     )
       return false;
     if (request.socket.encrypted === true) return true;
-    const peer = request.socket.remoteAddress
-      ?.replace(/^::ffff:/, "")
-      .toLowerCase();
-    const trusted = env.TOWNBASE_TRUSTED_PROXY_IP?.toLowerCase();
+    const normalize = (ip: string | undefined) =>
+      ip?.toLowerCase().replace(/^::ffff:/, "");
+    const peer = normalize(request.socket.remoteAddress);
+    const trusted = normalize(env.TOWNBASE_TRUSTED_PROXY_IP);
     return (
       trusted != null &&
       isIP(trusted) !== 0 &&

@@ -12,6 +12,8 @@ import {
 } from "node:crypto";
 import { PrismaClient } from "@townbase/database";
 import { DeploymentDatabase } from "../deployment/deployment-database";
+import { BOOTSTRAP_TTL_MS } from "./setup-policy";
+import { SetupIssueError } from "./issue-error";
 import { hashPassword } from "./password";
 import {
   deleteTokenFile,
@@ -109,18 +111,21 @@ export class SetupService implements OnModuleInit, OnModuleDestroy {
   }
 
   async issue(): Promise<void> {
-    await prepareTokenDirectory();
+    await prepareTokenDirectory().catch(() => {
+      throw new SetupIssueError("storage_unavailable");
+    });
     await this.database.prisma.$transaction(
       async (tx) => {
         const now = await this.lock(tx);
         if (await this.closed(tx))
-          throw new Error("Administrator is already initialized");
-        const workspace = await tx.workspace.findUniqueOrThrow({
+          throw new SetupIssueError("already_initialized");
+        const workspace = await tx.workspace.findUnique({
           where: {
             name: process.env.TOWNBASE_DEFAULT_WORKSPACE_NAME ?? "townbase",
           },
           select: { id: true, name: true },
         });
+        if (!workspace) throw new SetupIssueError("workspace_unavailable");
         const installation = await tx.installation.findUnique({
           where: { id: "primary" },
         });
@@ -142,14 +147,14 @@ export class SetupService implements OnModuleInit, OnModuleDestroy {
             },
           });
         } else if (installation.workspaceId !== workspace.id)
-          throw new Error("Installation workspace mismatch");
+          throw new SetupIssueError("workspace_mismatch");
         const token = randomBytes(32).toString("base64url");
         await tx.bootstrapState.update({
           where: { id: "primary" },
           data: {
             tokenHash: digest(token),
             issuedAt: now,
-            expiresAt: new Date(now.getTime() + 3600000),
+            expiresAt: new Date(now.getTime() + BOOTSTRAP_TTL_MS),
             consumedAt: null,
             failedAttempts: 0,
             attemptWindowStart: null,
@@ -157,7 +162,9 @@ export class SetupService implements OnModuleInit, OnModuleDestroy {
           },
         });
         await this.audit(tx, "bootstrap_token_issued");
-        await writeTokenFile(token);
+        await writeTokenFile(token).catch(() => {
+          throw new SetupIssueError("storage_unavailable");
+        });
       },
       { timeout: 30000, maxWait: 3000 },
     );

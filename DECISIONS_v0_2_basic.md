@@ -2,7 +2,7 @@
 
 > 작성일: 2026-10-22  
 > 기준: [기본 PRD](PRD_v0_2_self_hosted_agent.md), [기본 TASK](TASK_v0_2_self_hosted_agent.md)  
-> 상태: 2026-10-22 사용자의 판단 위임에 따라 S01·S03~S14를 기본 적용값으로 확정했다. 2026-10-23 논의를 반영해 S02의 도입자 Key·지원 답변 모델 선택·임베딩 고정 정책을 확정했다. 최초 답변 모델 ID/API는 C에서 확인한다. 현재 구현 상태는 TASK와 단계별 검증 기록을 따른다. B01 저장 기반은 로컬 구현·검증했고 로그인/실제 모델 연동은 아직 없다.
+> 상태: 2026-10-22 사용자의 판단 위임에 따라 S01·S03~S14를 기본 적용값으로 확정했다. 2026-10-23 논의를 반영해 S02의 도입자 Key·지원 답변 모델 선택·임베딩 고정 정책을 확정했다. 최초 답변 모델 ID/API는 C에서 확인한다. 현재 구현 상태는 TASK와 단계별 검증 기록을 따른다. B01 저장 기반·B02 배포는 main에 병합했고 B03 최초 관리자 등록은 PR #35로 전달했다. 로그인/실제 모델 연동은 아직 없다.
 
 ## 1. 확정된 제품 방향
 
@@ -82,4 +82,4 @@
 
 ## B03 구현 세부 (2026-10-24)
 
-S03/S04/S14의 기존 승인값을 적용했다. Argon2id는 `argon2@0.45.1`을 고정하고 19456KiB·2회·병렬1·32-byte hash를 사용한다. PHC 표기의 m,t,p와 m,p,t 순서를 모두 허용하되 다른 알고리즘은 허용하지 않는다. bootstrap은 로컬 CLI 발급·전용 volume·SHA-256 digest·DB singleton 행 잠금으로 보호한다. 처음 발급할 때 선택 workspace를 설치에 연결하고 이름은 workspace 이름·시간대는 UTC로 기록한다. 이미 있는 설치 값은 보존하며 연결 불일치는 거절한다. 복구/로그인/세션은 B04에 남긴다. 네트워크는 명시적 loopback HTTP 예외와 고정 HTTPS origin+정확한 trusted peer IP를 구분한다. [실행 계약](docs/self-hosted-deployment.md#7-최초-관리자-등록-b03), [검증 기록](docs/implementation/v0.2-b03-administrator.md).
+S03/S04/S14의 기존 승인값을 적용했다. 구현 의존성은 `argon2@0.45.1`로 고정했다. 초기 설치는 선택 workspace 이름·UTC를 기록하고 기존 설치 값은 보존한다. 로그인·세션·복구는 B04 범위다. 세부 저장·잠금·전송·장애 처리와 실제 검증은 [B03 구현 기록](docs/implementation/v0.2-b03-administrator.md), 운영 명령은 [실행 계약](docs/self-hosted-deployment.md#7-최초-관리자-등록-b03)을 따른다.

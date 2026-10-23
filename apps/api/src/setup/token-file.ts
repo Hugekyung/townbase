@@ -11,6 +11,31 @@ import {
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
+const TEMP_PREFIX = ".townbase-bootstrap-";
+const TEMP_SUFFIX = ".tmp";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const LEGACY_TEMP =
+  /^\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/;
+export function temporaryTokenName(): string {
+  return `${TEMP_PREFIX}${randomUUID()}${TEMP_SUFFIX}`;
+}
+function isTemporaryTokenName(name: string): boolean {
+  return (
+    LEGACY_TEMP.test(name) ||
+    (name.startsWith(TEMP_PREFIX) &&
+      name.endsWith(TEMP_SUFFIX) &&
+      UUID.test(name.slice(TEMP_PREFIX.length, -TEMP_SUFFIX.length)))
+  );
+}
+async function syncDirectory(directory: string): Promise<void> {
+  const handle = await open(directory, "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
 export function tokenDirectory(): string {
   const value = process.env.TOWNBASE_BOOTSTRAP_PATH;
   if (!value || !path.isAbsolute(value))
@@ -59,7 +84,7 @@ export async function prepareTokenDirectory(): Promise<string> {
 
 export async function writeTokenFile(token: string): Promise<void> {
   const directory = await prepareTokenDirectory();
-  const filename = path.join(directory, `.${randomUUID()}.tmp`);
+  const filename = path.join(directory, temporaryTokenName());
   try {
     const file = await open(filename, "wx", 0o600);
     try {
@@ -69,6 +94,7 @@ export async function writeTokenFile(token: string): Promise<void> {
       await file.close();
     }
     await rename(filename, path.join(directory, "token"));
+    await syncDirectory(directory);
   } finally {
     await unlink(filename).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT") throw error;
@@ -89,11 +115,6 @@ export async function deleteTokenFile(): Promise<void> {
 export async function deleteTemporaryTokenFiles(): Promise<void> {
   const directory = tokenDirectory();
   for (const name of await readdir(directory)) {
-    if (
-      /^\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/.test(
-        name,
-      )
-    )
-      await unlink(path.join(directory, name));
+    if (isTemporaryTokenName(name)) await unlink(path.join(directory, name));
   }
 }

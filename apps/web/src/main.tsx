@@ -29,6 +29,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [registering, setRegistering] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,7 +37,6 @@ function App() {
     const timer = setTimeout(() => controller.abort(), 8000);
     setLoading(true);
     setFailed(false);
-    setStatus(null);
     fetch("/readyz", { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (response.status !== 200 && response.status !== 503)
@@ -108,7 +108,7 @@ function App() {
             </div>
             <button
               onClick={() => setAttempt((value) => value + 1)}
-              disabled={loading}
+              disabled={loading || registering}
             >
               {loading ? "확인 중…" : "상태 다시 확인"}
             </button>
@@ -122,32 +122,37 @@ function App() {
                   <p>{check.detail}</p>
                 </div>
                 <span
-                  className={`state ${loading ? "pending" : check.value === "ready" ? "ready" : "error"}`}
+                  className={`state ${loading ? "pending" : !failed && check.value === "ready" ? "ready" : "error"}`}
                 >
                   {loading
                     ? "확인 중"
-                    : check.value === "ready"
-                      ? "연결됨"
-                      : failed
-                        ? "확인 불가"
+                    : failed
+                      ? "확인 불가"
+                      : check.value === "ready"
+                        ? "연결됨"
                         : "연결 필요"}
                 </span>
               </div>
             ))}
           </div>
           <div
-            className={`notice ${!loading && !ready ? "attention" : ""}`}
+            className={`notice ${!loading && (!ready || failed) ? "attention" : ""}`}
             role="status"
           >
             {loading
               ? "현재 연결 상태를 확인하고 있어요."
               : failed
                 ? "서버 상태를 가져오지 못했어요. 연결을 확인하고 다시 시도해 주세요."
-                : ready
-                  ? status?.setup === "complete"
-                    ? "기본 실행 환경이 연결됐고 관리자 등록도 완료됐어요."
-                    : "기본 실행 환경이 연결됐어요. 다음은 관리자 초기 설정이에요."
-                  : "연결되지 않은 항목이 있어요. 운영자가 서비스 상태를 확인해 주세요."}
+                : status?.setup === "unavailable" &&
+                    status.database === "ready" &&
+                    status.schema === "ready" &&
+                    status.storage === "ready"
+                  ? "기본 실행 환경은 연결됐지만 관리자 초기화 상태를 확인하지 못했어요. 운영자가 초기화 저장 상태를 확인해 주세요."
+                  : ready
+                    ? status?.setup === "complete"
+                      ? "기본 실행 환경이 연결됐고 관리자 등록도 완료됐어요."
+                      : "기본 실행 환경이 연결됐어요. 다음은 관리자 초기 설정이에요."
+                    : "연결되지 않은 항목이 있어요. 운영자가 서비스 상태를 확인해 주세요."}
           </div>
         </section>
         <section className="next-panel" aria-labelledby="next-title">
@@ -161,15 +166,19 @@ function App() {
                 ? "관리자 등록 완료"
                 : "최초 관리자 등록"}
             </h2>
-            {ready && status?.setup === "required" ? (
+            {status?.setup === "required" ? (
               <SetupForm
                 onRegistered={() => setAttempt((value) => value + 1)}
+                onBusyChange={setRegistering}
+                blocked={loading || failed || !ready}
               />
             ) : (
               <p>
                 {status?.setup === "complete"
                   ? "관리자가 이미 등록되어 있어요. 추가 초기 등록은 차단됐어요. 로그인·문서 등록·채팅은 다음 단계에서 제공해요."
-                  : "기본 실행 환경이 연결되면 최초 관리자 등록을 진행할 수 있어요."}
+                  : status?.setup === "unavailable"
+                    ? "관리자 초기화 상태를 확인한 뒤 등록할 수 있어요. 상태를 다시 확인해 주세요."
+                    : "기본 실행 환경이 연결되면 최초 관리자 등록을 진행할 수 있어요."}
               </p>
             )}
           </div>

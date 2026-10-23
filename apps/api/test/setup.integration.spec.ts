@@ -14,6 +14,8 @@ import os from "node:os";
 import path from "node:path";
 import { DeploymentDatabase } from "../src/deployment/deployment-database";
 import { SetupService } from "../src/setup/setup.service";
+import { temporaryTokenName } from "../src/setup/token-file";
+import { SetupIssueError } from "../src/setup/issue-error";
 import { verifyPassword } from "../src/setup/password";
 
 const integration =
@@ -178,10 +180,13 @@ integration("initial administrator real database lifecycle", () => {
   it("removes interrupted plaintext temporary writes while preserving a live token", async () => {
     await service.issue();
     const current = await token();
-    const orphan = path.join(directory, "bootstrap", `.${randomUUID()}.tmp`);
+    const orphan = path.join(directory, "bootstrap", temporaryTokenName());
+    const legacy = path.join(directory, "bootstrap", `.${randomUUID()}.tmp`);
+    await writeFile(legacy, "synthetic-legacy-orphan", { mode: 0o600 });
     await writeFile(orphan, "synthetic-orphan-credential", { mode: 0o600 });
     await other.cleanup();
     await expect(readFile(orphan)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(legacy)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await token()).toBe(current);
     expect(await service.register(input(current))).toBe("registered");
   });
@@ -272,9 +277,44 @@ integration("initial administrator real database lifecycle", () => {
     await service.issue();
     const raw = await token();
     await service.register(input(raw));
+    await owner.installation.update({
+      where: { id: "primary" },
+      data: { initializedAt: null },
+    });
     await owner.administrator.updateMany({ data: { disabledAt: new Date() } });
     expect(await other.register(input(raw))).toBe("closed");
     await expect(other.issue()).rejects.toThrow();
+  });
+  it("reports safe workspace errors without changing the active credential", async () => {
+    await service.issue();
+    const raw = await token();
+    const originalName = process.env.TOWNBASE_DEFAULT_WORKSPACE_NAME;
+    try {
+      process.env.TOWNBASE_DEFAULT_WORKSPACE_NAME =
+        "missing-synthetic-workspace";
+      await expect(other.issue()).rejects.toMatchObject({
+        code: "workspace_unavailable",
+      });
+      const workspace = await owner.workspace.create({
+        data: { name: "b03-mismatch-synthetic" },
+      });
+      try {
+        process.env.TOWNBASE_DEFAULT_WORKSPACE_NAME = workspace.name;
+        await expect(other.issue()).rejects.toEqual(
+          new SetupIssueError("workspace_mismatch"),
+        );
+      } finally {
+        await owner.workspace.delete({ where: { id: workspace.id } });
+      }
+    } finally {
+      if (originalName == null)
+        delete process.env.TOWNBASE_DEFAULT_WORKSPACE_NAME;
+      else process.env.TOWNBASE_DEFAULT_WORKSPACE_NAME = originalName;
+    }
+    expect(await token()).toBe(raw);
+    expect((await owner.bootstrapState.findFirstOrThrow()).tokenHash).toBe(
+      hash(raw),
+    );
   });
   it("reports unavailable state if the required singleton is missing", async () => {
     await owner.bootstrapState.deleteMany();

@@ -245,8 +245,10 @@ test("B03 grants setup writes without administrator updates or content access", 
     has_table_privilege('townbase_runtime', 'public."Administrator"', 'INSERT') AS administrator_insert,
     has_column_privilege('townbase_runtime', 'public."Installation"', 'initializedAt', 'UPDATE') AS initialize,
     has_column_privilege('townbase_runtime', 'public."Installation"', 'name', 'UPDATE') AS rename,
-    has_table_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE,DELETE') AS administrator_mutation,
-    has_table_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE,DELETE') AS content`;
+    (has_table_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE,DELETE')
+      OR has_any_column_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE')) AS administrator_mutation,
+    (has_table_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE,DELETE')
+      OR has_any_column_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE')) AS content`;
   assert.deepEqual(rights, {
     bootstrap: true,
     administrator_insert: true,
@@ -275,3 +277,27 @@ test("B03 strips direct delegation while retaining required setup inserts", asyn
     has_table_privilege('townbase_runtime', 'public."Administrator"', 'INSERT WITH GRANT OPTION') AS delegation`;
   assert.deepEqual(rights, { insert_allowed: true, delegation: false });
 });
+
+for (const [table, privilege, column] of [
+  ["Administrator", "UPDATE", "username"],
+  ["Document", "SELECT", "id"],
+  ["Document", "INSERT", "id"],
+  ["Document", "UPDATE", "id"],
+]) {
+  test(`B03 rejects PUBLIC column ${privilege} on ${table}`, async () => {
+    // Constant fixture identifiers only.
+    await db.$executeRawUnsafe(
+      `GRANT ${privilege} ("${column}") ON public."${table}" TO PUBLIC`,
+    );
+    try {
+      await assert.rejects(configure, {
+        code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
+      });
+    } finally {
+      await db.$executeRawUnsafe(
+        `REVOKE ${privilege} ("${column}") ON public."${table}" FROM PUBLIC`,
+      );
+    }
+    await configure();
+  });
+}
