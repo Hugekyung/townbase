@@ -92,6 +92,22 @@ enum InstallationAuditAction {
   installation_created
   installation_settings_changed
   administrator_created
+  bootstrap_token_issued
+  bootstrap_token_consumed
+  bootstrap_token_rejected
+}
+
+// Seeded singleton, even before the operator explicitly links the installation.
+// Raw tokens belong only in the protected server-local file.
+model BootstrapState {
+  id                   String    @id @default("primary")
+  tokenHash            String?   @db.VarChar(64)
+  issuedAt             DateTime?
+  expiresAt            DateTime?
+  consumedAt           DateTime?
+  failedAttempts       Int       @default(0)
+  attemptWindowStart   DateTime?
+  blockedUntil         DateTime?
 }
 
 enum AuditOutcome {

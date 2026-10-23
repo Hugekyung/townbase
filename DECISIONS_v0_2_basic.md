@@ -78,3 +78,8 @@
 - C의 실제 답변 모델 연결은 지원 목록·초기 선택·API 검증을 기록한 뒤 진행한다. S02를 이유로 무관한 B 준비를 막지 않는다.
 - TLS는 운영자가 제공하는 인증서·reverse proxy에서 종료하고 같은 origin으로 API/웹을 제공한다. 기존 proxy가 없으면 지원 환경의 설치 안내에서 준비한다. 인증서가 없으면 운영 로그인을 열지 않는다. 단일 앱/DB 배포 원칙은 유지한다.
 - 파서·TLS·세부 검증에 필요한 구현 선택은 이번 위임 범위에서 공식 지원·현재 코드와 맞춰 결정하고 기록한다. 사용자의 추가 선택을 반복 요구하지 않는다. 제품 범위 확대·기존 보호 약화·외부 공개·커밋/푸시 승인은 위임에 포함하지 않는다.
+
+
+## B03 구현 세부 (2026-10-24)
+
+S03/S04/S14의 기존 승인값을 적용했다. Argon2id는 `argon2@0.45.1`을 고정하고 19456KiB·2회·병렬1·32-byte hash를 사용한다. PHC 표기의 m,t,p와 m,p,t 순서를 모두 허용하되 다른 알고리즘은 허용하지 않는다. bootstrap은 로컬 CLI 발급·전용 volume·SHA-256 digest·DB singleton 행 잠금으로 보호한다. 처음 발급할 때 선택 workspace를 설치에 연결하고 이름은 workspace 이름·시간대는 UTC로 기록한다. 이미 있는 설치 값은 보존하며 연결 불일치는 거절한다. 복구/로그인/세션은 B04에 남긴다. 네트워크는 명시적 loopback HTTP 예외와 고정 HTTPS origin+정확한 trusted peer IP를 구분한다. [실행 계약](docs/self-hosted-deployment.md#7-최초-관리자-등록-b03), [검증 기록](docs/implementation/v0.2-b03-administrator.md).

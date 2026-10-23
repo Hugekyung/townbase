@@ -290,3 +290,46 @@ footer span {
     gap: 7px;
   }
 }
+
+.next-panel > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.setup-form {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+.setup-form label {
+  font-size: 13px;
+  margin-top: 9px;
+}
+.setup-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: #202e2b;
+  background: #fff;
+  border: 1px solid #bac7b9;
+  border-radius: 7px;
+}
+.setup-form input:focus-visible {
+  outline: 3px solid #5a9072;
+  outline-offset: 2px;
+}
+.setup-form .form-help {
+  color: #5f6c63;
+  font-size: 12px;
+}
+.setup-form .form-message {
+  color: #814d12;
+  margin: 5px 0;
+}
+.setup-form button {
+  justify-self: start;
+  background: #264c40;
+  color: #fff;
+  border-color: #264c40;
+}

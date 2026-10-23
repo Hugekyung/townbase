@@ -1,8 +1,10 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
+import { SetupForm } from "./SetupForm";
 
 type Readiness = {
+  setup: "required" | "complete" | "unavailable";
   database: "ready" | "unavailable";
   schema: "ready" | "unavailable";
   storage: "ready" | "unavailable";
@@ -17,6 +19,8 @@ function parseReadiness(value: unknown): Readiness {
       throw new Error("Invalid status");
     }
   }
+  if (!["required", "complete", "unavailable"].includes(String(record.setup)))
+    throw new Error("Invalid setup status");
   return record as Readiness;
 }
 
@@ -59,7 +63,8 @@ function App() {
   const ready =
     status?.database === "ready" &&
     status.schema === "ready" &&
-    status.storage === "ready";
+    status.storage === "ready" &&
+    status.setup !== "unavailable";
   const checks = [
     {
       title: "데이터베이스",
@@ -139,7 +144,9 @@ function App() {
               : failed
                 ? "서버 상태를 가져오지 못했어요. 연결을 확인하고 다시 시도해 주세요."
                 : ready
-                  ? "기본 실행 환경이 연결됐어요. 다음은 관리자 초기 설정이에요."
+                  ? status?.setup === "complete"
+                    ? "기본 실행 환경이 연결됐고 관리자 등록도 완료됐어요."
+                    : "기본 실행 환경이 연결됐어요. 다음은 관리자 초기 설정이에요."
                   : "연결되지 않은 항목이 있어요. 운영자가 서비스 상태를 확인해 주세요."}
           </div>
         </section>
@@ -149,14 +156,23 @@ function App() {
           </div>
           <div>
             <span className="section-label">다음 설정</span>
-            <h2 id="next-title">관리자 등록 준비 중</h2>
-            <p>
-              현재 버전에서는 설치 상태만 확인할 수 있어요.
-              <br />
-              관리자 등록·로그인·문서 등록·채팅은 아직 사용할 수 없어요.
-            </p>
+            <h2 id="next-title">
+              {status?.setup === "complete"
+                ? "관리자 등록 완료"
+                : "최초 관리자 등록"}
+            </h2>
+            {ready && status?.setup === "required" ? (
+              <SetupForm
+                onRegistered={() => setAttempt((value) => value + 1)}
+              />
+            ) : (
+              <p>
+                {status?.setup === "complete"
+                  ? "관리자가 이미 등록되어 있어요. 추가 초기 등록은 차단됐어요. 로그인·문서 등록·채팅은 다음 단계에서 제공해요."
+                  : "기본 실행 환경이 연결되면 최초 관리자 등록을 진행할 수 있어요."}
+              </p>
+            )}
           </div>
-          <span className="tag">아직 사용 불가</span>
         </section>
         <footer>
           Townbase <span>내 자료로 만드는 나만의 지식 공간</span>

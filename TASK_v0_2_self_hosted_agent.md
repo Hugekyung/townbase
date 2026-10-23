@@ -2,7 +2,7 @@
 
 > 작성일: 2026-10-21 / 재작성: 2026-10-22  
 > 기준: [기본 PRD](PRD_v0_2_self_hosted_agent.md), [선택·승인 기록](DECISIONS_v0_2_basic.md), 루트 [AGENTS.md](AGENTS.md)  
-> 상태: 기본 기능 작업 분해와 모델 외 기본 선택 확정 완료. S01·S03~S14는 사용자 위임에 따라 채택했다. S02는 도입자 Key·지원 답변 모델 선택·임베딩 small/1536 고정 정책을 반영했다. 최초 답변 모델 ID/API는 C에서 확인한다. A03 명세와 A04 실행 결과는 아래 증거를 따른다. B01은 main 커밋 `80cb3ab`로 전달했다. B02 배포·초기 웹은 로컬 구현·검증 후 [PR #34](https://github.com/Hugekyung/townbase/pull/34)로 전달했다. PR 리뷰21개 보완은 후속 커밋 `e311ecc`로 전달했다. 재리뷰 보완은 `4adfb14`로 전달했다. 추가 리뷰6개와 관련 경계를 함께 보완했으며 최신 검증은240개 통과다. 2026-10-23 사용자가 재리뷰 보완의 commit/push·PR 댓글 등록까지 승인했다. [대응 기록](docs/implementation/v0.2-b02-review-response.md)을 따른다. main 병합은 아직 하지 않았다. 이후 단계는 미착수다.
+> 상태: 기본 기능 작업 분해와 모델 외 기본 선택 확정 완료. S01·S03~S14는 사용자 위임에 따라 채택했다. S02는 도입자 Key·지원 답변 모델 선택·임베딩 small/1536 고정 정책을 반영했다. 최초 답변 모델 ID/API는 C에서 확인한다. A03 명세와 A04 실행 결과는 아래 증거를 따른다. B01은 main 커밋 `80cb3ab`로 전달했다. B02 배포·초기 웹은 로컬 구현·검증 후 [PR #34](https://github.com/Hugekyung/townbase/pull/34)로 전달했다. PR 리뷰21개 보완은 후속 커밋 `e311ecc`로 전달했다. 재리뷰 보완은 `4adfb14`로 전달했다. 추가 리뷰6개와 관련 경계를 함께 보완했으며 최신 검증은240개 통과다. 2026-10-23 사용자가 재리뷰 보완의 commit/push·PR 댓글 등록까지 승인했다. [대응 기록](docs/implementation/v0.2-b02-review-response.md)을 따른다. PR #34는 main `24ad492`로 병합·동기화했다. B03은 별도 브랜치에서 로컬 구현·검증을 마쳤으며 2026-10-24 사용자가 commit/push·main 대상 PR 생성을 승인했다. B04 이후는 미착수다.
 
 ## 0. 사용법·범위
 
@@ -62,8 +62,8 @@
 | 상태 | TASK | 수행·산출물 | 검증 |
 | --- | --- | --- | --- |
 | main 전달 완료 (`80cb3ab`) | V02B-B01 | 필요한 관리자·설정·소유·중요 변경 기록의 최소 DB/migration, 비밀·파일 경계와 신규/기존 DB 적용 설계 | [설계·적용 절차](docs/implementation/v0.2-b01-storage.md)·[검증 기록](docs/implementation/v0.2-b01-verification.md). 새 DB/구버전8개 모델 보존·재실행·11개 테이블 복원/readback, 신규11개 포함149 tests. 운영 복구·로그인/파일 구현과 구분 |
-| 구현·검증·PR 전달 완료 (#34) | V02B-B02 | API·초기 웹·DB·migration 배포, health·volume·host 노출·TLS 계약. 빌드 산출물 소비 경로 정리 | [실행 안내](docs/self-hosted-deployment.md)·[검증 기록](docs/implementation/v0.2-b02-verification.md): Linux amd64 에뮬레이션에서 빈 volume 기동·중복/실패 차단·DB/파일 재시작 유지·실제 UI 오류/회복, 최초202개·1차 보완211개·2차 보완221개·3차 보완240개 tests 통과. [추가 검증](docs/implementation/v0.2-b02-review-response.md) 참고. 네이티브 장비/실제 조직 TLS는 별도 |
-| 미착수 | V02B-B03 | 최초 관리자 1회 생성·일회성 초기 토큰·동시 등록 제어 | 미인증 bootstrap 차단, 토큰 만료/재사용/경합, 완료 후 초기화 진입 닫힘 |
+| main 병합 완료 (`24ad492`, #34) | V02B-B02 | API·초기 웹·DB·migration 배포, health·volume·host 노출·TLS 계약. 빌드 산출물 소비 경로 정리 | [실행 안내](docs/self-hosted-deployment.md)·[검증 기록](docs/implementation/v0.2-b02-verification.md): Linux amd64 에뮬레이션에서 빈 volume 기동·중복/실패 차단·DB/파일 재시작 유지·실제 UI 오류/회복, 최초202개·1차 보완211개·2차 보완221개·3차 보완240개 tests 통과. [추가 검증](docs/implementation/v0.2-b02-review-response.md) 참고. 네이티브 장비/실제 조직 TLS는 별도 |
+| 로컬 구현·검증 완료 / PR 전달 승인 | V02B-B03 | 최초 관리자 1회 생성·일회성 초기 토큰·동시 등록 제어 | [구현·검증 기록](docs/implementation/v0.2-b03-administrator.md): 로컬 발급·실 DB 저장/감사·Argon2id·시도 제한·Origin/전송 경계·초기 웹. 271개 자동 시험·브라우저 등록·독립 DB 재조회·재시작 유지 확인. 2026-10-24 사용자 승인으로 commit/push·main 대상 PR 전달 경로를 따른다. main 병합은 별도 |
 | 미착수 | V02B-B04 | 로그인·logout·비밀번호 변경·세션·메일 없는 로컬 복구·중요 변경 기록 | 세션 무효화·복구 후 이전 세션 거절·데이터 보존·시도 제한 |
 | 미착수 | V02B-B05 | 서버 공통 요청자/설치 접근 검사, 기존 API/MCP/CLI 노출 목록·배포 프로필 | 문서/대화/Key/Gap/실행·파일 직접 API와 비활성 경로 차단, workspaceId 위조 거절 |
 
@@ -199,4 +199,4 @@ package.json 정적 목록이다. 2026-10-23에 실제 실행한 범위·제외�
 
 각 단계 종료 시 적용 S 값·관련 TASK 상태·변경 파일·실행 명령·DB/파일/실행 ID 재조회·정상/실패 증거·남은 제한·저장소 전달 상태를 기록한다. 비밀값·사내 원문은 증거에서 제외한다. 증거 저장 위치는 구현 시작 시 정하고 문서화한다.
 
-A03/A04 준비와 B01 저장 기반을 main `80cb3ab`로 전달했다. B02는 `codex/v02-b02-deployment-foundation`에서 배포·초기 웹·산출물 소비 경로를 로컬 구현·검증했다. [B02 검증 기록](docs/implementation/v0.2-b02-verification.md)을 따르며 구현 커밋 `a6749a9`와 [PR #34](https://github.com/Hugekyung/townbase/pull/34)로 전달했다. main 병합은 미수행이다. 다음은 B03 최초 관리자 등록이다. S02의 초기 답변 모델 ID/API 검증은 C에서 하며 B와 분리한다. 2026-10-23 사용자의 승인으로 작업 브랜치 commit/push와 main 대상 PR 생성을 수행했다. 이전 main 직접 푸시는 B01 기록이며 B02는 PR 검토 경로를 따른다.
+A03/A04 준비와 B01 저장 기반을 main `80cb3ab`로 전달했다. B02는 `codex/v02-b02-deployment-foundation`에서 배포·초기 웹·산출물 소비 경로를 로컬 구현·검증했다. [B02 검증 기록](docs/implementation/v0.2-b02-verification.md)을 따르며 구현 커밋 `a6749a9`와 [PR #34](https://github.com/Hugekyung/townbase/pull/34)로 전달했다. PR #34는 main `24ad492`로 병합됐고 로컬 main 동기화를 마쳤다. B03 최초 관리자 등록을 `codex/v02-b03-initial-administrator`에서 로컬 구현·검증을 마쳤다. [B03 기록](docs/implementation/v0.2-b03-administrator.md)을 따른다. 다음은 B04 로그인·세션·로컬 복구다. S02의 초기 답변 모델 ID/API 검증은 C에서 하며 B와 분리한다. 2026-10-23 사용자의 승인으로 작업 브랜치 commit/push와 main 대상 PR 생성을 수행했다. 이전 main 직접 푸시는 B01 기록이며 B02는 PR 검토 경로를 따른다.

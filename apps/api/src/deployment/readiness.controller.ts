@@ -10,10 +10,14 @@ import {
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { DeploymentDatabase } from "./deployment-database";
+import { SetupService } from "../setup/setup.service";
 
 @Controller()
 export class ReadinessController {
-  constructor(private readonly database: DeploymentDatabase) {}
+  constructor(
+    private readonly database: DeploymentDatabase,
+    private readonly setupService: SetupService,
+  ) {}
 
   @Get("readyz")
   @Header("Cache-Control", "no-store")
@@ -81,7 +85,20 @@ export class ReadinessController {
     } catch {
       // Return state only. Filesystem paths, credentials and DB errors stay private.
     }
+    let setup: "unavailable" | "required" | "complete" = "unavailable";
+    if (
+      result.database === "ready" &&
+      result.schema === "ready" &&
+      storage === "ready"
+    ) {
+      try {
+        setup = (await this.setupService.status()).state;
+      } catch {
+        /* Fail closed. */
+      }
+    }
     const ready =
+      setup !== "unavailable" &&
       result.database === "ready" &&
       result.schema === "ready" &&
       storage === "ready";
@@ -89,8 +106,11 @@ export class ReadinessController {
     return {
       ...result,
       storage,
-      setup: "unavailable",
-      capabilities: { administratorSetup: false, chat: false },
+      setup,
+      capabilities: {
+        administratorSetup: ready && setup === "required",
+        chat: false,
+      },
     };
   }
 }

@@ -23,10 +23,38 @@ async function bootstrap(): Promise<void> {
   startupStage = "application";
   const app = await NestFactory.create<NestExpressApplication>(rootModule, {
     logger: ["error", "warn", "log"],
+    bodyParser: profile !== "self_hosted",
   });
   app.enableShutdownHooks();
 
   if (profile === "self_hosted") {
+    app.useBodyParser("json", { limit: "8kb", strict: true });
+    app.use(
+      (
+        error: unknown,
+        _request: unknown,
+        response: { status(code: number): { json(body: unknown): void } },
+        next: (error: unknown) => void,
+      ) => {
+        const type =
+          error != null && typeof error === "object" && "type" in error
+            ? error.type
+            : undefined;
+        if (
+          typeof type === "string" &&
+          [
+            "entity.parse.failed",
+            "entity.too.large",
+            "charset.unsupported",
+            "encoding.unsupported",
+          ].includes(type)
+        ) {
+          response
+            .status(type === "entity.too.large" ? 413 : 400)
+            .json({ code: "invalid_json" });
+        } else next(error);
+      },
+    );
     startupStage = "web-artifacts";
     const webRoot = path.resolve(__dirname, "../../web/dist");
     await access(path.join(webRoot, "index.html"));
@@ -40,7 +68,7 @@ async function bootstrap(): Promise<void> {
         response.setHeader("Referrer-Policy", "no-referrer");
         response.setHeader(
           "Content-Security-Policy",
-          "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+          "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
         );
         next();
       },

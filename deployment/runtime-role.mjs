@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
-// B02 exposes only readiness reads. Future features must grant their own tables
-// explicitly rather than giving the API schema ownership or migration powers.
+// B03 grants only initial administrator setup and status. Future features must
+// explicitly extend this policy without schema ownership or migration powers.
 export async function configureRuntimeRole(tx, env = process.env) {
   if (!env.TOWNBASE_RUNTIME_PASSWORD_FILE)
     throw new Error("Runtime database secret file is required");
@@ -34,10 +34,13 @@ export async function configureRuntimeRole(tx, env = process.env) {
   for (const sql of Object.values(databaseGrants))
     await tx.$executeRawUnsafe(sql);
   await tx.$executeRaw`GRANT USAGE ON SCHEMA public TO townbase_runtime`;
-  await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent", "BootstrapState", "Workspace" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT INSERT ON "Installation", "Administrator", "InstallationAuditEvent" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ON "BootstrapState" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ("initializedAt", "updatedAt") ON "Installation" TO townbase_runtime`;
   // The PUBLIC schema/database DDL revokes above are intentional. Object and
   // default ACLs belonging to other consumers are inspected, not auto-rewritten.
-  // Only public's four readiness tables and invoker routines installed by the
+  // Only public's setup/status tables and invoker routines installed by the
   // required vector extension are allowed outside PostgreSQL system schemas.
   const [grants] = await tx.$queryRaw`SELECT
     has_schema_privilege('townbase_runtime', 'public', 'CREATE')
@@ -51,11 +54,18 @@ export async function configureRuntimeRole(tx, env = process.env) {
       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE CASE WHEN n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
         AND c.relkind IN ('r', 'p', 'v', 'm', 'f') THEN (
-        has_table_privilege('townbase_runtime', c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-        OR has_any_column_privilege('townbase_runtime', c.oid, 'INSERT,UPDATE,REFERENCES')
-        OR has_table_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION')
-        OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION')
-        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent'))
+        has_table_privilege('townbase_runtime', c.oid, 'DELETE,TRUNCATE,REFERENCES,TRIGGER')
+        OR has_any_column_privilege('townbase_runtime', c.oid, 'REFERENCES')
+        OR (NOT (n.nspname = 'public' AND c.relname IN ('Installation', 'Administrator', 'InstallationAuditEvent'))
+          AND has_any_column_privilege('townbase_runtime', c.oid, 'INSERT'))
+        OR EXISTS (
+          SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+          AND has_column_privilege('townbase_runtime', c.oid, a.attnum, 'UPDATE')
+          AND NOT (n.nspname = 'public' AND (c.relname = 'BootstrapState' OR (c.relname = 'Installation' AND a.attname IN ('initializedAt', 'updatedAt'))))
+        )
+        OR has_table_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION')
+        OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION')
+        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent', 'BootstrapState', 'Workspace'))
           AND (has_table_privilege('townbase_runtime', c.oid, 'SELECT')
             OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT')))
       ) ELSE false END

@@ -10,6 +10,7 @@ import { DeploymentDatabase } from "../src/deployment/deployment-database";
 import { DeploymentModule } from "../src/deployment/deployment.module";
 import { resolveRuntimeProfile } from "../src/runtime-profile";
 import { ChatMcpServer } from "../src/chat/chat.server";
+import { SetupService } from "../src/setup/setup.service";
 
 describe("runtime profiles", () => {
   it("defaults production to the isolated self-hosted module", () => {
@@ -39,6 +40,7 @@ describe("self-hosted deployment surface", () => {
     attachments: process.env.TOWNBASE_ATTACHMENTS_PATH,
   };
   const check = jest.fn();
+  const setupStatus = jest.fn();
 
   beforeEach(async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), "townbase-deployment-"));
@@ -47,11 +49,14 @@ describe("self-hosted deployment surface", () => {
     await mkdir(process.env.TOWNBASE_DOCUMENTS_PATH);
     await mkdir(process.env.TOWNBASE_ATTACHMENTS_PATH);
     check.mockResolvedValue({ database: "ready", schema: "ready" });
+    setupStatus.mockResolvedValue({ state: "required" });
     const module = await Test.createTestingModule({
       imports: [DeploymentModule],
     })
       .overrideProvider(DeploymentDatabase)
       .useValue({ check })
+      .overrideProvider(SetupService)
+      .useValue({ status: setupStatus })
       .compile();
     app = module.createNestApplication();
     await app.init();
@@ -77,8 +82,8 @@ describe("self-hosted deployment surface", () => {
         database: "ready",
         schema: "ready",
         storage: "ready",
-        setup: "unavailable",
-        capabilities: { administratorSetup: false, chat: false },
+        setup: "required",
+        capabilities: { administratorSetup: true, chat: false },
       });
   });
 

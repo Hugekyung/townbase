@@ -45,12 +45,16 @@ services:
     environment:
       POSTGRES_USER: townbase_runtime
       POSTGRES_PASSWORD_FILE: /run/secrets/runtime_password
+      TOWNBASE_SETUP_LOCAL_HTTP: "1"
+      TOWNBASE_PUBLIC_ORIGIN: ${TOWNBASE_PUBLIC_ORIGIN:-}
+      TOWNBASE_TRUSTED_PROXY_IP: ${TOWNBASE_TRUSTED_PROXY_IP:-}
     secrets: [runtime_password]
     ports:
       - "127.0.0.1:${TOWNBASE_PORT:-3000}:3000"
     volumes:
       - documents:/var/lib/townbase/documents
       - attachments:/var/lib/townbase/attachments
+      - bootstrap:/var/lib/townbase/bootstrap
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +83,7 @@ volumes:
   postgres-data-v02:
   documents:
   attachments:
+  bootstrap:
 
 secrets:
   postgres_password:
