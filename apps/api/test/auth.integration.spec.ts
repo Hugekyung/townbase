@@ -1,10 +1,20 @@
 import "reflect-metadata";
 import { PrismaClient } from "@townbase/database";
-import { mkdtemp, mkdir, readFile, rm, stat } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+  readdir,
+} from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { AuthService, credentialDigest } from "../src/auth/auth.service";
 import { DeploymentDatabase } from "../src/deployment/deployment-database";
+import { temporaryTokenName } from "../src/setup/token-file";
+import { RecoveryIssueError } from "../src/auth/recovery-error";
 import { SetupService } from "../src/setup/setup.service";
 import { hashPassword, verifyPassword } from "../src/setup/password";
 const integration =
@@ -125,11 +135,12 @@ integration("administrator authentication real database lifecycle", () => {
         },
       }),
     ).toBe(1);
-    expect(
-      await owner.administratorSession.findUniqueOrThrow({
-        where: { tokenHash: credentialDigest(token) },
-      }),
-    ).toHaveProperty("lastSeenAt");
+    const refreshed = await owner.administratorSession.findUniqueOrThrow({
+      where: { tokenHash: credentialDigest(token) },
+    });
+    expect(refreshed.lastSeenAt.getTime()).toBeGreaterThan(
+      row.lastSeenAt.getTime(),
+    );
   });
   it("rotates the previous cookie and rejects replay after logout", async () => {
     const first = await login();
@@ -383,7 +394,9 @@ integration("administrator authentication real database lifecycle", () => {
   });
   it("rolls back issuance if protected file writing fails", async () => {
     await mkdir(tokenFile());
-    await expect(service.issueRecovery()).rejects.toThrow();
+    await expect(service.issueRecovery()).rejects.toMatchObject({
+      code: "storage_unavailable",
+    });
     expect(
       (await owner.authenticationState.findFirstOrThrow()).recoveryHash,
     ).toBeNull();
@@ -392,6 +405,96 @@ integration("administrator authentication real database lifecycle", () => {
         where: { action: "recovery_token_issued" },
       }),
     ).toBe(0);
+  });
+  it("removes stale issuance files under the lock without deleting unrelated files", async () => {
+    const stale = path.join(directory, "recovery", temporaryTokenName());
+    const unrelated = path.join(directory, "recovery", "operator-note");
+    await writeFile(stale, "synthetic stale secret", { mode: 0o600 });
+    await writeFile(unrelated, "keep");
+    await service.issueRecovery();
+    expect(await readdir(path.join(directory, "recovery"))).toEqual(
+      expect.arrayContaining(["token", "operator-note"]),
+    );
+    await expect(readFile(stale)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(unrelated, "utf8")).toBe("keep");
+  });
+  it("reports unavailable administrators separately from protected storage failures", async () => {
+    await owner.administrator.updateMany({ data: { disabledAt: new Date() } });
+    await expect(service.issueRecovery()).rejects.toMatchObject({
+      code: "administrator_unavailable",
+    });
+    process.env.TOWNBASE_RECOVERY_PATH = process.env.TOWNBASE_DOCUMENTS_PATH;
+    await expect(service.issueRecovery()).rejects.toBeInstanceOf(
+      RecoveryIssueError,
+    );
+    await expect(service.issueRecovery()).rejects.toMatchObject({
+      code: "storage_unavailable",
+    });
+  });
+  it("allows session reads under another shared boundary while keeping revocation exclusive", async () => {
+    const token = await login();
+    let acquired!: () => void, release!: () => void;
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    const proceed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const holder = owner.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "AuthenticationState" WHERE id='primary' FOR SHARE`;
+      acquired();
+      await proceed;
+    });
+    await locked;
+    try {
+      expect(await other.current(token)).toMatchObject({ ok: true });
+      let completed = false;
+      const logout = service.logout(token).then((result) => {
+        completed = true;
+        return result;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(completed).toBe(false);
+      release();
+      await holder;
+      expect(await logout).toEqual({ ok: true });
+      expect(await other.current(token)).toMatchObject({ ok: false });
+    } finally {
+      release();
+      await holder;
+    }
+  });
+  it("checks idle expiry after waiting for the session row lock", async () => {
+    const token = await login(),
+      hash = credentialDigest(token);
+    const activity = new Date(Date.now() - 30 * 60000 + 300);
+    await owner.administratorSession.update({
+      where: { tokenHash: hash },
+      data: { createdAt: activity, lastSeenAt: activity },
+    });
+    let acquired!: () => void, release!: () => void;
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    const proceed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const holder = owner.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "tokenHash" FROM "AdministratorSession" WHERE "tokenHash"=${hash} FOR UPDATE`;
+      acquired();
+      await proceed;
+    });
+    await locked;
+    try {
+      const result = other.current(token);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      release();
+      await holder;
+      expect(await result).toMatchObject({ ok: false });
+    } finally {
+      release();
+      await holder;
+    }
   });
   it("rolls back password changes and session revocation when audit persistence fails", async () => {
     const token = await login();

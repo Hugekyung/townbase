@@ -99,7 +99,7 @@ server {
 
 설정한 HTTPS origin·Host·브라우저 Origin·`X-Townbase-Setup: 1`이 모두 일치하고, 신뢰한 peer에서 전달한 `X-Forwarded-Proto: https`인 등록만 허용한다. 공개 origin을 설정하면 로컬 HTTP 예외도 닫힌다. 공개 origin 미설정 시에는 로컬 origin/Host와 명시적 로컬 허용 값이 필요하며 전달 헤더가 섞이면 거절한다. 전체 Express trust proxy는 켜지 않는다. proxy는 API loopback 게시 주소로만 연결한다. 이 peer 검사는 다른 로컬 프로세스를 운영자로부터 격리하는 보안 경계가 아니다.
 
-B03에서는 Origin/전달 경계의 자동 시험을 수행했다. 실제 조직의 인증서·proxy를 통한 TLS 운영 확인은 별도다. B04는 같은 전송 경계와 Secure/HttpOnly/SameSite cookie를 적용한다. 로그인·복구는 8절을 따른다.
+B03에서는 Origin/전달 경계의 자동 시험을 수행했다. 실제 조직의 인증서·proxy를 통한 TLS 운영 확인은 별도다. B04는 같은 전송 경계와 HttpOnly/SameSite=Strict cookie를 적용하며 공개 HTTPS origin을 설정하면 Secure를 추가한다. 명시적인 loopback HTTP 시험은 Secure 예외다. 로그인·복구는 8절을 따른다.
 
 ## 6. 기존 개발 경로
 
@@ -182,7 +182,7 @@ Vite가 출력한 loopback 주소를 연다. `/readyz`·`/setup`은 API의 호�
 
 ## 8. 로그인·비밀번호 변경·로컬 복구 (B04)
 
-웹에서 최초 등록한 관리자 이름·비밀번호로 로그인한다. 세션은 절대8시간·유휴30분 후 만료된다. 로그아웃은 현재 로그인만 종료한다. 비밀번호 변경은 현재 비밀번호를 다시 입력하며 **모든 기존 로그인을 종료**하고 미사용 복구 토큰도 무효화한다. 새 비밀번호로 다시 로그인한다.
+웹에서 최초 등록한 관리자 이름·비밀번호로 로그인한다. 세션은 절대8시간·유휴30분 후 만료된다. 로그아웃은 현재 로그인만 종료한다. 이미 만료/폐기된 세션도 브라우저 cookie를 지우고 종료하며, DB 장애로 결과를 확인할 수 없으면503으로 응답하고 재시도를 위해 cookie를 보존한다. 비밀번호 변경은 현재 비밀번호를 다시 입력하며 **모든 기존 로그인을 종료**하고 미사용 복구 토큰도 무효화한다. 새 비밀번호로 다시 로그인한다.
 
 분실한 경우 서버 운영자가 해당 설치에서 다음 명령을 실행한다. DB·volume을 삭제하거나 bootstrap 등록을 다시 열지 않는다.
 
@@ -198,3 +198,5 @@ docker compose --env-file .townbase/compose.env -p my-townbase exec -T api cat /
 recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한다. 소비 직후/기동/60초 주기로 파일을 삭제하며 중단·삭제 장애 중에는 물리 정리가 늦어진다. 파일/DB 불일치 시 인증은 거절하고 로컬 재발급한다. 파일이 있다고 유효한 토큰이라는 뜻은 아니다. 세션/감사 기록의 전체 보관 정리는 I 단계이며 자동 백업/복원 기능은 아직 없다.
 
 인증 요청은 같은 origin의 웹을 사용한다. API 직접 호출 시 JSON·`X-Townbase-Auth: 1`·정확한 Origin/Host·허용된 전송이 필요하다. 공개 HTTPS 설정 시 cookie는 Secure이고 로컬 HTTP 예외가 닫힌다. 발급값을 URL/로그/브라우저 저장소에 넣지 않는다. [구현·시험 기록](implementation/v0.2-b04-authentication.md)을 참고한다.
+
+복구 CLI의 실패 코드는 `administrator_unavailable`(초기화된 활성 관리자 없음), `storage_unavailable`(복구 경로·권한·파일 정리/쓰기 실패), `unavailable`(DB/배포 상태 또는 알 수 없는 오류)다. 파일 오류 원문·DB URL·stack은 출력하지 않는다. HTTP 인증 장애는 클라이언트에 `auth_unavailable`만 반환하며 서버에는 작업 종류와 허용된 진단 코드만 기록한다. `database_unavailable`은 연결 장애, `database_transaction_unavailable`은 연결 대기/트랜잭션 처리 장애, 나머지는 `unavailable`로 분류한다.

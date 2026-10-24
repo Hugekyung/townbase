@@ -44,7 +44,7 @@ export function tokenDirectory(purpose: TokenPurpose = "bootstrap"): string {
       : "TOWNBASE_RECOVERY_PATH";
   const value = process.env[key];
   if (!value || !path.isAbsolute(value))
-    throw new Error("Bootstrap storage is not configured");
+    throw new Error(`${purpose} storage is not configured`);
   for (const storage of [
     process.env.TOWNBASE_DOCUMENTS_PATH,
     process.env.TOWNBASE_ATTACHMENTS_PATH,
@@ -60,7 +60,7 @@ export function tokenDirectory(purpose: TokenPurpose = "bootstrap"): string {
         a.startsWith(`${b}${path.sep}`) ||
         b.startsWith(`${a}${path.sep}`)
       )
-        throw new Error("Bootstrap storage must be separate");
+        throw new Error(`${purpose} storage must be separate`);
     }
   }
   return value;
@@ -73,7 +73,7 @@ export async function prepareTokenDirectory(
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const info = await lstat(directory);
   if (!info.isDirectory() || info.isSymbolicLink())
-    throw new Error("Unsafe bootstrap storage");
+    throw new Error(`Unsafe ${purpose} storage`);
   await chmod(directory, 0o700);
   const resolved = await realpath(directory);
   for (const storage of [
@@ -90,7 +90,7 @@ export async function prepareTokenDirectory(
       resolved.startsWith(`${other}${path.sep}`) ||
       other.startsWith(`${resolved}${path.sep}`)
     )
-      throw new Error("Bootstrap storage must be separate");
+      throw new Error(`${purpose} storage must be separate`);
   }
   return directory;
 }

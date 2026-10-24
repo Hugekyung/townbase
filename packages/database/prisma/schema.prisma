@@ -178,7 +178,7 @@ model AdministratorSession {
   revokedAt       DateTime?
   administrator   Administrator @relation(fields: [installationId, administratorId], references: [installationId, id], onDelete: Restrict)
 
-  @@index([installationId, administratorId, revokedAt], map: "AdministratorSession_owner_revoked_idx")
+  @@index([installationId, revokedAt], map: "AdministratorSession_installation_revoked_idx")
 }
 
 // No free-form payload: passwords, API keys, questions and file bodies do not

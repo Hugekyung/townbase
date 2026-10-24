@@ -16,3 +16,12 @@ export function verifyPassword(
 ): Promise<boolean> {
   return verify(encoded, password);
 }
+
+export function validPassword(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    [...value].length >= 15 &&
+    [...value].length <= 128 &&
+    !value.includes("\0")
+  );
+}

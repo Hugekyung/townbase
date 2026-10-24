@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { DeploymentDatabase } from "../deployment/deployment-database";
 import { AuthService } from "./auth.service";
+import { recoveryIssuanceFailure } from "./recovery-error";
 import { RECOVERY_TTL_MS } from "./auth-policy";
 async function issue() {
   const database = new DeploymentDatabase();
@@ -13,9 +14,7 @@ async function issue() {
     await database.onApplicationShutdown();
   }
 }
-void issue().catch(() => {
-  console.error(
-    "Recovery issuance failed. Check initialized administrator, protected storage and database.",
-  );
+void issue().catch((error: unknown) => {
+  console.error(recoveryIssuanceFailure(error));
   process.exitCode = 1;
 });

@@ -14,7 +14,7 @@ import { PrismaClient } from "@townbase/database";
 import { DeploymentDatabase } from "../deployment/deployment-database";
 import { BOOTSTRAP_TTL_MS } from "./setup-policy";
 import { SetupIssueError } from "./issue-error";
-import { hashPassword } from "./password";
+import { hashPassword, validPassword } from "./password";
 import {
   deleteTokenFile,
   deleteTemporaryTokenFiles,
@@ -200,9 +200,7 @@ export class SetupService implements OnModuleInit, OnModuleDestroy {
           username.length > 0 &&
           [...username].length <= 128 &&
           !/[\p{Cc}]/u.test(username) &&
-          [...password].length >= 15 &&
-          [...password].length <= 128 &&
-          !password.includes("\0");
+          validPassword(password);
         if (
           !matches ||
           state.expiresAt == null ||

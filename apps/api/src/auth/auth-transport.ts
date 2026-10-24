@@ -2,7 +2,7 @@ import {
   setupTransportAllowed,
   type SetupRequest,
 } from "../setup/setup-transport";
-import { SESSION_COOKIE } from "./auth-policy";
+import { SESSION_COOKIE, SESSION_ABSOLUTE_MS } from "./auth-policy";
 export type AuthRequest = SetupRequest;
 export function authTransportAllowed(
   request: AuthRequest,
@@ -30,5 +30,5 @@ export function readSessionCookie(request: AuthRequest): string | undefined {
 }
 export function sessionCookie(token: string | undefined): string {
   const secure = process.env.TOWNBASE_PUBLIC_ORIGIN ? "; Secure" : "";
-  return `${SESSION_COOKIE}=${token ?? ""}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${token ? 8 * 60 * 60 : 0}${secure}`;
+  return `${SESSION_COOKIE}=${token ?? ""}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${token ? Math.floor(SESSION_ABSOLUTE_MS / 1000) : 0}${secure}`;
 }

@@ -11,8 +11,9 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { PrismaClient } from "@townbase/database";
+import { RecoveryIssueError } from "./recovery-error";
 import { DeploymentDatabase } from "../deployment/deployment-database";
-import { hashPassword, verifyPassword } from "../setup/password";
+import { hashPassword, verifyPassword, validPassword } from "../setup/password";
 import {
   prepareTokenDirectory,
   writeTokenFile,
@@ -25,7 +26,6 @@ import {
   SESSION_ABSOLUTE_MS,
   SESSION_IDLE_MS,
   fields,
-  validPassword,
 } from "./auth-policy";
 
 type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
@@ -67,12 +67,18 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   }
   private async transaction<T>(
     work: (tx: Tx, now: Date) => Promise<T>,
+    sharedBoundary = false,
   ): Promise<T> {
     return this.database.prisma.$transaction(
       async (tx) => {
-        const rows = await tx.$queryRaw<
-          Array<{ id: string }>
-        >`SELECT id FROM "AuthenticationState" WHERE id = 'primary' FOR UPDATE`;
+        // Session checks share the revocation boundary; mutations remain exclusive.
+        const rows = sharedBoundary
+          ? await tx.$queryRaw<
+              Array<{ id: string }>
+            >`SELECT id FROM "AuthenticationState" WHERE id = 'primary' FOR SHARE`
+          : await tx.$queryRaw<
+              Array<{ id: string }>
+            >`SELECT id FROM "AuthenticationState" WHERE id = 'primary' FOR UPDATE`;
         if (rows.length !== 1)
           throw new Error("Authentication storage unavailable");
         const [clock] = await tx.$queryRaw<
@@ -243,20 +249,30 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   async current(
     token?: string,
   ): Promise<Result<{ username: string; expiresAt: string }>> {
-    return this.transaction(async (tx, now) => {
-      const auth = await this.session(tx, token, now);
+    if (!validToken(token)) return { ok: false, code: "unauthorized" };
+    return this.transaction(async (tx) => {
+      // Order: authentication boundary, session row, then fresh DB time. Requests
+      // for the same session cannot overwrite a newer activity time or validate
+      // an idle/absolute deadline using a timestamp from before a lock wait.
+      await tx.$queryRaw`SELECT "tokenHash" FROM "AdministratorSession" WHERE "tokenHash" = ${credentialDigest(token)} FOR UPDATE`;
+      const [clock] = await tx.$queryRaw<
+        Array<{ now: Date }>
+      >`SELECT clock_timestamp() AS now`;
+      if (!clock) throw new Error("Authentication clock unavailable");
+      const auth = await this.session(tx, token, clock.now);
       if (!auth) return { ok: false, code: "unauthorized" };
       await tx.administratorSession.update({
         where: { tokenHash: auth.session.tokenHash },
-        data: { lastSeenAt: now },
+        data: { lastSeenAt: clock.now },
       });
       return {
         ok: true,
         username: auth.administrator.username,
         expiresAt: auth.session.expiresAt.toISOString(),
       };
-    });
+    }, true);
   }
+
   async logout(token?: string): Promise<Result> {
     return this.transaction(async (tx, now) => {
       const auth = await this.session(tx, token, now);
@@ -322,12 +338,15 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     return result;
   }
   async issueRecovery(): Promise<void> {
-    await prepareTokenDirectory("recovery");
+    await prepareTokenDirectory("recovery").catch(() => {
+      throw new RecoveryIssueError("storage_unavailable");
+    });
     await this.transaction(async (tx, now) => {
+      await deleteTemporaryTokenFiles("recovery").catch(() => {
+        throw new RecoveryIssueError("storage_unavailable");
+      });
       if (!(await this.administrator(tx)))
-        throw new Error(
-          "Recovery requires an initialized active administrator",
-        );
+        throw new RecoveryIssueError("administrator_unavailable");
       const token = randomBytes(32).toString("base64url");
       await tx.authenticationState.update({
         where: { id: "primary" },
@@ -342,7 +361,9 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
         },
       });
       await this.audit(tx, "recovery_token_issued");
-      await writeTokenFile(token, "recovery");
+      await writeTokenFile(token, "recovery").catch(() => {
+        throw new RecoveryIssueError("storage_unavailable");
+      });
     });
   }
   async recover(body: unknown): Promise<Result> {

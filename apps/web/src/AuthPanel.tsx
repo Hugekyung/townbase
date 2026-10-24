@@ -44,7 +44,13 @@ export function AuthPanel({
         return { username: data.username };
       })
       .then((value) => {
-        if (active) setSession(value);
+        if (active) {
+          setSession(value);
+          if (value == null) {
+            setMode((current) => (current === "password" ? "login" : current));
+            clearSecrets();
+          }
+        }
       })
       .catch(() => {
         if (active) setUnavailable(true);
@@ -209,6 +215,7 @@ export function AuthPanel({
                   <label htmlFor="recovery-token">복구 토큰</label>
                   <input
                     id="recovery-token"
+                    type="password"
                     autoComplete="off"
                     required
                     value={token}

@@ -1,3 +1,9 @@
+import { Logger } from "@nestjs/common";
+import { SESSION_ABSOLUTE_MS } from "../src/auth/auth-policy";
+import {
+  recoveryIssuanceFailure,
+  RecoveryIssueError,
+} from "../src/auth/recovery-error";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
@@ -8,7 +14,7 @@ import {
   readSessionCookie,
   sessionCookie,
 } from "../src/auth/auth-transport";
-import { validPassword } from "../src/auth/auth-policy";
+import { validPassword } from "../src/setup/password";
 import { configureSelfHostedHttp } from "../src/deployment/self-hosted-http";
 
 describe("authentication HTTP boundary", () => {
@@ -25,6 +31,7 @@ describe("authentication HTTP boundary", () => {
     process.env.TOWNBASE_SETUP_LOCAL_HTTP = "1";
     delete process.env.TOWNBASE_PUBLIC_ORIGIN;
     jest.clearAllMocks();
+    jest.spyOn(Logger, "error").mockImplementation(() => {});
     const module = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [{ provide: AuthService, useValue: auth }],
@@ -37,6 +44,7 @@ describe("authentication HTTP boundary", () => {
   });
   afterEach(async () => {
     await app.close();
+    jest.restoreAllMocks();
     process.env = { ...env };
   });
   const post = (path: string) =>
@@ -56,6 +64,11 @@ describe("authentication HTTP boundary", () => {
       .expect(200)
       .expect("Cache-Control", "no-store");
     expect(response.body).toEqual({ authenticated: true, username: "admin" });
+    expect(response.headers["set-cookie"]).toHaveLength(1);
+    for (const [name, value] of Object.entries(response.headers)) {
+      if (name.toLowerCase() !== "set-cookie")
+        expect(JSON.stringify(value)).not.toContain("a".repeat(43));
+    }
     expect(response.headers["set-cookie"]![0]).toBe(
       sessionCookie("a".repeat(43)),
     );
@@ -103,6 +116,63 @@ describe("authentication HTTP boundary", () => {
     const response = await post("logout").send({}).expect(200);
     expect(response.headers["set-cookie"]![0]).toContain("Max-Age=0");
     await post("logout").send({ unexpected: true }).expect(400);
+  });
+  it("clears invalid logout credentials, but preserves them during storage outages", async () => {
+    auth.logout.mockResolvedValue({ ok: false, code: "unauthorized" });
+    const expired = await post("logout")
+      .set("Cookie", `townbase_session=${"b".repeat(43)}`)
+      .send({})
+      .expect(200);
+    expect(expired.headers["set-cookie"]).toEqual([sessionCookie(undefined)]);
+    auth.logout.mockRejectedValue(
+      Object.assign(new Error("secret-db-path"), { code: "P1001" }),
+    );
+    const unavailable = await post("logout").send({}).expect(503);
+    expect(unavailable.headers["set-cookie"]).toBeUndefined();
+    expect(Logger.error).toHaveBeenCalledWith(
+      "Authentication operation failed [logout:database_unavailable].",
+    );
+    expect(
+      JSON.stringify((Logger.error as jest.Mock).mock.calls),
+    ).not.toContain("secret-db-path");
+  });
+  it("logs only approved diagnostic codes and preserves HTTPS flags on cookie deletion", async () => {
+    for (const error of [
+      Object.assign(new Error("password-token-canary"), { code: "P2028" }),
+      new Error("password-token-canary"),
+    ]) {
+      auth.login.mockRejectedValue(error);
+      await post("login").send({}).expect(503);
+    }
+    expect(Logger.error).toHaveBeenCalledWith(
+      "Authentication operation failed [login:database_transaction_unavailable].",
+    );
+    expect(Logger.error).toHaveBeenCalledWith(
+      "Authentication operation failed [login:unavailable].",
+    );
+    expect(
+      JSON.stringify((Logger.error as jest.Mock).mock.calls),
+    ).not.toContain("password-token-canary");
+    process.env.TOWNBASE_PUBLIC_ORIGIN = "https://townbase.example";
+    expect(sessionCookie(undefined)).toContain("Max-Age=0; Secure");
+    expect(sessionCookie("a".repeat(43))).toContain(
+      `Max-Age=${SESSION_ABSOLUTE_MS / 1000}; Secure`,
+    );
+  });
+  it("classifies recovery failures without printing unknown error details", () => {
+    for (const code of [
+      "administrator_unavailable",
+      "storage_unavailable",
+      "unavailable",
+    ] as const)
+      expect(recoveryIssuanceFailure(new RecoveryIssueError(code))).toContain(
+        `[${code}]`,
+      );
+    const result = recoveryIssuanceFailure(
+      new Error("password-url-token-canary"),
+    );
+    expect(result).toContain("[unavailable]");
+    expect(result).not.toContain("canary");
   });
   it("enforces TLS proxy trust and Secure cookies for the approved public origin", () => {
     process.env.TOWNBASE_PUBLIC_ORIGIN = "https://townbase.example";
