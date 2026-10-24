@@ -1,3 +1,4 @@
+import { useLegacyTestProfile } from "./legacy-test-profile";
 import { INestApplication } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import request from "supertest";
@@ -122,3 +123,5 @@ describe("knowledge gap endpoints", () => {
     expect(service.list).not.toHaveBeenCalled();
   });
 });
+
+useLegacyTestProfile();

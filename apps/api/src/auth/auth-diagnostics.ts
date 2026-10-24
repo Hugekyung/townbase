@@ -10,8 +10,9 @@ export type AuthOperation =
 function diagnosticCode(error: unknown): string {
   if (error instanceof RecoveryIssueError) return error.code;
   const code =
-    error != null && typeof error === "object" && "code" in error
-      ? error.code
+    error != null && typeof error === "object"
+      ? (("code" in error ? error.code : undefined) ??
+        ("errorCode" in error ? error.errorCode : undefined))
       : undefined;
   if (typeof code === "string" && ["P1001", "P1002", "P1017"].includes(code))
     return "database_unavailable";

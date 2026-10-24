@@ -107,6 +107,7 @@ B03에서는 Origin/전달 경계의 자동 시험을 수행했다. 실제 조�
 
 ```bash
 if [ ! -e .env ]; then cp .env.example .env; fi
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm install --frozen-lockfile
 pnpm db:generate
@@ -205,7 +206,7 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 등록된 self-hosted HTTP 처리 경로는 기본적으로 관리자 세션을 요구한다. 공개 예외는 정적 웹·health/readyz·초기 상태/등록·로그인·로그아웃·복구 소비뿐이다. 공개 예외에도 기존 Origin·전송·JSON·비밀번호/토큰·시도 제한을 적용한다. 세션 조회·비밀번호 변경은 공통 검사 대상이다. 요청의 workspaceId/installationId/administratorId 또는 x-*-id 헤더는 신원 증명이 아니며, 저장된 세션의 설치/자료 범위와 다르면403이다. 검증 불가 상태는503으로 차단한다.
 
-기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서·채팅·Key·실행 API도 아직 제공하지 않는다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 비production legacy 개발 계약은 유지한다.
+기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서·채팅·Key·실행 API도 아직 제공하지 않는다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
 
 운영 runtime에는 connectors 패키지와 평가/seed 개발 소스·도구가 포함되지 않는다. 빌드/migration 환경에는 있으므로 그 환경에서도 프로필 보호가 필요하다. 유지보수 migration/bootstrap/recovery는 기존 서버 로컬 secret/토큰 절차를 따른다. 일반 데이터 기능을 활성화하는 CLI는 아니다. 설치 운영자의 임의 코드 실행/DB 소유자 권한을 격리하는 sandbox로 설명하지 않는다.
 

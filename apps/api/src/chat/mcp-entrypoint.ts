@@ -6,6 +6,7 @@ import { NestFactory } from "@nestjs/core";
 import dotenv from "dotenv";
 
 import { assertLegacyDevelopment } from "../runtime-profile";
+import { mcpStartupFailure, type McpStartupStage } from "./mcp-startup-failure";
 import { ChatModule } from "./chat.module";
 import { ChatMcpServer } from "./chat.server";
 
@@ -15,16 +16,25 @@ dotenv.config({
   override: false,
 });
 
+let startupStage: McpStartupStage = "runtime-profile";
+
 export async function bootstrap(): Promise<void> {
+  startupStage = "runtime-profile";
   assertLegacyDevelopment();
+  startupStage = "application";
   const app = await NestFactory.createApplicationContext(ChatModule, {
     logger: false,
+    abortOnError: false,
   });
 
   const server = app.get(ChatMcpServer);
+  startupStage = "transport";
   await server.startStdio();
 }
 
 if (require.main === module) {
-  void bootstrap().catch(() => {console.error("MCP startup refused. Check runtime profile and development configuration.");process.exitCode=1;});
+  void bootstrap().catch((error: unknown) => {
+    console.error(mcpStartupFailure(startupStage, error));
+    process.exitCode = 1;
+  });
 }

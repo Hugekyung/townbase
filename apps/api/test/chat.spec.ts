@@ -1,3 +1,4 @@
+import { useLegacyTestProfile } from "./legacy-test-profile";
 import { Test } from "@nestjs/testing";
 
 import {
@@ -158,3 +159,5 @@ describe("Chat MCP scaffold", () => {
     });
   });
 });
+
+useLegacyTestProfile();

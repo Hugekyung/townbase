@@ -18,7 +18,7 @@ describe("runtime profiles", () => {
     expect(resolveRuntimeProfile({ NODE_ENV: "production" })).toBe(
       "self_hosted",
     );
-    expect(resolveRuntimeProfile({})).toBe("legacy_development");
+    expect(resolveRuntimeProfile({})).toBe("self_hosted");
   });
   it("rejects legacy production and unknown profiles", () => {
     expect(() =>

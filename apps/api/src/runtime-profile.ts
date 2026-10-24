@@ -1,4 +1,5 @@
 export {
+  RuntimeProfileError,
   resolveRuntimeProfile,
   assertLegacyDevelopment,
   type RuntimeProfile,

@@ -1,3 +1,4 @@
+import { useLegacyTestProfile } from "./legacy-test-profile";
 jest.mock("@nestjs/core", () => {
   const createApplicationContext = jest.fn().mockResolvedValue({
     get: jest.fn().mockReturnValue({
@@ -27,3 +28,5 @@ describe("chat MCP entrypoint", () => {
     );
   });
 });
+
+useLegacyTestProfile();

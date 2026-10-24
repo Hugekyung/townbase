@@ -34,16 +34,50 @@ const entries = [
 ];
 for (const [name, args] of entries)
   test(`${name} refuses self-hosted/production before DB, sources or model work`, () => {
-    for (const profile of ["self_hosted", "legacy_development"]) {
+    for (const [nodeEnv, profile, message, diagnostic] of [
+      [
+        "production",
+        "self_hosted",
+        "Legacy entry points are unavailable in the self-hosted profile",
+        "legacy_in_self_hosted",
+      ],
+      [
+        "production",
+        "legacy_development",
+        "Legacy routes are unavailable in production",
+        "legacy_in_production",
+      ],
+      [
+        undefined,
+        undefined,
+        "Legacy entry points are unavailable in the self-hosted profile",
+        "legacy_in_self_hosted",
+      ],
+      [
+        "development",
+        undefined,
+        "Legacy entry points are unavailable in the self-hosted profile",
+        "legacy_in_self_hosted",
+      ],
+      [
+        "production",
+        "unknown",
+        "Unsupported runtime profile",
+        "unsupported_profile",
+      ],
+    ]) {
+      const env = { ...process.env };
+      delete env.NODE_ENV;
+      delete env.TOWNBASE_RUNTIME_PROFILE;
+      if (nodeEnv != null) env.NODE_ENV = nodeEnv;
+      if (profile != null) env.TOWNBASE_RUNTIME_PROFILE = profile;
       const result = spawnSync(
         process.execPath,
         ["--require", preload, ...args],
         {
           cwd: root,
           env: {
-            ...process.env,
-            NODE_ENV: "production",
-            TOWNBASE_RUNTIME_PROFILE: profile,
+            ...env,
             DATABASE_URL: "postgresql://canary-secret@127.0.0.1:1/forbidden",
             OPENAI_API_KEY: "canary-secret",
             NOTION_API_KEY: "canary-secret",
@@ -59,10 +93,14 @@ for (const [name, args] of entries)
       assert.equal(result.error, undefined);
       assert.equal(result.status, 1);
       const output = result.stdout + result.stderr;
-      assert.match(
-        output,
-        /Legacy entry points are unavailable in the self-hosted profile|Legacy routes are unavailable in production|Unsupported runtime profile|MCP startup refused/,
-      );
+      if (name === "MCP stdio") {
+        assert.equal(
+          result.stderr.trim(),
+          `MCP startup failed [runtime-profile:${diagnostic}]. Check runtime profile.`,
+        );
+      } else {
+        assert.ok(output.includes(message), output);
+      }
       assert.ok(!output.includes("canary-secret"));
       if (name === "MCP stdio") assert.equal(result.stdout, "");
     }

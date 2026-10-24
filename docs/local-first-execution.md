@@ -1,5 +1,7 @@
 # Local-first Execution Guide
 
+Legacy v0.1 commands now require an explicit `export TOWNBASE_RUNTIME_PROFILE=legacy_development` in a non-production shell. An unset profile defaults to `self_hosted`. Do not apply this export to v0.2 deployment.
+
 This guide covers the v0.1 local-first flow. The primary interaction path is MCP-first; the web UI is deferred to later phases.
 
 ## 1. Prerequisites

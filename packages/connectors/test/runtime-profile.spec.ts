@@ -7,10 +7,11 @@ describe("connector operating profile gate", () => {
     process.env = { ...original };
     jest.restoreAllMocks();
   });
-  it.each(["self_hosted", "unknown"])(
+  it.each([undefined, "self_hosted", "unknown"])(
     "refuses both connectors before source or database setup: %s",
     async (profile) => {
-      process.env.TOWNBASE_RUNTIME_PROFILE = profile;
+      if (profile == null) delete process.env.TOWNBASE_RUNTIME_PROFILE;
+      else process.env.TOWNBASE_RUNTIME_PROFILE = profile;
       const load = jest.spyOn(env, "loadNotionConnectorEnv");
       const create = jest.fn(() => {
         throw new Error("database must not be constructed");

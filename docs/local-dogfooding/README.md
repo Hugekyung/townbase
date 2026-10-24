@@ -1,5 +1,7 @@
 # Local Dogfooding README
 
+기존 v0.1 명령 실행 전 비production 셸에서 `export TOWNBASE_RUNTIME_PROFILE=legacy_development`를 명시한다. 미설정 기본값은 `self_hosted`이며 v0.2 운영 배포에는 이 export를 적용하지 않는다.
+
 이 문서는 이 저장소를 로컬에서 직접 테스트할 때 쓰는 실행 절차를 한 곳에 모은 가이드다.
 v0.1의 기본 사용 경로는 `MCP-first`이고, 웹 UI나 HTTP chat API는 아직 범위 밖이다.
 

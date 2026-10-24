@@ -1,5 +1,7 @@
 # TASK-107 Vector Only baseline 테스트 기록
 
+현재 재실행 시 비production 셸에서 `export TOWNBASE_RUNTIME_PROFILE=legacy_development`를 명시해야 한다. 프로필 미설정 또는 self_hosted/production에서는 이 개발용 평가를 거절한다. 아래 과거 실행 결과와 현재 실행 조건을 구분한다.
+
 > 이 문서는 개발용 평가 Runner의 내부 기록이다. 공식 Keeply 평가 범위와 결과는
 > [evaluation-20260825.md](../../evaluation-20260825.md)와 [evaluation-report.md](../evaluation-report.md)를 기준으로 한다.
 

@@ -6,10 +6,11 @@ describe("legacy side-effect gates", () => {
   afterEach(() => {
     process.env = { ...original };
   });
-  it.each(["self_hosted", "unknown"])(
+  it.each([undefined, "self_hosted", "unknown"])(
     "refuses MCP construction/transport and connector subprocesses: %s",
     async (profile) => {
-      process.env.TOWNBASE_RUNTIME_PROFILE = profile;
+      if (profile == null) delete process.env.TOWNBASE_RUNTIME_PROFILE;
+      else process.env.TOWNBASE_RUNTIME_PROFILE = profile;
       const registry = { listTools: jest.fn(), callTool: jest.fn() };
       const server = new ChatMcpServer(registry as unknown as ChatToolRegistry);
       expect(() => server.buildServer()).toThrow(/profile/);

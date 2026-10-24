@@ -93,3 +93,7 @@ S03/S04/S14를 유지한다. 비밀번호 변경 시 매번 현재 비밀번호�
 ## B05 구현 세부 (2026-10-24)
 
 S12의 기존 경로 기본 비활성과 S14의 전송 보호를 유지한다. 새 HTTP handler는 기본 인증 대상이며 공개 예외는 메서드별로만 명시한다. 신원은 DB 세션과 설치의 workspace에서 만들고 클라이언트 ID는 일치 여부를 확인할 제약으로만 다룬다. 원본 자료의 범위·소유자는 저장된 행에서 가져와 검사한다. 공통 프로필 판정을 API/Connector/개발 CLI에서 공유하며 운영 비활성 경로의 실행 전에 거절한다. 미래 권한 테이블·임시 자료 API·운영 활성화 플래그는 추가하지 않았다. [B05 구현·검증](docs/implementation/v0.2-b05-access.md)을 따른다.
+
+### B05 리뷰 보완 (2026-10-25)
+
+S12를 유지하며 프로필 미설정 기본값을 모든 NODE_ENV에서 self_hosted로 통일한다. 기존 개발은 비production에서 legacy_development를 명시한다. MCP의 프로필 거절은 고정 진단 코드로, 다른 시작 실패는 application/transport 단계로 구분하며 원본 오류를 공개하지 않는다. [PR #37 대응 기록](docs/implementation/v0.2-b05-review-response.md)을 따른다.

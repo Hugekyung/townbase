@@ -149,6 +149,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --w
 
 ```bash
 if [ ! -e .env ]; then cp .env.example .env; fi
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm install
 docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm db:generate
