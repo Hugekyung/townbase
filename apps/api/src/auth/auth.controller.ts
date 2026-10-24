@@ -5,7 +5,6 @@ import {
   Header,
   HttpCode,
   HttpException,
-  Logger,
   Post,
   Req,
   Res,
@@ -14,36 +13,25 @@ import {
 import { AuthService } from "./auth.service";
 import {
   authTransportAllowed,
+  isJsonRequest,
   readSessionCookie,
   sessionCookie,
   type AuthRequest,
 } from "./auth-transport";
-import { RecoveryIssueError } from "./recovery-error";
-type AuthOperation = "login" | "session" | "logout" | "password" | "recovery";
-function diagnosticCode(error: unknown): string {
-  if (error instanceof RecoveryIssueError) return error.code;
-  const code =
-    error != null && typeof error === "object" && "code" in error
-      ? error.code
-      : undefined;
-  if (typeof code === "string" && ["P1001", "P1002", "P1017"].includes(code))
-    return "database_unavailable";
-  if (typeof code === "string" && ["P1008", "P2024", "P2028"].includes(code))
-    return "database_transaction_unavailable";
-  return "unavailable";
-}
+import { logAuthFailure, type AuthOperation } from "./auth-diagnostics";
+import { AccessService } from "../access/access.service";
+import { PublicEndpoint } from "../access/public-endpoint";
 type Response = { setHeader(name: string, value: string): void };
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly access: AccessService,
+  ) {}
   private boundary(req: AuthRequest, readOnly = false) {
     if (!authTransportAllowed(req, readOnly))
       throw new HttpException({ code: "auth_transport_denied" }, 403);
-    if (
-      !readOnly &&
-      (typeof req.headers["content-type"] !== "string" ||
-        !/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"]))
-    )
+    if (!readOnly && !isJsonRequest(req))
       throw new HttpException({ code: "json_required" }, 415);
   }
   private async run<T extends { ok: boolean; code?: string }>(
@@ -54,9 +42,7 @@ export class AuthController {
     try {
       result = await fn();
     } catch (error: unknown) {
-      Logger.error(
-        `Authentication operation failed [${operation}:${diagnosticCode(error)}].`,
-      );
+      logAuthFailure(operation, error);
       throw new ServiceUnavailableException({ code: "auth_unavailable" });
     }
     if (!result.ok)
@@ -70,6 +56,7 @@ export class AuthController {
       );
     return result;
   }
+  @PublicEndpoint()
   @Post("login")
   @HttpCode(200)
   @Header("Cache-Control", "no-store")
@@ -91,16 +78,14 @@ export class AuthController {
   @Header("Cache-Control", "no-store")
   async current(@Req() req: AuthRequest) {
     this.boundary(req, true);
-    const result = await this.run("session", () =>
-      this.auth.current(readSessionCookie(req)),
-    );
-    if (result.ok)
-      return {
-        authenticated: true,
-        username: result.username,
-        expiresAt: result.expiresAt,
-      };
+    const requester = this.access.requester(req);
+    return {
+      authenticated: true,
+      username: requester.username,
+      expiresAt: requester.expiresAt,
+    };
   }
+  @PublicEndpoint()
   @Post("logout")
   @HttpCode(200)
   @Header("Cache-Control", "no-store")
@@ -143,6 +128,7 @@ export class AuthController {
     response.setHeader("Set-Cookie", sessionCookie(undefined));
     return { authenticated: false, passwordChanged: true };
   }
+  @PublicEndpoint()
   @Post("recover")
   @HttpCode(200)
   @Header("Cache-Control", "no-store")

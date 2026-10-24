@@ -1,3 +1,4 @@
+import { assertLegacyDevelopment } from "../runtime-profile";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -196,6 +197,7 @@ export class CliConnectorSyncRunner implements ConnectorSyncRunner {
   ) {}
 
   public async runNotionSync(): Promise<ConnectorSyncSummary> {
+    assertLegacyDevelopment();
     const { stdout } = await this.execFileRunner(
       "pnpm",
       ["--filter", "@townbase/connectors", "run", "notion:sync"],
@@ -207,6 +209,7 @@ export class CliConnectorSyncRunner implements ConnectorSyncRunner {
   public async runRepoSync(
     request: RunRepoSyncRequest,
   ): Promise<ConnectorSyncSummary> {
+    assertLegacyDevelopment();
     const repoArgs = request.repoNames.flatMap((repoName) => [
       "--repo",
       repoName,

@@ -32,3 +32,10 @@ export function sessionCookie(token: string | undefined): string {
   const secure = process.env.TOWNBASE_PUBLIC_ORIGIN ? "; Secure" : "";
   return `${SESSION_COOKIE}=${token ?? ""}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${token ? Math.floor(SESSION_ABSOLUTE_MS / 1000) : 0}${secure}`;
 }
+
+export function isJsonRequest(request: AuthRequest): boolean {
+  return (
+    typeof request.headers["content-type"] === "string" &&
+    /^application\/json(?:\s*;|$)/i.test(request.headers["content-type"])
+  );
+}

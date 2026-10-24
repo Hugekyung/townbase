@@ -1,3 +1,4 @@
+import { PublicEndpoint } from "../access/public-endpoint";
 import {
   Body,
   Controller,
@@ -15,6 +16,7 @@ import { setupTransportAllowed, type SetupRequest } from "./setup-transport";
 @Controller("setup")
 export class SetupController {
   constructor(private readonly setup: SetupService) {}
+  @PublicEndpoint()
   @Get("status")
   @Header("Cache-Control", "no-store")
   async status() {
@@ -24,6 +26,7 @@ export class SetupController {
       throw new ServiceUnavailableException({ code: "setup_unavailable" });
     }
   }
+  @PublicEndpoint()
   @Post("administrator")
   @HttpCode(201)
   @Header("Cache-Control", "no-store")

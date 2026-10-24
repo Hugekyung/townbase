@@ -7,7 +7,7 @@ import {
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
-import { AuthController } from "../src/auth/auth.controller";
+import { AuthModule } from "../src/auth/auth.module";
 import { AuthService } from "../src/auth/auth.service";
 import {
   authTransportAllowed,
@@ -21,7 +21,7 @@ describe("authentication HTTP boundary", () => {
   let app: NestExpressApplication;
   const auth = {
     login: jest.fn(),
-    current: jest.fn(),
+    requester: jest.fn(),
     logout: jest.fn(),
     changePassword: jest.fn(),
     recover: jest.fn(),
@@ -31,11 +31,27 @@ describe("authentication HTTP boundary", () => {
     process.env.TOWNBASE_SETUP_LOCAL_HTTP = "1";
     delete process.env.TOWNBASE_PUBLIC_ORIGIN;
     jest.clearAllMocks();
+    auth.requester.mockImplementation(async (token?: string) =>
+      token === "a".repeat(43)
+        ? {
+            ok: true,
+            requester: {
+              administratorId: "admin-id",
+              installationId: "primary",
+              workspaceId: "workspace-id",
+              username: "admin",
+              expiresAt: "2030-01-01T00:00:00.000Z",
+            },
+          }
+        : { ok: false, code: "unauthorized" },
+    );
     jest.spyOn(Logger, "error").mockImplementation(() => {});
     const module = await Test.createTestingModule({
-      controllers: [AuthController],
-      providers: [{ provide: AuthService, useValue: auth }],
-    }).compile();
+      imports: [AuthModule],
+    })
+      .overrideProvider(AuthService)
+      .useValue(auth)
+      .compile();
     app = module.createNestApplication<NestExpressApplication>({
       bodyParser: false,
     });
@@ -95,7 +111,7 @@ describe("authentication HTTP boundary", () => {
     },
   );
   it("permits same-origin session reads without an Origin header but requires the custom marker", async () => {
-    auth.current.mockResolvedValue({ ok: false, code: "unauthorized" });
+    auth.requester.mockResolvedValue({ ok: false, code: "unauthorized" });
     await request(app.getHttpServer())
       .get("/auth/session")
       .set("Host", "localhost:3000")

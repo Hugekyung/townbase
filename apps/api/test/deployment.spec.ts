@@ -148,21 +148,39 @@ describe("self-hosted deployment surface", () => {
     expect(await readdir(process.env.TOWNBASE_DOCUMENTS_PATH!)).toEqual([]);
   });
 
-  it("does not register legacy ingestion, gap, draft or MCP routes", async () => {
-    await request(app.getHttpServer())
-      .post("/admin/sync/repos")
-      .send({})
-      .expect(404);
-    await request(app.getHttpServer())
-      .post("/admin/sync/notion")
-      .send({})
-      .expect(404);
-    await request(app.getHttpServer()).get("/knowledge-gaps").expect(404);
-    await request(app.getHttpServer())
-      .post("/knowledge-gaps/id/draft")
-      .send({})
-      .expect(404);
-    await request(app.getHttpServer()).post("/mcp").send({}).expect(404);
+  it("keeps legacy and unfinished routes absent with or without a session cookie", async () => {
+    const routes = [
+      ["post", "/admin/sync/repos"],
+      ["post", "/admin/sync/notion"],
+      ["get", "/knowledge-gaps"],
+      ["patch", "/knowledge-gaps/id/status"],
+      ["post", "/knowledge-gaps/id/draft"],
+      ["get", "/knowledge-gaps/id/drafts"],
+      ["get", "/knowledge-gaps/id/drafts/draft-id"],
+      ["post", "/mcp"],
+      ["get", "/mcp"],
+      ["post", "/chat"],
+      ["get", "/documents/id"],
+      ["get", "/documents/id/file"],
+      ["get", "/conversations/id"],
+      ["get", "/settings/key"],
+      ["get", "/runs/id"],
+      ["get", "/access-fixture/identity"],
+      ["get", "/var/lib/townbase/bootstrap/token"],
+      ["get", "/var/lib/townbase/recovery/token"],
+    ] as const;
+    for (const cookie of [undefined, "townbase_session=" + "a".repeat(43)]) {
+      for (const [method, route] of routes) {
+        const call = request(app.getHttpServer())
+          [method](route)
+          .set("Host", "localhost:3000")
+          .set("Origin", "http://localhost:3000")
+          .set("X-Townbase-Auth", "1");
+        if (cookie) call.set("Cookie", cookie);
+        if (method !== "get") call.send({ workspaceId: "forged" });
+        await call.expect(404);
+      }
+    }
     expect(() => app.get(ChatMcpServer, { strict: false })).toThrow();
   });
 });

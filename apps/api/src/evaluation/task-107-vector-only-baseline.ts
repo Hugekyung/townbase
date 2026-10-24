@@ -5,6 +5,7 @@ import { performance } from "node:perf_hooks";
 import dotenv from "dotenv";
 import {
   createPrismaClient,
+  assertLegacyDevelopment,
   disconnectPrismaClient,
   persistDocumentChunkEmbedding,
   searchDocumentChunksByEmbedding,
@@ -378,6 +379,7 @@ const writeFinalEvaluationReport = async (
 
 const main = async (): Promise<void> => {
   dotenv.config({ path: path.join(rootPath, ".env") });
+  assertLegacyDevelopment();
   const manifest = await loadJson<CorpusManifest>(corpusPath);
   const dataset = await loadJson<GoldenDataset>(goldenPath);
   const apiKey = process.env.OPENAI_API_KEY?.trim();

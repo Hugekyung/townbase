@@ -1,3 +1,4 @@
+import { assertLegacyDevelopment } from "@townbase/database";
 import path from "node:path";
 
 import {
@@ -191,6 +192,7 @@ const upsertDataSource = async (
 export const runLocalRepoSync = async (
   options: RunLocalRepoSyncOptions = {},
 ): Promise<LocalRepoSyncSummary> => {
+  assertLegacyDevelopment();
   const database =
     options.databaseRuntime ??
     loadDatabaseRuntime(path.resolve(__dirname, "..", "..", "..", "database"));
@@ -236,6 +238,7 @@ export const runLocalRepoSync = async (
 };
 
 const main = async (): Promise<void> => {
+  assertLegacyDevelopment();
   const parsed = parseLocalRepoSyncArgs(process.argv.slice(2));
   await runLocalRepoSync({
     ...(parsed.repoRootPath === undefined
