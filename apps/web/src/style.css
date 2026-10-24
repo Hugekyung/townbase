@@ -333,3 +333,19 @@ footer span {
   color: #fff;
   border-color: #264c40;
 }
+
+.auth-panel {
+  margin-top: 16px;
+}
+.auth-panel > button {
+  margin: 8px 0;
+}
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+.auth-actions form {
+  margin: 0;
+}

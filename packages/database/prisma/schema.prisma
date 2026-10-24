@@ -95,6 +95,13 @@ enum InstallationAuditAction {
   bootstrap_token_issued
   bootstrap_token_consumed
   bootstrap_token_rejected
+  administrator_logged_in
+  administrator_login_rejected
+  administrator_logged_out
+  administrator_password_changed
+  recovery_token_issued
+  recovery_token_rejected
+  recovery_token_consumed
 }
 
 // Seeded singleton, even before the operator explicitly links the installation.
@@ -141,7 +148,37 @@ model Administrator {
   installation        Installation             @relation(fields: [installationId], references: [id], onDelete: Restrict)
   auditEvents         InstallationAuditEvent[]
 
+  sessions            AdministratorSession[]
+
   @@unique([installationId, id])
+}
+
+// One authentication lane per installation, present before initial setup.
+model AuthenticationState {
+  id                   String    @id @default("primary")
+  loginFailures        Int       @default(0)
+  loginWindowStart     DateTime?
+  loginBlockedUntil    DateTime?
+  recoveryHash         String?   @db.VarChar(64)
+  recoveryIssuedAt     DateTime?
+  recoveryExpiresAt    DateTime?
+  recoveryConsumedAt   DateTime?
+  recoveryFailures     Int       @default(0)
+  recoveryWindowStart  DateTime?
+  recoveryBlockedUntil DateTime?
+}
+
+model AdministratorSession {
+  tokenHash       String        @id @db.VarChar(64)
+  installationId  String
+  administratorId String
+  createdAt       DateTime      @default(now())
+  expiresAt       DateTime
+  lastSeenAt      DateTime
+  revokedAt       DateTime?
+  administrator   Administrator @relation(fields: [installationId, administratorId], references: [installationId, id], onDelete: Restrict)
+
+  @@index([installationId, revokedAt], map: "AdministratorSession_installation_revoked_idx")
 }
 
 // No free-form payload: passwords, API keys, questions and file bodies do not

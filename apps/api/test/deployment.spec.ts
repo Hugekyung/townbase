@@ -10,6 +10,7 @@ import { DeploymentDatabase } from "../src/deployment/deployment-database";
 import { DeploymentModule } from "../src/deployment/deployment.module";
 import { resolveRuntimeProfile } from "../src/runtime-profile";
 import { ChatMcpServer } from "../src/chat/chat.server";
+import { AuthService } from "../src/auth/auth.service";
 import { SetupService } from "../src/setup/setup.service";
 
 describe("runtime profiles", () => {
@@ -55,6 +56,8 @@ describe("self-hosted deployment surface", () => {
     })
       .overrideProvider(DeploymentDatabase)
       .useValue({ check })
+      .overrideProvider(AuthService)
+      .useValue({})
       .overrideProvider(SetupService)
       .useValue({ status: setupStatus })
       .compile();

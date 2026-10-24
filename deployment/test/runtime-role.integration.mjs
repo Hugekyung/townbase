@@ -238,20 +238,29 @@ for (const [name, sql] of [
   });
 }
 
-test("B03 grants setup writes without administrator updates or content access", async () => {
+test("B04 grants password/session writes without administrator identity or content access", async () => {
   await configure();
   const [rights] = await db.$queryRaw`SELECT
     has_table_privilege('townbase_runtime', 'public."BootstrapState"', 'SELECT,UPDATE') AS bootstrap,
     has_table_privilege('townbase_runtime', 'public."Administrator"', 'INSERT') AS administrator_insert,
+    has_column_privilege('townbase_runtime', 'public."Administrator"', 'passwordHash', 'UPDATE') AS password_change,
+    has_column_privilege('townbase_runtime', 'public."AdministratorSession"', 'revokedAt', 'UPDATE') AS session_revoke,
+    has_column_privilege('townbase_runtime', 'public."AdministratorSession"', 'lastSeenAt', 'UPDATE') AS session_refresh,
+    has_column_privilege('townbase_runtime', 'public."AdministratorSession"', 'expiresAt', 'UPDATE') AS session_extend,
     has_column_privilege('townbase_runtime', 'public."Installation"', 'initializedAt', 'UPDATE') AS initialize,
     has_column_privilege('townbase_runtime', 'public."Installation"', 'name', 'UPDATE') AS rename,
     (has_table_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE,DELETE')
-      OR has_any_column_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE')) AS administrator_mutation,
+      OR EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid='public."Administrator"'::regclass AND a.attnum>0 AND NOT a.attisdropped
+        AND a.attname NOT IN ('passwordHash','updatedAt') AND has_column_privilege('townbase_runtime', a.attrelid, a.attnum, 'UPDATE'))) AS administrator_mutation,
     (has_table_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE,DELETE')
       OR has_any_column_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE')) AS content`;
   assert.deepEqual(rights, {
     bootstrap: true,
     administrator_insert: true,
+    password_change: true,
+    session_revoke: true,
+    session_refresh: true,
+    session_extend: false,
     initialize: true,
     rename: false,
     administrator_mutation: false,
@@ -280,6 +289,15 @@ test("B03 strips direct delegation while retaining required setup inserts", asyn
 
 for (const [table, privilege, column] of [
   ["Administrator", "UPDATE", "username"],
+  ["Administrator", "UPDATE", "id"],
+  ["Administrator", "UPDATE", "installationId"],
+  ["Administrator", "UPDATE", "disabledAt"],
+  ["Administrator", "UPDATE", "createdAt"],
+  ["AdministratorSession", "UPDATE", "expiresAt"],
+  ["AdministratorSession", "UPDATE", "tokenHash"],
+  ["AdministratorSession", "UPDATE", "administratorId"],
+  ["AdministratorSession", "UPDATE", "installationId"],
+  ["AdministratorSession", "UPDATE", "createdAt"],
   ["Document", "SELECT", "id"],
   ["Document", "INSERT", "id"],
   ["Document", "UPDATE", "id"],

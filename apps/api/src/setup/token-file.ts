@@ -36,13 +36,21 @@ async function syncDirectory(directory: string): Promise<void> {
   }
 }
 
-export function tokenDirectory(): string {
-  const value = process.env.TOWNBASE_BOOTSTRAP_PATH;
+export type TokenPurpose = "bootstrap" | "recovery";
+export function tokenDirectory(purpose: TokenPurpose = "bootstrap"): string {
+  const key =
+    purpose === "bootstrap"
+      ? "TOWNBASE_BOOTSTRAP_PATH"
+      : "TOWNBASE_RECOVERY_PATH";
+  const value = process.env[key];
   if (!value || !path.isAbsolute(value))
-    throw new Error("Bootstrap storage is not configured");
+    throw new Error(`${purpose} storage is not configured`);
   for (const storage of [
     process.env.TOWNBASE_DOCUMENTS_PATH,
     process.env.TOWNBASE_ATTACHMENTS_PATH,
+    purpose === "bootstrap"
+      ? process.env.TOWNBASE_RECOVERY_PATH
+      : process.env.TOWNBASE_BOOTSTRAP_PATH,
   ]) {
     if (storage) {
       const a = path.resolve(value),
@@ -52,23 +60,28 @@ export function tokenDirectory(): string {
         a.startsWith(`${b}${path.sep}`) ||
         b.startsWith(`${a}${path.sep}`)
       )
-        throw new Error("Bootstrap storage must be separate");
+        throw new Error(`${purpose} storage must be separate`);
     }
   }
   return value;
 }
 
-export async function prepareTokenDirectory(): Promise<string> {
-  const directory = tokenDirectory();
+export async function prepareTokenDirectory(
+  purpose: TokenPurpose = "bootstrap",
+): Promise<string> {
+  const directory = tokenDirectory(purpose);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const info = await lstat(directory);
   if (!info.isDirectory() || info.isSymbolicLink())
-    throw new Error("Unsafe bootstrap storage");
+    throw new Error(`Unsafe ${purpose} storage`);
   await chmod(directory, 0o700);
   const resolved = await realpath(directory);
   for (const storage of [
     process.env.TOWNBASE_DOCUMENTS_PATH,
     process.env.TOWNBASE_ATTACHMENTS_PATH,
+    purpose === "bootstrap"
+      ? process.env.TOWNBASE_RECOVERY_PATH
+      : process.env.TOWNBASE_BOOTSTRAP_PATH,
   ]) {
     if (!storage) continue;
     const other = await realpath(storage);
@@ -77,13 +90,16 @@ export async function prepareTokenDirectory(): Promise<string> {
       resolved.startsWith(`${other}${path.sep}`) ||
       other.startsWith(`${resolved}${path.sep}`)
     )
-      throw new Error("Bootstrap storage must be separate");
+      throw new Error(`${purpose} storage must be separate`);
   }
   return directory;
 }
 
-export async function writeTokenFile(token: string): Promise<void> {
-  const directory = await prepareTokenDirectory();
+export async function writeTokenFile(
+  token: string,
+  purpose: TokenPurpose = "bootstrap",
+): Promise<void> {
+  const directory = await prepareTokenDirectory(purpose);
   const filename = path.join(directory, temporaryTokenName());
   try {
     const file = await open(filename, "wx", 0o600);
@@ -102,18 +118,22 @@ export async function writeTokenFile(token: string): Promise<void> {
   }
 }
 
-export async function deleteTokenFile(): Promise<void> {
-  await unlink(path.join(tokenDirectory(), "token")).catch(
+export async function deleteTokenFile(
+  purpose: TokenPurpose = "bootstrap",
+): Promise<void> {
+  await unlink(path.join(tokenDirectory(purpose), "token")).catch(
     (error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT") throw error;
     },
   );
 }
 
-// Only call while holding the BootstrapState lock: issuance uses that same lock.
+// Call under the matching BootstrapState/AuthenticationState issuance lock.
 // An interrupted atomic write must not leave plaintext temporary credentials.
-export async function deleteTemporaryTokenFiles(): Promise<void> {
-  const directory = tokenDirectory();
+export async function deleteTemporaryTokenFiles(
+  purpose: TokenPurpose = "bootstrap",
+): Promise<void> {
+  const directory = tokenDirectory(purpose);
   for (const name of await readdir(directory)) {
     if (isTemporaryTokenName(name)) await unlink(path.join(directory, name));
   }

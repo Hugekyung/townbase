@@ -14,6 +14,7 @@ export default defineConfig({
     proxy: {
       "/readyz": { ...localApi },
       "/setup": { ...localApi },
+      "/auth": { ...localApi },
     },
   },
 });

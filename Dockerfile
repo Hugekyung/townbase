@@ -32,13 +32,14 @@ ENV TOWNBASE_MIGRATIONS_PATH=/app/migrations
 ENV TOWNBASE_DOCUMENTS_PATH=/var/lib/townbase/documents
 ENV TOWNBASE_ATTACHMENTS_PATH=/var/lib/townbase/attachments
 ENV TOWNBASE_BOOTSTRAP_PATH=/var/lib/townbase/bootstrap
+ENV TOWNBASE_RECOVERY_PATH=/var/lib/townbase/recovery
 WORKDIR /app
 COPY --from=build --chown=node:node /out/api /app/api
 COPY --from=build --chown=node:node /workspace/apps/web/dist /app/web/dist
 COPY --from=build /workspace/packages/database/prisma/migrations /app/migrations
-COPY --chown=node:node deployment/start.mjs deployment/bootstrap.mjs deployment/database-env.mjs /app/deployment/
+COPY --chown=node:node deployment/start.mjs deployment/bootstrap.mjs deployment/recovery.mjs deployment/database-env.mjs /app/deployment/
 RUN install -d -o node -g node -m 0700 /var/lib/townbase/documents /var/lib/townbase/attachments
-RUN install -d -o node -g node -m 0700 /var/lib/townbase/bootstrap
+RUN install -d -o node -g node -m 0700 /var/lib/townbase/bootstrap /var/lib/townbase/recovery
 USER node
 EXPOSE 3000
 CMD ["node", "deployment/start.mjs"]
