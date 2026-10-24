@@ -44,9 +44,12 @@ export class DeploymentDatabase implements OnApplicationShutdown {
       const unfinished = applied.some(
         (row) => row.finished_at == null && row.rolled_back_at == null,
       );
-      await this.prisma
-        .$queryRaw`SELECT (SELECT count(*) FROM "Installation"), (SELECT count(*) FROM "Administrator"), (SELECT count(*) FROM "InstallationAuditEvent"), (SELECT count(*) FROM "BootstrapState" WHERE id = 'primary')`;
+      const [state] = await this.prisma.$queryRaw<
+        Array<{ bootstrap: bigint; authentication: bigint }>
+      >`SELECT (SELECT count(*) FROM "Installation"), (SELECT count(*) FROM "Administrator"), (SELECT count(*) FROM "InstallationAuditEvent"), (SELECT count(*) FROM "BootstrapState" WHERE id = 'primary') AS bootstrap, (SELECT count(*) FROM "AuthenticationState" WHERE id = 'primary') AS authentication, (SELECT count(*) FROM "AdministratorSession")`;
       const ready =
+        state?.bootstrap === 1n &&
+        state.authentication === 1n &&
         expected.size > 0 &&
         expected.size === completed.size &&
         [...expected].every((name) => completed.has(name)) &&

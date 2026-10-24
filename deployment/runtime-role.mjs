@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-// B03 grants only initial administrator setup and status. Future features must
+// B04 grants setup, status, and administrator authentication. Future features must
 // explicitly extend this policy without schema ownership or migration powers.
 export async function configureRuntimeRole(tx, env = process.env) {
   if (!env.TOWNBASE_RUNTIME_PASSWORD_FILE)
@@ -34,10 +34,12 @@ export async function configureRuntimeRole(tx, env = process.env) {
   for (const sql of Object.values(databaseGrants))
     await tx.$executeRawUnsafe(sql);
   await tx.$executeRaw`GRANT USAGE ON SCHEMA public TO townbase_runtime`;
-  await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent", "BootstrapState", "Workspace" TO townbase_runtime`;
-  await tx.$executeRaw`GRANT INSERT ON "Installation", "Administrator", "InstallationAuditEvent" TO townbase_runtime`;
-  await tx.$executeRaw`GRANT UPDATE ON "BootstrapState" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent", "BootstrapState", "Workspace", "AuthenticationState", "AdministratorSession" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT INSERT ON "Installation", "Administrator", "InstallationAuditEvent", "AdministratorSession" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ON "BootstrapState", "AuthenticationState" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("initializedAt", "updatedAt") ON "Installation" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ("passwordHash", "updatedAt") ON "Administrator" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ("lastSeenAt", "revokedAt") ON "AdministratorSession" TO townbase_runtime`;
   // The PUBLIC schema/database DDL revokes above are intentional. Object and
   // default ACLs belonging to other consumers are inspected, not auto-rewritten.
   // Only public's setup/status tables and invoker routines installed by the
@@ -56,16 +58,16 @@ export async function configureRuntimeRole(tx, env = process.env) {
         AND c.relkind IN ('r', 'p', 'v', 'm', 'f') THEN (
         has_table_privilege('townbase_runtime', c.oid, 'DELETE,TRUNCATE,REFERENCES,TRIGGER')
         OR has_any_column_privilege('townbase_runtime', c.oid, 'REFERENCES')
-        OR (NOT (n.nspname = 'public' AND c.relname IN ('Installation', 'Administrator', 'InstallationAuditEvent'))
+        OR (NOT (n.nspname = 'public' AND c.relname IN ('Installation', 'Administrator', 'InstallationAuditEvent', 'AdministratorSession'))
           AND has_any_column_privilege('townbase_runtime', c.oid, 'INSERT'))
         OR EXISTS (
           SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
           AND has_column_privilege('townbase_runtime', c.oid, a.attnum, 'UPDATE')
-          AND NOT (n.nspname = 'public' AND (c.relname = 'BootstrapState' OR (c.relname = 'Installation' AND a.attname IN ('initializedAt', 'updatedAt'))))
+          AND NOT (n.nspname = 'public' AND (c.relname IN ('BootstrapState', 'AuthenticationState') OR (c.relname = 'Administrator' AND a.attname IN ('passwordHash', 'updatedAt')) OR (c.relname = 'AdministratorSession' AND a.attname IN ('lastSeenAt', 'revokedAt')) OR (c.relname = 'Installation' AND a.attname IN ('initializedAt', 'updatedAt'))))
         )
         OR has_table_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION')
         OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION')
-        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent', 'BootstrapState', 'Workspace'))
+        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent', 'BootstrapState', 'Workspace', 'AuthenticationState', 'AdministratorSession'))
           AND (has_table_privilege('townbase_runtime', c.oid, 'SELECT')
             OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT')))
       ) ELSE false END

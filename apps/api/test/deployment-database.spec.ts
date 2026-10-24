@@ -40,7 +40,7 @@ describe("deployment migration readiness", () => {
     query
       .mockResolvedValueOnce([{ result: 1 }])
       .mockResolvedValueOnce([finished])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([{ bootstrap: 1n, authentication: 1n }]);
     await expect(service.check()).resolves.toEqual({
       database: "ready",
       schema: "ready",
@@ -67,6 +67,16 @@ describe("deployment migration readiness", () => {
       });
     },
   );
+  it("rejects a missing authentication singleton despite completed migrations", async () => {
+    query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([finished])
+      .mockResolvedValueOnce([{ bootstrap: 1n, authentication: 0n }]);
+    await expect(service.check()).resolves.toEqual({
+      database: "ready",
+      schema: "unavailable",
+    });
+  });
   it("distinguishes a DB outage from missing schema and never returns connection errors", async () => {
     query.mockRejectedValueOnce(new Error("secret-canary"));
     await expect(service.check()).resolves.toEqual({

@@ -238,20 +238,27 @@ for (const [name, sql] of [
   });
 }
 
-test("B03 grants setup writes without administrator updates or content access", async () => {
+test("B04 grants password/session writes without administrator identity or content access", async () => {
   await configure();
   const [rights] = await db.$queryRaw`SELECT
     has_table_privilege('townbase_runtime', 'public."BootstrapState"', 'SELECT,UPDATE') AS bootstrap,
     has_table_privilege('townbase_runtime', 'public."Administrator"', 'INSERT') AS administrator_insert,
+    has_column_privilege('townbase_runtime', 'public."Administrator"', 'passwordHash', 'UPDATE') AS password_change,
+    has_column_privilege('townbase_runtime', 'public."AdministratorSession"', 'revokedAt', 'UPDATE') AS session_revoke,
+    has_column_privilege('townbase_runtime', 'public."AdministratorSession"', 'expiresAt', 'UPDATE') AS session_extend,
     has_column_privilege('townbase_runtime', 'public."Installation"', 'initializedAt', 'UPDATE') AS initialize,
     has_column_privilege('townbase_runtime', 'public."Installation"', 'name', 'UPDATE') AS rename,
     (has_table_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE,DELETE')
-      OR has_any_column_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE')) AS administrator_mutation,
+      OR has_column_privilege('townbase_runtime', 'public."Administrator"', 'username', 'UPDATE')
+      OR has_column_privilege('townbase_runtime', 'public."Administrator"', 'disabledAt', 'UPDATE')) AS administrator_mutation,
     (has_table_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE,DELETE')
       OR has_any_column_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE')) AS content`;
   assert.deepEqual(rights, {
     bootstrap: true,
     administrator_insert: true,
+    password_change: true,
+    session_revoke: true,
+    session_extend: false,
     initialize: true,
     rename: false,
     administrator_mutation: false,

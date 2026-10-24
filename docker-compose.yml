@@ -55,6 +55,7 @@ services:
       - documents:/var/lib/townbase/documents
       - attachments:/var/lib/townbase/attachments
       - bootstrap:/var/lib/townbase/bootstrap
+      - recovery:/var/lib/townbase/recovery
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,6 +85,7 @@ volumes:
   documents:
   attachments:
   bootstrap:
+  recovery:
 
 secrets:
   postgres_password:

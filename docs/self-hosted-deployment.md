@@ -1,6 +1,6 @@
 # v0.2 초기 배포 실행 안내
 
-현재 제공: API·상태 웹·최초 관리자 등록·PostgreSQL/pgvector·migration·분리된 파일 volume. **로그인·문서 등록·채팅은 아직 사용할 수 없다.** 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
+현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·PostgreSQL/pgvector·migration·분리된 파일 volume. **문서 등록·채팅은 아직 사용할 수 없다.** 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
 
 ## 1. 첫 실행
 
@@ -50,6 +50,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" -w /workspace no
 | `postgres-data-v02` volume | 기존 v0.1 DB volume과 다름. 기존 DB에 새 비밀번호로 자동 연결하거나 데이터를 자동 가져오지 않음 |
 | `documents` volume | 지속 문서용. 원본 API/수집은 이후 구현하며 지금 정적 웹에 공개하지 않음 |
 | `attachments` volume | 일회성 첨부용, 지속 문서와 별도 경로/volume. 백업 제외·만료 삭제는 F/I에서 구현 |
+| `recovery` volume | 비밀번호 복구 토큰 전용. 디렉터리0700·파일0600. 초기 등록/문서/첨부와 분리하고 백업 제외. 자동 백업은 아직 없음 |
 | `bootstrap` volume | 초기 등록 토큰 전용. 디렉터리0700·파일0600. 문서/첨부·DB 백업과 분리하고 백업에서 제외할 대상. 자동 백업은 아직 없음 |
 
 `.env`나 API Key·고객 파일을 Docker 이미지에 넣지 않는다. `.dockerignore`는 `.env*`(예시 제외)·`.townbase`·repos·fixtures·로컬 node_modules/dist를 제외한다. 초기 등록 토큰은 아래 로컬 명령으로만 발급한다. API Key/master key와 관리자 복구 토큰은 B04/C에서 추가한다. 현재 DB secret을 잃어버려도 기존 DB가 자동 초기화되거나 비밀번호가 자동 교체되지는 않는다. 별도 안전한 위치에 보관하고 분실 시 운영자가 DB 복구 절차를 수행해야 한다.
@@ -74,7 +75,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --w
 
 ## 5. 외부 접속과 TLS 계약
 
-기본 Compose는 loopback 전용 로컬 HTTP 등록을 명시 허용한다. 외부 관리자 등록·향후 로그인은 HTTPS로만 공개한다. 조직이 준비한 reverse proxy·인증서를 사용하고 API·웹을 같은 HTTPS origin으로 제공한다. localhost 포트를 전체 인터페이스에 직접 공개하지 않는다.
+기본 Compose는 loopback 전용 로컬 HTTP 등록을 명시 허용한다. 외부 관리자 등록·로그인은 HTTPS로만 공개한다. 조직이 준비한 reverse proxy·인증서를 사용하고 API·웹을 같은 HTTPS origin으로 제공한다. localhost 포트를 전체 인터페이스에 직접 공개하지 않는다.
 
 호스트 Nginx 설정 예시(도메인·인증서 경로는 운영자가 제공, 이번 저장소에서 인증서를 발급하지 않음). 아래는 기본 포트3000 기준이며 포트를 변경했다면 `proxy_pass`도 실제 게시 포트로 맞춘다:
 
@@ -98,7 +99,7 @@ server {
 
 설정한 HTTPS origin·Host·브라우저 Origin·`X-Townbase-Setup: 1`이 모두 일치하고, 신뢰한 peer에서 전달한 `X-Forwarded-Proto: https`인 등록만 허용한다. 공개 origin을 설정하면 로컬 HTTP 예외도 닫힌다. 공개 origin 미설정 시에는 로컬 origin/Host와 명시적 로컬 허용 값이 필요하며 전달 헤더가 섞이면 거절한다. 전체 Express trust proxy는 켜지 않는다. proxy는 API loopback 게시 주소로만 연결한다. 이 peer 검사는 다른 로컬 프로세스를 운영자로부터 격리하는 보안 경계가 아니다.
 
-B03에서는 Origin/전달 경계의 자동 시험을 수행했다. 실제 조직의 인증서·proxy를 통한 TLS 운영 확인은 별도다. 세션 cookie·로그인·복구는 B04에서 구현/검증한다.
+B03에서는 Origin/전달 경계의 자동 시험을 수행했다. 실제 조직의 인증서·proxy를 통한 TLS 운영 확인은 별도다. B04는 같은 전송 경계와 Secure/HttpOnly/SameSite cookie를 적용한다. 로그인·복구는 8절을 따른다.
 
 ## 6. 기존 개발 경로
 
@@ -120,7 +121,7 @@ root `pnpm build`는 database→rag-core→agent-core→connectors→API→web �
 
 ## PR #34 리뷰 보완 계약
 
-- DB 소유자 `townbase`와 API 계정 `townbase_runtime`을 분리한다. `postgres_password`는 DB·migration에만, 별도 `runtime_password`는 migration·API에만 마운트한다. B03 API는 DB 연결·public schema USAGE와 `_prisma_migrations`, `Installation`, `Administrator`, `InstallationAuditEvent`, `BootstrapState`, `Workspace` SELECT를 허용한다. 초기 등록에 필요한 Installation/Administrator/InstallationAuditEvent INSERT, BootstrapState UPDATE, Installation의 initializedAt/updatedAt 열 UPDATE만 추가했다. DELETE·테이블 생성/구조 변경·역할 관리·migration 실행 권한은 주지 않는다. 이후 권한은 해당 기능과 함께 명시적으로 추가한다.
+- DB 소유자 `townbase`와 API 계정 `townbase_runtime`을 분리한다. `postgres_password`는 DB·migration에만, 별도 `runtime_password`는 migration·API에만 마운트한다. API는 DB 연결·public schema USAGE와 `_prisma_migrations`, `Installation`, `Administrator`, `InstallationAuditEvent`, `BootstrapState`, `Workspace` SELECT를 허용한다. 초기 등록에 필요한 Installation/Administrator/InstallationAuditEvent INSERT, BootstrapState UPDATE, Installation의 initializedAt/updatedAt 열 UPDATE만 추가했다. B04는 AuthenticationState SELECT/UPDATE, AdministratorSession SELECT/INSERT·lastSeenAt/revokedAt 열 UPDATE, Administrator passwordHash/updatedAt 열 UPDATE만 추가한다. DELETE·테이블 생성/구조 변경·역할 관리·migration 실행 권한은 주지 않는다. 이후 권한은 해당 기능과 함께 명시적으로 추가한다.
 - migration이 실행 잠금 안에서 제한 계정을 생성/갱신하고 기존 직접 권한·역할 membership을 정리한다. API 계정 비밀번호는 보호된 파일에서 읽으며 로그에 남기지 않는다. 기존 DB 비밀번호는 자동 변경하지 않는다. 비밀 파일을 분실했을 때 새로 생성해 기존 DB가 복구된다고 가정하지 않는다.
 - API와 migration은 모두 node 사용자·읽기 전용 root·capability 제거·권한 상승 금지로 실행한다. migration의 임시 캐시는 `/tmp` tmpfs에 둔다. 비밀 파일은 새 생성과 재실행 모두 `0444`, 상위 디렉터리는 `0700`을 적용하며 값은 보존한다.
 - `/readyz`는 두 저장소 각각에서 임의 이름의 작은 파일을 배타 생성·쓰기·동기화·삭제한 뒤 준비 완료를 표시한다. 검사 순간의 쓰기 가능 여부이며 이후 모든 저장의 성공을 보장하지 않는다. DB 확인 도중 실패하면 연결을 다시 확인해 구조 오류와 연결 장애를 구분한다.
@@ -142,10 +143,10 @@ docker compose --env-file .townbase/compose.env -p my-townbase exec -T api cat /
 ```
 
 1. 웹에서 토큰·관리자 이름·비밀번호·비밀번호 확인을 입력한다. 비밀번호는 Unicode 문자 기준 15~128자이며 공백을 임의로 제거하지 않는다. 이름은 앞뒤 공백을 제거한 뒤 1~128자다.
-2. 등록 후 웹이 DB 상태를 다시 조회해 등록 완료를 표시한다. 현재 로그인 화면은 없다.
+2. 등록 후 웹이 DB 상태를 다시 조회해 등록 완료를 표시한다. 등록이 완료되면 관리자 로그인 화면을 제공한다.
 3. 토큰은 32-byte 난수, 60분 만료·한 번만 사용. DB에는 SHA-256 digest만 저장한다. 비밀번호는 Argon2id(19MiB·2회·병렬1·32-byte hash)로 저장한다. 발급·거절·관리자 생성·소비는 감사 기록으로 남긴다.
 4. 만료/분실/틀린 토큰은 첫 명령을 다시 실행해 교체한다. 기존 토큰은 즉시 무효화된다. 등록 전 실패 15분 10회부터 1~60초 지연을 DB에 보관한다. 운영자의 로컬 재발급은 이 제한도 초기화한다.
-5. 등록 완료 또는 관리자 행 존재 시 HTTP 재등록과 로컬 재발급이 모두 닫힌다. 비활성 관리자도 새 등록을 허용하지 않는다. 비밀번호 분실 시 DB/volume을 지우지 않는다. 복구 기능은 B04 범위다.
+5. 등록 완료 또는 관리자 행 존재 시 HTTP 재등록과 로컬 재발급이 모두 닫힌다. 비활성 관리자도 새 등록을 허용하지 않는다. 비밀번호 분실 시 DB/volume을 지우지 않는다. 비밀번호 복구는 8절을 따른다.
 
 발급 명령은 선택된 기본 workspace를 설치에 연결하는 명시적 운영 작업이다. migration은 이 연결이나 관리자 계정을 자동 생성하지 않는다. 최초 설치 이름은 해당 workspace 이름, 시간대는 UTC로 기록한다. 기존 설치의 이름·시간대는 보존하고 workspace가 다르면 발급을 거절한다.
 
@@ -177,3 +178,23 @@ Vite가 출력한 loopback 주소를 연다. `/readyz`·`/setup`은 API의 호�
 정상적으로 찾은 `/assets/` 빌드 파일만 `public, max-age=0`으로 브라우저 저장 후 재검증을 허용한다. HTML 진입점·API·오류 응답은 `no-store`를 유지한다. 정적 파일 경로라는 이유만으로 오류 응답의 보안 헤더나 캐시 금지를 해제하지 않는다.
 
 초기 발급 오류는 `already_initialized`, `workspace_mismatch`, `workspace_unavailable`, `storage_unavailable`, `unavailable`의 안전한 코드/고정 안내만 출력한다. 알 수 없는 DB·파일 오류의 원문/stack은 출력하지 않는다. 파일 교체는 파일 내용과 상위 디렉터리를 순서대로 동기화한다. 파일/DB 사이의 별도 저장 경계와 재발급 복구 계약은 유지한다.
+
+
+## 8. 로그인·비밀번호 변경·로컬 복구 (B04)
+
+웹에서 최초 등록한 관리자 이름·비밀번호로 로그인한다. 세션은 절대8시간·유휴30분 후 만료된다. 로그아웃은 현재 로그인만 종료한다. 비밀번호 변경은 현재 비밀번호를 다시 입력하며 **모든 기존 로그인을 종료**하고 미사용 복구 토큰도 무효화한다. 새 비밀번호로 다시 로그인한다.
+
+분실한 경우 서버 운영자가 해당 설치에서 다음 명령을 실행한다. DB·volume을 삭제하거나 bootstrap 등록을 다시 열지 않는다.
+
+```bash
+docker compose --env-file .townbase/compose.env -p my-townbase exec -T api node deployment/recovery.mjs
+docker compose --env-file .townbase/compose.env -p my-townbase exec -T api cat /var/lib/townbase/recovery/token
+```
+
+두 번째 명령은 비밀을 의도적으로 읽는 서버 운영 작업이다. 터미널 출력·화면 공유·기록에 노출하지 않는다. 웹의 ‘비밀번호를 잊었어요’에서 토큰·새 비밀번호·확인을 입력한다. 토큰은60분 동안 한 번만 사용 가능하며 재발급하면 이전 토큰은 즉시 무효다. 성공하면 기존 세션을 모두 폐기하고 새 비밀번호로 로그인한다. 기존 자료·설치·관리자 ID는 보존한다. 비활성 관리자 재활성화나 새 관리자 생성 용도로 사용할 수 없다.
+
+로그인과 복구는 각각15분 동안 실패10회부터1~60초 지연한다. DB에 보관하므로 재시작으로 우회되지 않는다. 서버 로컬 재발급으로 복구 제한을 초기화할 수 있다. HTTP로 복구 토큰을 발급하거나 읽는 경로는 없다.
+
+recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한다. 소비 직후/기동/60초 주기로 파일을 삭제하며 중단·삭제 장애 중에는 물리 정리가 늦어진다. 파일/DB 불일치 시 인증은 거절하고 로컬 재발급한다. 파일이 있다고 유효한 토큰이라는 뜻은 아니다. 세션/감사 기록의 전체 보관 정리는 I 단계이며 자동 백업/복원 기능은 아직 없다.
+
+인증 요청은 같은 origin의 웹을 사용한다. API 직접 호출 시 JSON·`X-Townbase-Auth: 1`·정확한 Origin/Host·허용된 전송이 필요하다. 공개 HTTPS 설정 시 cookie는 Secure이고 로컬 HTTP 예외가 닫힌다. 발급값을 URL/로그/브라우저 저장소에 넣지 않는다. [구현·시험 기록](implementation/v0.2-b04-authentication.md)을 참고한다.

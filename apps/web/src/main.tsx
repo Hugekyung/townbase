@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
+import { AuthPanel } from "./AuthPanel";
 import { SetupForm } from "./SetupForm";
 
 type Readiness = {
@@ -163,7 +164,7 @@ function App() {
             <span className="section-label">다음 설정</span>
             <h2 id="next-title">
               {status?.setup === "complete"
-                ? "관리자 등록 완료"
+                ? "관리자 로그인"
                 : "최초 관리자 등록"}
             </h2>
             {status?.setup === "required" ? (
@@ -172,13 +173,16 @@ function App() {
                 onBusyChange={setRegistering}
                 blocked={loading || failed || !ready}
               />
+            ) : status?.setup === "complete" ? (
+              <AuthPanel
+                blocked={loading || failed || !ready}
+                onBusyChange={setRegistering}
+              />
             ) : (
               <p>
-                {status?.setup === "complete"
-                  ? "관리자가 이미 등록되어 있어요. 추가 초기 등록은 차단됐어요. 로그인·문서 등록·채팅은 다음 단계에서 제공해요."
-                  : status?.setup === "unavailable"
-                    ? "관리자 초기화 상태를 확인한 뒤 등록할 수 있어요. 상태를 다시 확인해 주세요."
-                    : "기본 실행 환경이 연결되면 최초 관리자 등록을 진행할 수 있어요."}
+                {status?.setup === "unavailable"
+                  ? "관리자 초기화 상태를 확인한 뒤 등록할 수 있어요. 상태를 다시 확인해 주세요."
+                  : "기본 실행 환경이 연결되면 최초 관리자 등록을 진행할 수 있어요."}
               </p>
             )}
           </div>

@@ -16,7 +16,7 @@ const { createServer } = await import(
   pathToFileURL(requireWeb.resolve("vite"))
 );
 
-test("Vite forwards readiness and setup while preserving the browser origin boundary", async () => {
+test("Vite forwards readiness, setup and authentication while preserving the browser origin boundary", async () => {
   const upstream = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -29,6 +29,8 @@ test("Vite forwards readiness and setup while preserving the browser origin boun
         host: req.headers.host,
         origin: req.headers.origin,
         setup: req.headers["x-townbase-setup"],
+        auth: req.headers["x-townbase-auth"],
+        cookie: req.headers.cookie,
         contentType: req.headers["content-type"],
         body,
         forwarded: [
@@ -78,12 +80,19 @@ test("Vite forwards readiness and setup while preserving the browser origin boun
       ["/readyz", "GET"],
       ["/setup/status", "GET"],
       ["/setup/administrator", "POST"],
+      ["/auth/session", "GET"],
+      ["/auth/login", "POST"],
+      ["/auth/logout", "POST"],
+      ["/auth/password", "POST"],
+      ["/auth/recover", "POST"],
     ]) {
       const response = await fetch(`${origin}${route}`, {
         method,
         headers: {
           Origin: origin,
           "X-Townbase-Setup": "1",
+          "X-Townbase-Auth": "1",
+          Cookie: "townbase_session=synthetic-cookie",
           "Content-Type": "application/json",
         },
         ...(method === "POST" ? { body: payload } : {}),
@@ -95,6 +104,8 @@ test("Vite forwards readiness and setup while preserving the browser origin boun
         host: new URL(origin).host,
         origin,
         setup: "1",
+        auth: "1",
+        cookie: "townbase_session=synthetic-cookie",
         contentType: "application/json",
         body: method === "POST" ? payload : "",
         forwarded: [],
