@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 
 // Shared by the real entrypoint and HTTP regression tests. Headers must precede
@@ -40,6 +41,49 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
       if (typeof type === "string" && Object.hasOwn(statuses, type))
         response.status(statuses[type]!).json({ code: "invalid_json" });
       else next(error);
+    },
+  );
+}
+
+// Override the safe API default only after serve-static has found a real build
+// asset. Missing assets, parser failures, index.html and API responses stay private.
+export function configureSelfHostedStaticAssets(
+  app: NestExpressApplication,
+  webRoot: string,
+): void {
+  const assetsRoot = path.resolve(webRoot, "assets");
+  app.useStaticAssets(webRoot, {
+    dotfiles: "deny",
+    index: "index.html",
+    setHeaders(
+      response: { setHeader(name: string, value: string): void },
+      filename: string,
+    ) {
+      const relative = path.relative(assetsRoot, filename);
+      if (
+        relative &&
+        relative !== ".." &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative)
+      )
+        response.setHeader("Cache-Control", "public, max-age=0");
+    },
+  });
+  // A file can be found and still fail later (Range/If-Match or stream errors).
+  // Restore the private default before forwarding any unsent static error.
+  app.use(
+    (
+      error: unknown,
+      _request: unknown,
+      response: {
+        headersSent?: boolean;
+        setHeader(name: string, value: string): void;
+      },
+      next: (error: unknown) => void,
+    ) => {
+      if (!response.headersSent)
+        response.setHeader("Cache-Control", "no-store");
+      next(error);
     },
   );
 }

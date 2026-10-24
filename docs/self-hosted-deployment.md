@@ -156,6 +156,24 @@ DB 상태·발급 감사·파일 쓰기는 같은 등록 잠금 안에서 처리
 
 ### 개발용 웹 서버
 
-기본 운영/검증 경로는 Docker의 API와 같은 origin에서 제공하는 웹이다. 웹 화면을 Vite로 수정할 때 `pnpm --filter @townbase/web dev`는 `/readyz`와 `/setup`을 로컬 API 포트3000으로 전달한다. API는 self_hosted 프로필·별도 시험 DB/저장소·명시적 로컬 HTTP 허용으로 실행해야 한다. `pnpm dev`의 기존 legacy 프로필은 setup 경로를 제공하지 않는다. Vite가 Host/Origin을 바꾸거나 전달 헤더를 임의로 추가하지 않게 유지하며, 공개 origin을 설정한 운영 API의 HTTPS 보호를 개발 proxy로 우회하지 않는다.
+기본 운영/검증 경로는 Docker API와 같은 origin에서 제공하는 웹이다. Vite 개발은 **별도의 새 개발 checkout과 시험용 Compose 프로젝트**에서 아래 순서로 실행한다. 운영 설치의 폴더·DB·volume을 개발용으로 전환하지 않는다. Node24·pnpm·Docker가 필요하며, 호스트3000 포트가 비어 있어야 한다.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --filter @townbase/web build
+node deployment/prepare.mjs
+# 새 개발 checkout에서만 최초 생성. 기존 파일을 덮어쓰지 않는다.
+if [ ! -e .townbase/compose.env ]; then
+  printf 'TOWNBASE_PORT=3000\n' > .townbase/compose.env
+fi
+docker compose --env-file .townbase/compose.env -p my-townbase-dev up -d --build --wait --wait-timeout 180
+pnpm --filter @townbase/web dev
+```
+
+Vite가 출력한 loopback 주소를 연다. `/readyz`·`/setup`은 API의 호스트 포트3000으로 전달한다. 기존 개발 설정의 포트가 다르면 `apps/web/vite.config.ts`의 target도 같은 포트로 맞춘다. Docker build가 공유 패키지→API→웹을 빌드하고, migration과 별도 저장 volume을 준비한다. API의 `TOWNBASE_RUNTIME_PROFILE=self_hosted`는 Dockerfile, `TOWNBASE_SETUP_LOCAL_HTTP=1`은 기본 Compose에 이미 설정되어 있다. 호스트에서 이 변수를 export하는 것만으로 DB/저장소/빌드가 준비되지는 않는다. `pnpm dev`의 legacy 프로필은 setup 경로를 제공하지 않으므로 이 안내의 API 실행 명령으로 사용하지 않는다.
+
+초기 토큰은 앞 절과 같은 명령의 프로젝트 이름을 `my-townbase-dev`로 맞춰 발급한다. Vite는 Host/Origin을 보존하고 전달 헤더를 새로 만들지 않는다. `TOWNBASE_PUBLIC_ORIGIN`을 설정한 운영 API의 HTTPS 보호를 개발 proxy로 우회하지 않는다. 실제 정적 웹은 API runtime 이미지의 `/app/web/dist`에서 제공하며, Vite 소스/proxy 시험은 build를 상속한 migration 이미지에서 별도로 수행한다.
+
+정상적으로 찾은 `/assets/` 빌드 파일만 `public, max-age=0`으로 브라우저 저장 후 재검증을 허용한다. HTML 진입점·API·오류 응답은 `no-store`를 유지한다. 정적 파일 경로라는 이유만으로 오류 응답의 보안 헤더나 캐시 금지를 해제하지 않는다.
 
 초기 발급 오류는 `already_initialized`, `workspace_mismatch`, `workspace_unavailable`, `storage_unavailable`, `unavailable`의 안전한 코드/고정 안내만 출력한다. 알 수 없는 DB·파일 오류의 원문/stack은 출력하지 않는다. 파일 교체는 파일 내용과 상위 디렉터리를 순서대로 동기화한다. 파일/DB 사이의 별도 저장 경계와 재발급 복구 계약은 유지한다.

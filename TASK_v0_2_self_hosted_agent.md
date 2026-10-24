@@ -63,7 +63,7 @@
 | --- | --- | --- | --- |
 | main 전달 완료 (`80cb3ab`) | V02B-B01 | 필요한 관리자·설정·소유·중요 변경 기록의 최소 DB/migration, 비밀·파일 경계와 신규/기존 DB 적용 설계 | [설계·적용 절차](docs/implementation/v0.2-b01-storage.md)·[검증 기록](docs/implementation/v0.2-b01-verification.md). 새 DB/구버전8개 모델 보존·재실행·11개 테이블 복원/readback, 신규11개 포함149 tests. 운영 복구·로그인/파일 구현과 구분 |
 | main 병합 완료 (`24ad492`, #34) | V02B-B02 | API·초기 웹·DB·migration 배포, health·volume·host 노출·TLS 계약. 빌드 산출물 소비 경로 정리 | [실행 안내](docs/self-hosted-deployment.md)·[검증 기록](docs/implementation/v0.2-b02-verification.md): Linux amd64 에뮬레이션에서 빈 volume 기동·중복/실패 차단·DB/파일 재시작 유지·실제 UI 오류/회복, 최초202개·1차 보완211개·2차 보완221개·3차 보완240개 tests 통과. [추가 검증](docs/implementation/v0.2-b02-review-response.md) 참고. 네이티브 장비/실제 조직 TLS는 별도 |
-| 구현·검증·PR 전달 완료 (#35), 리뷰 보완 | V02B-B03 | 최초 관리자 1회 생성·일회성 초기 토큰·동시 등록 제어 | [구현·검증 기록](docs/implementation/v0.2-b03-administrator.md): 로컬 발급·실 DB 저장/감사·Argon2id·시도 제한·Origin/전송 경계·초기 웹. 최초271개 자동 시험 후 리뷰18건 보완·289개 회귀 시험 및 Vite 등록/장애 UI 확인. [리뷰 대응](docs/implementation/v0.2-b03-review-response.md). 2026-10-24 사용자 승인으로 보완 commit/push·PR 댓글 등록 경로를 따른다. main 병합은 별도 |
+| 구현·검증·PR 전달 완료 (#35), 리뷰 보완 | V02B-B03 | 최초 관리자 1회 생성·일회성 초기 토큰·동시 등록 제어 | [구현·검증 기록](docs/implementation/v0.2-b03-administrator.md): 로컬 발급·실 DB 저장/감사·Argon2id·시도 제한·Origin/전송 경계·초기 웹. 최초271개 자동 시험 후 리뷰18건 보완·289개 회귀 시험 및 Vite 등록/장애 UI 확인. 신규5건의 2차 보완은 로컬 검증 API129·배포5 통과, 2026-10-24 사용자 전달 승인. [리뷰 대응](docs/implementation/v0.2-b03-review-response.md). 2026-10-24 사용자 승인으로 보완 commit/push·PR 댓글 등록 경로를 따른다. main 병합은 별도 |
 | 미착수 | V02B-B04 | 로그인·logout·비밀번호 변경·세션·메일 없는 로컬 복구·중요 변경 기록 | 세션 무효화·복구 후 이전 세션 거절·데이터 보존·시도 제한 |
 | 미착수 | V02B-B05 | 서버 공통 요청자/설치 접근 검사, 기존 API/MCP/CLI 노출 목록·배포 프로필 | 문서/대화/Key/Gap/실행·파일 직접 API와 비활성 경로 차단, workspaceId 위조 거절 |
 

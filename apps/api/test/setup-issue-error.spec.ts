@@ -6,6 +6,7 @@ describe("bootstrap operator diagnostics", () => {
     "workspace_mismatch",
     "workspace_unavailable",
     "storage_unavailable",
+    "unavailable",
   ] as const)("reports the safe %s code", (code) => {
     expect(issuanceFailure(new SetupIssueError(code))).toContain(`[${code}]`);
   });

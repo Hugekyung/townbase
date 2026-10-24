@@ -7,7 +7,10 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 
 import { DeploymentModule } from "./deployment/deployment.module";
-import { configureSelfHostedHttp } from "./deployment/self-hosted-http";
+import {
+  configureSelfHostedHttp,
+  configureSelfHostedStaticAssets,
+} from "./deployment/self-hosted-http";
 import { parsePort } from "./port";
 import { resolveRuntimeProfile } from "./runtime-profile";
 import { startupFailure, type StartupStage } from "./startup-failure";
@@ -33,7 +36,7 @@ async function bootstrap(): Promise<void> {
     startupStage = "web-artifacts";
     const webRoot = path.resolve(__dirname, "../../web/dist");
     await access(path.join(webRoot, "index.html"));
-    app.useStaticAssets(webRoot, { dotfiles: "deny", index: "index.html" });
+    configureSelfHostedStaticAssets(app, webRoot);
   }
 
   startupStage = "port-configuration";
