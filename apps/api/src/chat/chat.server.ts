@@ -13,6 +13,7 @@ import {
   CHAT_MCP_SERVER_NAME,
   CHAT_MCP_SERVER_VERSION,
 } from "./chat.constants";
+import { assertLegacyDevelopment } from "../runtime-profile";
 import { ChatToolRegistry } from "./chat.registry";
 
 export type ChatMcpSurface = Readonly<{
@@ -38,6 +39,7 @@ export class ChatMcpServer {
   }
 
   public buildServer(): Server {
+    assertLegacyDevelopment();
     const server = new Server(
       {
         name: CHAT_MCP_SERVER_NAME,
@@ -68,6 +70,7 @@ export class ChatMcpServer {
   }
 
   public async startStdio(): Promise<void> {
+    assertLegacyDevelopment();
     const transport = new StdioServerTransport();
     const server = this.buildServer();
     await server.connect(transport);

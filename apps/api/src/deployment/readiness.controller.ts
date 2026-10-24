@@ -1,3 +1,4 @@
+import { PublicEndpoint } from "../access/public-endpoint";
 import { Controller, Get, Header, Res } from "@nestjs/common";
 import {
   access,
@@ -19,6 +20,7 @@ export class ReadinessController {
     private readonly setupService: SetupService,
   ) {}
 
+  @PublicEndpoint()
   @Get("readyz")
   @Header("Cache-Control", "no-store")
   async getReadiness(

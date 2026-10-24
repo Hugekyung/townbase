@@ -1,5 +1,6 @@
-import { Module } from "@nestjs/common";
+import { Module, OnModuleInit } from "@nestjs/common";
 
+import { assertLegacyDevelopment } from "./runtime-profile";
 import { HealthController } from "./health.controller";
 import { ChatModule } from "./chat/chat.module";
 import { KnowledgeGapsModule } from "./knowledge-gaps/knowledge-gaps.module";
@@ -21,4 +22,6 @@ import { IngestionService } from "./ingestion/ingestion.service";
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnModuleInit {
+  onModuleInit() { assertLegacyDevelopment(); }
+}

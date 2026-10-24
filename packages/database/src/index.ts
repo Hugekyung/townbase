@@ -47,3 +47,10 @@ export {
   type ActionDraftStatusUpdateInput,
 } from "./action-draft";
 export { PrismaClient } from "@prisma/client";
+
+export {
+  RuntimeProfileError,
+  resolveRuntimeProfile,
+  assertLegacyDevelopment,
+  type RuntimeProfile,
+} from "./runtime-profile";

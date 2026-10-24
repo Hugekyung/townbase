@@ -1,3 +1,4 @@
+import { assertLegacyDevelopment } from "../runtime-profile";
 import { Module } from "@nestjs/common";
 
 import { ChatQuestionService } from "./chat.service";
@@ -11,7 +12,7 @@ import { KnowledgeGapsModule } from "../knowledge-gaps/knowledge-gaps.module";
   providers: [
     {
       provide: ChatQuestionService,
-      useFactory: () => new ChatQuestionService(createDefaultChatDependencies()),
+      useFactory: () => { assertLegacyDevelopment(); return new ChatQuestionService(createDefaultChatDependencies()); },
     },
     ChatToolRegistry,
     ChatMcpServer,

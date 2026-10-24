@@ -2,9 +2,11 @@ import {
   createPrismaClient,
   disconnectPrismaClient,
 } from "../src/prisma-client";
+import { assertLegacyDevelopment } from "../src/runtime-profile";
 import { resolveDefaultWorkspaceName } from "../src/runtime";
 
 async function main(): Promise<void> {
+  assertLegacyDevelopment();
   const prisma = createPrismaClient();
   const workspaceName = resolveDefaultWorkspaceName();
 

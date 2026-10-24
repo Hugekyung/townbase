@@ -1,3 +1,4 @@
+import { useLegacyTestProfile } from "./legacy-test-profile";
 import { INestApplication } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import request from "supertest";
@@ -210,3 +211,5 @@ describe("draft endpoints", () => {
     expect(service.createDraft).not.toHaveBeenCalled();
   });
 });
+
+useLegacyTestProfile();

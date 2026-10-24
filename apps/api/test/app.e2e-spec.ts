@@ -1,3 +1,4 @@
+import { useLegacyTestProfile } from "./legacy-test-profile";
 import { INestApplication } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import request from "supertest";
@@ -169,3 +170,5 @@ describe("Admin sync endpoints", () => {
     expect(service.syncNotion).toHaveBeenCalledWith();
   });
 });
+
+useLegacyTestProfile();

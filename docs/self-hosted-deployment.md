@@ -107,6 +107,7 @@ B03에서는 Origin/전달 경계의 자동 시험을 수행했다. 실제 조�
 
 ```bash
 if [ ! -e .env ]; then cp .env.example .env; fi
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm install --frozen-lockfile
 pnpm db:generate
@@ -200,3 +201,13 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 인증 요청은 같은 origin의 웹을 사용한다. API 직접 호출 시 JSON·`X-Townbase-Auth: 1`·정확한 Origin/Host·허용된 전송이 필요하다. 공개 HTTPS 설정 시 cookie는 Secure이고 로컬 HTTP 예외가 닫힌다. 발급값을 URL/로그/브라우저 저장소에 넣지 않는다. [구현·시험 기록](implementation/v0.2-b04-authentication.md)을 참고한다.
 
 복구 CLI의 실패 코드는 `administrator_unavailable`(초기화된 활성 관리자 없음), `storage_unavailable`(복구 경로·권한·파일 정리/쓰기 실패), `unavailable`(DB/배포 상태 또는 알 수 없는 오류)다. 파일 오류 원문·DB URL·stack은 출력하지 않는다. HTTP 인증 장애는 클라이언트에 `auth_unavailable`만 반환하며 서버에는 작업 종류와 허용된 진단 코드만 기록한다. `database_unavailable`은 연결 장애, `database_transaction_unavailable`은 연결 대기/트랜잭션 처리 장애, 나머지는 `unavailable`로 분류한다.
+
+## 9. 공통 접근 검사와 비활성 진입점 (B05)
+
+등록된 self-hosted HTTP 처리 경로는 기본적으로 관리자 세션을 요구한다. 공개 예외는 정적 웹·health/readyz·초기 상태/등록·로그인·로그아웃·복구 소비뿐이다. 공개 예외에도 기존 Origin·전송·JSON·비밀번호/토큰·시도 제한을 적용한다. 세션 조회·비밀번호 변경은 공통 검사 대상이다. 요청의 workspaceId/installationId/administratorId 또는 x-*-id 헤더는 신원 증명이 아니며, 저장된 세션의 설치/자료 범위와 다르면403이다. 검증 불가 상태는503으로 차단한다.
+
+기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서·채팅·Key·실행 API도 아직 제공하지 않는다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
+
+운영 runtime에는 connectors 패키지와 평가/seed 개발 소스·도구가 포함되지 않는다. 빌드/migration 환경에는 있으므로 그 환경에서도 프로필 보호가 필요하다. 유지보수 migration/bootstrap/recovery는 기존 서버 로컬 secret/토큰 절차를 따른다. 일반 데이터 기능을 활성화하는 CLI는 아니다. 설치 운영자의 임의 코드 실행/DB 소유자 권한을 격리하는 sandbox로 설명하지 않는다.
+
+개발 검증은 pnpm build 후 pnpm test:deployment를 실행한다. 실제 API/Connector/database 빌드 산출물, web 의존성, ts-node와 Node24 실행 환경이 필요하다. production runtime은 시험 runner가 아니다. 상세 목록·허용/거절 조건·실행 증거는 [B05 기록](implementation/v0.2-b05-access.md)을 따른다.

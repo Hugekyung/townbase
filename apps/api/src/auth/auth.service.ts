@@ -42,6 +42,13 @@ export const credentialDigest = (token: string) =>
 const validToken = (token: unknown): token is string =>
   typeof token === "string" && /^[A-Za-z0-9_-]{43}$/.test(token);
 
+export type AdministratorContext = Readonly<{
+  administratorId: string;
+  installationId: string;
+  workspaceId: string;
+  username: string;
+  expiresAt: string;
+}>;
 @Injectable()
 export class AuthService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
@@ -249,26 +256,53 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   async current(
     token?: string,
   ): Promise<Result<{ username: string; expiresAt: string }>> {
+    return this.withActiveSession(token, (context) => ({
+      username: context.username,
+      expiresAt: context.expiresAt,
+    }));
+  }
+  async requester(
+    token?: string,
+  ): Promise<Result<{ requester: AdministratorContext }>> {
+    return this.withActiveSession(token, (context) => ({ requester: context }));
+  }
+  private async withActiveSession<T extends object>(
+    token: string | undefined,
+    result: (context: AdministratorContext) => T,
+  ): Promise<Result<T>> {
     if (!validToken(token)) return { ok: false, code: "unauthorized" };
     return this.transaction(async (tx) => {
-      // Order: authentication boundary, session row, then fresh DB time. Requests
-      // for the same session cannot overwrite a newer activity time or validate
-      // an idle/absolute deadline using a timestamp from before a lock wait.
-      await tx.$queryRaw`SELECT "tokenHash" FROM "AdministratorSession" WHERE "tokenHash" = ${credentialDigest(token)} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "tokenHash" FROM "AdministratorSession" WHERE "tokenHash"=${credentialDigest(token)} FOR UPDATE`;
       const [clock] = await tx.$queryRaw<
         Array<{ now: Date }>
       >`SELECT clock_timestamp() AS now`;
       if (!clock) throw new Error("Authentication clock unavailable");
       const auth = await this.session(tx, token, clock.now);
       if (!auth) return { ok: false, code: "unauthorized" };
+      const installation = await tx.installation.findUnique({
+        where: { id: auth.administrator.installationId },
+        select: { id: true, workspaceId: true, initializedAt: true },
+      });
+      if (installation?.initializedAt == null)
+        return { ok: false, code: "unauthorized" };
+      const workspace = await tx.workspace.findUnique({
+        where: { id: installation.workspaceId },
+        select: { id: true },
+      });
+      if (!workspace) return { ok: false, code: "unauthorized" };
       await tx.administratorSession.update({
         where: { tokenHash: auth.session.tokenHash },
         data: { lastSeenAt: clock.now },
       });
       return {
         ok: true,
-        username: auth.administrator.username,
-        expiresAt: auth.session.expiresAt.toISOString(),
+        ...result({
+          administratorId: auth.administrator.id,
+          installationId: installation.id,
+          workspaceId: workspace.id,
+          username: auth.administrator.username,
+          expiresAt: auth.session.expiresAt.toISOString(),
+        }),
       };
     }, true);
   }

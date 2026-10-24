@@ -1,5 +1,7 @@
 # Local-first Execution Guide
 
+Legacy v0.1 commands now require an explicit `export TOWNBASE_RUNTIME_PROFILE=legacy_development` in a non-production shell. An unset profile defaults to `self_hosted`. Do not apply this export to v0.2 deployment.
+
 This guide covers the v0.1 local-first flow. The primary interaction path is MCP-first; the web UI is deferred to later phases.
 
 ## 1. Prerequisites
@@ -34,6 +36,7 @@ Create the local configuration first. Preserve an existing `.env`; for a new che
 ```bash
 # New checkout only; do not overwrite an existing .env.
 if [ ! -e .env ]; then cp .env.example .env; fi
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm install
 pnpm db:generate
@@ -52,6 +55,7 @@ git clone --local . /absolute/path/to/repos/workspace-knowledge-agent
 ## 5. Ingest Notion
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/connectors notion:sync
 ```
 
@@ -60,12 +64,14 @@ pnpm --filter @townbase/connectors notion:sync
 If you need fixture replay for local smoke tests, run:
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/connectors notion:sync:fixture
 ```
 
 ## 6. Ingest selected local repositories
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/connectors local-repo:sync
 ```
 

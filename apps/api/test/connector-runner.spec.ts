@@ -1,3 +1,4 @@
+import { useLegacyTestProfile } from "./legacy-test-profile";
 import { CliConnectorSyncRunner } from "../src/ingestion/connector-runner";
 
 type ExecCall = Readonly<{
@@ -71,3 +72,5 @@ describe("CliConnectorSyncRunner", () => {
     ]);
   });
 });
+
+useLegacyTestProfile();
