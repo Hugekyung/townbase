@@ -1,3 +1,4 @@
+import { assertLegacyDevelopment } from "@townbase/database";
 import path from "node:path";
 
 import { loadNotionConnectorEnv } from "./env";
@@ -120,6 +121,7 @@ const upsertDataSource = async (
 export const runNotionSync = async (
   options: RunNotionSyncOptions = {},
 ): Promise<NotionSyncSummary> => {
+  assertLegacyDevelopment();
   const env = loadNotionConnectorEnv();
   const database = loadDatabaseRuntime(path.resolve(__dirname, "..", "..", "database"));
   const prisma = database.createPrismaClient();
@@ -179,6 +181,7 @@ export const runNotionSync = async (
 };
 
 const main = async (): Promise<void> => {
+  assertLegacyDevelopment();
   const fixturePath = resolveNotionSyncFixturePath(process.argv.slice(2));
   await runNotionSync(
     fixturePath === undefined ? {} : { fixturePath },

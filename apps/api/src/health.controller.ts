@@ -1,3 +1,4 @@
+import { PublicEndpoint } from "./access/public-endpoint";
 import { Controller, Get } from "@nestjs/common";
 
 type HealthResponse = {
@@ -6,6 +7,7 @@ type HealthResponse = {
 
 @Controller()
 export class HealthController {
+  @PublicEndpoint()
   @Get("health")
   public getHealth(): HealthResponse {
     return {

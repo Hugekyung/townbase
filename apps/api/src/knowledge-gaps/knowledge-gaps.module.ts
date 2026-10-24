@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 
-import { createPrismaClient } from "@townbase/database";
+import { createPrismaClient, assertLegacyDevelopment } from "@townbase/database";
 
 import { KnowledgeGapsController } from "./knowledge-gaps.controller";
 import { KnowledgeGapsService } from "./knowledge-gaps.service";
@@ -10,7 +10,7 @@ import { KnowledgeGapsService } from "./knowledge-gaps.service";
   providers: [
     {
       provide: KnowledgeGapsService,
-      useFactory: () => new KnowledgeGapsService(createPrismaClient()),
+      useFactory: () => { assertLegacyDevelopment(); return new KnowledgeGapsService(createPrismaClient()); },
     },
   ],
   exports: [KnowledgeGapsService],

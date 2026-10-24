@@ -47,3 +47,5 @@ export {
   type ActionDraftStatusUpdateInput,
 } from "./action-draft";
 export { PrismaClient } from "@prisma/client";
+
+export { resolveRuntimeProfile, assertLegacyDevelopment, type RuntimeProfile } from "./runtime-profile";
