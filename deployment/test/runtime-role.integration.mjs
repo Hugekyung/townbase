@@ -237,3 +237,67 @@ for (const [name, sql] of [
     await configure();
   });
 }
+
+test("B03 grants setup writes without administrator updates or content access", async () => {
+  await configure();
+  const [rights] = await db.$queryRaw`SELECT
+    has_table_privilege('townbase_runtime', 'public."BootstrapState"', 'SELECT,UPDATE') AS bootstrap,
+    has_table_privilege('townbase_runtime', 'public."Administrator"', 'INSERT') AS administrator_insert,
+    has_column_privilege('townbase_runtime', 'public."Installation"', 'initializedAt', 'UPDATE') AS initialize,
+    has_column_privilege('townbase_runtime', 'public."Installation"', 'name', 'UPDATE') AS rename,
+    (has_table_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE,DELETE')
+      OR has_any_column_privilege('townbase_runtime', 'public."Administrator"', 'UPDATE')) AS administrator_mutation,
+    (has_table_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE,DELETE')
+      OR has_any_column_privilege('townbase_runtime', 'public."Document"', 'SELECT,INSERT,UPDATE')) AS content`;
+  assert.deepEqual(rights, {
+    bootstrap: true,
+    administrator_insert: true,
+    initialize: true,
+    rename: false,
+    administrator_mutation: false,
+    content: false,
+  });
+});
+
+test("B03 refuses PUBLIC updates outside the Installation initialization columns", async () => {
+  await db.$executeRaw`GRANT UPDATE (name) ON public."Installation" TO PUBLIC`;
+  try {
+    await assert.rejects(configure, { code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS" });
+  } finally {
+    await db.$executeRaw`REVOKE UPDATE (name) ON public."Installation" FROM PUBLIC`;
+  }
+  await configure();
+});
+
+test("B03 strips direct delegation while retaining required setup inserts", async () => {
+  await db.$executeRaw`GRANT INSERT ON public."Administrator" TO townbase_runtime WITH GRANT OPTION`;
+  await configure();
+  const [rights] = await db.$queryRaw`SELECT
+    has_table_privilege('townbase_runtime', 'public."Administrator"', 'INSERT') AS insert_allowed,
+    has_table_privilege('townbase_runtime', 'public."Administrator"', 'INSERT WITH GRANT OPTION') AS delegation`;
+  assert.deepEqual(rights, { insert_allowed: true, delegation: false });
+});
+
+for (const [table, privilege, column] of [
+  ["Administrator", "UPDATE", "username"],
+  ["Document", "SELECT", "id"],
+  ["Document", "INSERT", "id"],
+  ["Document", "UPDATE", "id"],
+]) {
+  test(`B03 rejects PUBLIC column ${privilege} on ${table}`, async () => {
+    // Constant fixture identifiers only.
+    await db.$executeRawUnsafe(
+      `GRANT ${privilege} ("${column}") ON public."${table}" TO PUBLIC`,
+    );
+    try {
+      await assert.rejects(configure, {
+        code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
+      });
+    } finally {
+      await db.$executeRawUnsafe(
+        `REVOKE ${privilege} ("${column}") ON public."${table}" FROM PUBLIC`,
+      );
+    }
+    await configure();
+  });
+}

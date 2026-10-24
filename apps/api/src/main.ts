@@ -7,6 +7,10 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 
 import { DeploymentModule } from "./deployment/deployment.module";
+import {
+  configureSelfHostedHttp,
+  configureSelfHostedStaticAssets,
+} from "./deployment/self-hosted-http";
 import { parsePort } from "./port";
 import { resolveRuntimeProfile } from "./runtime-profile";
 import { startupFailure, type StartupStage } from "./startup-failure";
@@ -23,29 +27,16 @@ async function bootstrap(): Promise<void> {
   startupStage = "application";
   const app = await NestFactory.create<NestExpressApplication>(rootModule, {
     logger: ["error", "warn", "log"],
+    bodyParser: profile !== "self_hosted",
   });
   app.enableShutdownHooks();
 
   if (profile === "self_hosted") {
+    configureSelfHostedHttp(app);
     startupStage = "web-artifacts";
     const webRoot = path.resolve(__dirname, "../../web/dist");
     await access(path.join(webRoot, "index.html"));
-    app.use(
-      (
-        _request: unknown,
-        response: { setHeader(name: string, value: string): void },
-        next: () => void,
-      ) => {
-        response.setHeader("X-Content-Type-Options", "nosniff");
-        response.setHeader("Referrer-Policy", "no-referrer");
-        response.setHeader(
-          "Content-Security-Policy",
-          "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
-        );
-        next();
-      },
-    );
-    app.useStaticAssets(webRoot, { dotfiles: "deny", index: "index.html" });
+    configureSelfHostedStaticAssets(app, webRoot);
   }
 
   startupStage = "port-configuration";

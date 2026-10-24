@@ -5,7 +5,7 @@ import path from "node:path";
 
 @Injectable()
 export class DeploymentDatabase implements OnApplicationShutdown {
-  private readonly prisma = new PrismaClient();
+  readonly prisma = new PrismaClient();
 
   async check(): Promise<{
     database: "ready" | "unavailable";
@@ -45,7 +45,7 @@ export class DeploymentDatabase implements OnApplicationShutdown {
         (row) => row.finished_at == null && row.rolled_back_at == null,
       );
       await this.prisma
-        .$queryRaw`SELECT (SELECT count(*) FROM "Installation"), (SELECT count(*) FROM "Administrator"), (SELECT count(*) FROM "InstallationAuditEvent")`;
+        .$queryRaw`SELECT (SELECT count(*) FROM "Installation"), (SELECT count(*) FROM "Administrator"), (SELECT count(*) FROM "InstallationAuditEvent"), (SELECT count(*) FROM "BootstrapState" WHERE id = 'primary')`;
       const ready =
         expected.size > 0 &&
         expected.size === completed.size &&
