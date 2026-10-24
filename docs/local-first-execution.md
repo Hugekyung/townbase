@@ -36,6 +36,7 @@ Create the local configuration first. Preserve an existing `.env`; for a new che
 ```bash
 # New checkout only; do not overwrite an existing .env.
 if [ ! -e .env ]; then cp .env.example .env; fi
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 pnpm install
 pnpm db:generate
@@ -54,6 +55,7 @@ git clone --local . /absolute/path/to/repos/workspace-knowledge-agent
 ## 5. Ingest Notion
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/connectors notion:sync
 ```
 
@@ -62,12 +64,14 @@ pnpm --filter @townbase/connectors notion:sync
 If you need fixture replay for local smoke tests, run:
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/connectors notion:sync:fixture
 ```
 
 ## 6. Ingest selected local repositories
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/connectors local-repo:sync
 ```
 

@@ -53,6 +53,7 @@ Vector Only 검색해 baseline을 만든다.
 4. 아래 명령을 실행한다.
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/api evaluation:task-107
 ```
 

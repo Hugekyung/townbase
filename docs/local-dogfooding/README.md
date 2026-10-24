@@ -34,24 +34,28 @@ v0.1의 기본 사용 경로는 `MCP-first`이고, 웹 UI나 HTTP chat API는 �
 
 ## 2. 로컬 실행 순서
 
+저장소 루트의 비production 셸에서 실행한다. API·수집·MCP를 실행하는 **각 터미널**에 `export TOWNBASE_RUNTIME_PROFILE=legacy_development`를 적용한다. 아래 블록에도 필요한 설정을 포함했다.
+
 ### 2-1. 환경 변수 준비
 
 `.env.example`를 복사해 `.env`를 만들고, 아래 값을 채운다.
 
 ```bash
-cp .env.example .env
+if [ ! -e .env ]; then cp .env.example .env; fi
 ```
 
 ### 2-2. PostgreSQL 시작
 
 ```bash
-docker compose up -d
+docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90
 ```
 
 ### 2-3. 의존성 설치
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
+pnpm db:generate
+pnpm build
 ```
 
 ### 2-4. 데이터베이스 마이그레이션
@@ -74,6 +78,7 @@ git clone --local . /absolute/path/to/repos/workspace-knowledge-agent
 `pnpm`은 package cwd에서 명령을 실행하므로, `REPO_ROOT_PATH`는 절대경로를 권장한다.
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 REPO_ROOT_PATH=/absolute/path/to/repos \
 LOCAL_REPO_NAMES=workspace-knowledge-agent \
 pnpm --filter @townbase/connectors local-repo:sync
@@ -82,6 +87,7 @@ pnpm --filter @townbase/connectors local-repo:sync
 ### 2-7. API 서버 시작
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/api dev
 ```
 
@@ -90,6 +96,7 @@ pnpm --filter @townbase/api dev
 다른 터미널에서 stdio MCP surface를 연다.
 
 ```bash
+export TOWNBASE_RUNTIME_PROFILE=legacy_development
 pnpm --filter @townbase/api mcp:stdio
 ```
 
@@ -151,9 +158,9 @@ MCP 클라이언트는 ChatGPT, Codex, 또는 로컬 stdio client를 사용할 �
 
 ## 4. 출시 전 테스트 절차
 
-이 절차는 코드 변경이 없어도 그대로 실행할 수 있는 pre-release checklist다.
+이 절차는 v0.1 개발 경로의 pre-release checklist다. v0.2 출시 수락 시험과 구분한다. 저장소 루트의 비production 셸에서 `export TOWNBASE_RUNTIME_PROFILE=legacy_development`를 먼저 실행한다. 다른 터미널을 열 때도 동일하게 적용한다.
 
-1. `.env`를 채운다.
+1. 기존 `.env`를 보존하며 설정을 채우고 `export TOWNBASE_RUNTIME_PROFILE=legacy_development`를 실행한다.
    - `DATABASE_URL`
    - `POSTGRES_*`
    - `REPO_ROOT_PATH`
@@ -162,17 +169,17 @@ MCP 클라이언트는 ChatGPT, Codex, 또는 로컬 stdio client를 사용할 �
    - 필요하면 `OPENAI_*`
 
 2. Docker PostgreSQL을 시작한다.
-   - `docker compose up -d`
+   - `docker compose -f compose.legacy.yml up -d --wait --wait-timeout 90`
 
-3. 데이터베이스 마이그레이션을 적용한다.
+3. `pnpm install --frozen-lockfile` → `pnpm db:generate` → `pnpm build` 후 개발 DB에 마이그레이션을 적용한다.
    - `pnpm --filter @townbase/database prisma:migrate:deploy`
 
 4. 로컬 저장소 corpus를 준비하고 sync를 돌린다.
-   - `REPO_ROOT_PATH=/absolute/path/to/repos LOCAL_REPO_NAMES=workspace-knowledge-agent pnpm --filter @townbase/connectors local-repo:sync`
+   - `TOWNBASE_RUNTIME_PROFILE=legacy_development REPO_ROOT_PATH=/absolute/path/to/repos LOCAL_REPO_NAMES=workspace-knowledge-agent pnpm --filter @townbase/connectors local-repo:sync`
 
 5. API와 MCP surface를 띄운다.
-   - `pnpm --filter @townbase/api dev`
-   - `pnpm --filter @townbase/api mcp:stdio`
+   - `TOWNBASE_RUNTIME_PROFILE=legacy_development pnpm --filter @townbase/api dev`
+   - `TOWNBASE_RUNTIME_PROFILE=legacy_development pnpm --filter @townbase/api mcp:stdio`
 
 6. 질문을 3종류로 나눠 확인한다.
    - onboarding

@@ -1,6 +1,7 @@
 import "reflect-metadata";
 
 import path from "node:path";
+import { writeSync } from "node:fs";
 
 import { NestFactory } from "@nestjs/core";
 import dotenv from "dotenv";
@@ -34,7 +35,15 @@ export async function bootstrap(): Promise<void> {
 
 if (require.main === module) {
   void bootstrap().catch((error: unknown) => {
-    console.error(mcpStartupFailure(startupStage, error));
-    process.exitCode = 1;
+    // Startup is fatal: partial Nest/stdio initialization may keep handles open.
+    // Write synchronously so immediate termination cannot truncate the diagnostic.
+    try {
+      writeSync(
+        process.stderr.fd,
+        `${mcpStartupFailure(startupStage, error)}\n`,
+      );
+    } finally {
+      process.exit(1);
+    }
   });
 }
