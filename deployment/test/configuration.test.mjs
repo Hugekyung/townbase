@@ -147,7 +147,24 @@ test("prepare rejects an oversized master before reading its contents", () => {
     const preload = path.join(dir, "no-master-read.cjs");
     writeFileSync(
       preload,
-      `const fs=require('node:fs');const read=fs.readFileSync;fs.readFileSync=function(filename,...args){if(typeof filename==='string'&&filename.endsWith('/model_master_key'))throw new Error('unexpected_secret_read');return read.call(this,filename,...args);};`,
+      `const fs=require('node:fs');const {syncBuiltinESMExports}=require('node:module');const read=fs.readFileSync;fs.readFileSync=function(filename,...args){if(typeof filename==='string'&&filename.endsWith('/model_master_key'))throw new Error('unexpected_secret_read');return read.call(this,filename,...args);};syncBuiltinESMExports();`,
+    );
+    // Positive control: the same preload must intercept a named ESM import.
+    const probe = path.join(dir, "probe-read.mjs");
+    writeFileSync(
+      probe,
+      `import {readFileSync} from 'node:fs';readFileSync(${JSON.stringify(filename)},'utf8');`,
+    );
+    assert.throws(
+      () =>
+        execFileSync(process.execPath, ["--require", preload, probe], {
+          cwd: dir,
+          stdio: "pipe",
+        }),
+      (error) => {
+        assert.ok(error.stderr.toString().includes("unexpected_secret_read"));
+        return true;
+      },
     );
     assert.throws(
       () =>
