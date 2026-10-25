@@ -272,7 +272,11 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   }
   private async withActiveSession<T extends object>(
     token: string | undefined,
-    result: (context: AdministratorContext) => T,
+    result: (
+      context: AdministratorContext,
+      tx: Tx,
+      now: Date,
+    ) => T | Promise<T>,
   ): Promise<Result<T>> {
     if (!validToken(token)) return { ok: false, code: "unauthorized" };
     return this.transaction(async (tx) => {
@@ -300,15 +304,53 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
       });
       return {
         ok: true,
-        ...result({
-          administratorId: auth.administrator.id,
-          installationId: installation.id,
-          workspaceId: workspace.id,
-          username: auth.administrator.username,
-          expiresAt: auth.session.expiresAt.toISOString(),
-        }),
+        ...(await result(
+          {
+            administratorId: auth.administrator.id,
+            installationId: installation.id,
+            workspaceId: workspace.id,
+            username: auth.administrator.username,
+            expiresAt: auth.session.expiresAt.toISOString(),
+          },
+          tx,
+          clock.now,
+        )),
       };
     }, true);
+  }
+
+  // Short authenticated DB operation, serialized against session revocation.
+  // External I/O must happen only after this transaction has committed.
+  async authorizedOperation<T extends object>(
+    token: string | undefined,
+    expected: AdministratorContext,
+    work: (tx: Tx, context: AdministratorContext, now: Date) => Promise<T>,
+  ): Promise<Result<T>> {
+    try {
+      return await this.withActiveSession(token, async (context, tx, now) => {
+        if (
+          context.installationId !== expected.installationId ||
+          context.workspaceId !== expected.workspaceId ||
+          context.administratorId !== expected.administratorId
+        )
+          throw new SensitiveSessionExpired();
+        const value = await work(tx, context, now);
+        const [clock] = await tx.$queryRaw<
+          Array<{ now: Date }>
+        >`SELECT clock_timestamp() AS now`;
+        if (!clock) throw new Error("Authentication clock unavailable");
+        if (
+          clock.now.getTime() >= Date.parse(context.expiresAt) ||
+          clock.now.getTime() - now.getTime() >= SESSION_IDLE_MS
+        )
+          throw new SensitiveSessionExpired();
+        return value;
+      });
+    } catch (error) {
+      if (error instanceof SensitiveSessionExpired)
+        return { ok: false, code: "unauthorized" };
+      throw error;
+    }
   }
 
   // Important settings re-enter the revocation boundary and verify the current

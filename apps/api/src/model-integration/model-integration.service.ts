@@ -1,3 +1,5 @@
+import { ModelExecutionService } from "./model-execution.service";
+import { ANSWER_MODELS } from "./model-policy";
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import {
@@ -24,6 +26,7 @@ export class ModelIntegrationService {
     private readonly database: DeploymentDatabase,
     private readonly auth: AuthService,
     private readonly vault: CredentialVault,
+    private readonly execution: ModelExecutionService,
   ) {}
   async snapshot(context: AdministratorContext) {
     const rows = await this.database.prisma.modelCredential.findMany({
@@ -35,7 +38,7 @@ export class ModelIntegrationService {
         configured: boolean;
         enabled: boolean;
         masked: string | null;
-        connection: "not_checked";
+        connection: "not_checked" | "verified" | "checking" | "failed";
       }
     > = {
       answer: {
@@ -58,19 +61,23 @@ export class ModelIntegrationService {
         configured: true,
         enabled: row.enabled,
         masked: "********",
-        connection: "not_checked",
+        connection: row.enabled
+          ? await this.execution.connection(context, row.purpose, row.tag)
+          : "not_checked",
       };
     }
+    const execution = await this.execution.snapshot(context);
     return {
       provider: "openai",
       credentials: keys,
       embedding: FIXED_EMBEDDING,
-      answerModel: null,
-      supportedAnswerModels: [],
+      answerModel: execution.settings.answerModel,
+      supportedAnswerModels: ANSWER_MODELS,
+      execution,
       capabilities: {
-        providerCalls: false,
-        answerModelSelection: false,
-        connectionCheck: false,
+        providerCalls: true,
+        answerModelSelection: true,
+        connectionCheck: true,
       },
       transfers: await this.transfers(context.installationId),
     };
@@ -230,8 +237,8 @@ export class ModelIntegrationService {
           attachment: value.attachment,
         };
   }
-  // Internal preflight only. C01/C04 must connect this to the actual network
-  // boundary, scoped credentials and cost reservation before enabling calls.
+  // Internal policy preview only. Actual calls use ModelExecutionService,
+  // which re-reads policy with scoped credentials and cost reservation.
   async assertTransfer(
     context: AdministratorContext,
     purpose: TransferPurpose,

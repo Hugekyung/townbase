@@ -34,8 +34,8 @@ export async function configureRuntimeRole(tx, env = process.env) {
   for (const sql of Object.values(databaseGrants))
     await tx.$executeRawUnsafe(sql);
   await tx.$executeRaw`GRANT USAGE ON SCHEMA public TO townbase_runtime`;
-  await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent", "BootstrapState", "Workspace", "AuthenticationState", "AdministratorSession", "ModelCredential", "ModelTransferPolicy" TO townbase_runtime`;
-  await tx.$executeRaw`GRANT INSERT ON "Installation", "Administrator", "InstallationAuditEvent", "AdministratorSession", "ModelCredential", "ModelTransferPolicy" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent", "BootstrapState", "Workspace", "AuthenticationState", "AdministratorSession", "ModelCredential", "ModelTransferPolicy", "ModelExecutionSettings", "ModelCall" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT INSERT ON "Installation", "Administrator", "InstallationAuditEvent", "AdministratorSession", "ModelCredential", "ModelTransferPolicy", "ModelExecutionSettings", "ModelCall" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ON "BootstrapState", "AuthenticationState" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("initializedAt", "updatedAt") ON "Installation" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("passwordHash", "updatedAt") ON "Administrator" TO townbase_runtime`;
@@ -43,6 +43,8 @@ export async function configureRuntimeRole(tx, env = process.env) {
   await tx.$executeRaw`GRANT UPDATE ("enabled", "formatVersion", "keyId", "nonce", "ciphertext", "tag", "updatedAt") ON "ModelCredential" TO townbase_runtime`;
   await tx.$executeRaw`GRANT DELETE ON "ModelCredential" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("documentEmbedding", "rag", "attachment", "updatedAt") ON "ModelTransferPolicy" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ("answerModel", "reasoning", "inputTokenLimit", "outputTokenLimit", "monthlyBudgetNanoUsd", "priceVersion", "updatedAt") ON "ModelExecutionSettings" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ("status", "chargedNanoUsd", "errorCode", "usage", "providerId", "completedAt") ON "ModelCall" TO townbase_runtime`;
   // The PUBLIC schema/database DDL revokes above are intentional. Object and
   // default ACLs belonging to other consumers are inspected, not auto-rewritten.
   // Only the explicit public table/column allowlist and invoker routines from the
@@ -62,16 +64,16 @@ export async function configureRuntimeRole(tx, env = process.env) {
         has_table_privilege('townbase_runtime', c.oid, 'TRUNCATE,REFERENCES,TRIGGER')
         OR (has_table_privilege('townbase_runtime', c.oid, 'DELETE') AND NOT (n.nspname = 'public' AND c.relname = 'ModelCredential'))
         OR has_any_column_privilege('townbase_runtime', c.oid, 'REFERENCES')
-        OR (NOT (n.nspname = 'public' AND c.relname IN ('Installation', 'Administrator', 'InstallationAuditEvent', 'AdministratorSession', 'ModelCredential', 'ModelTransferPolicy'))
+        OR (NOT (n.nspname = 'public' AND c.relname IN ('Installation', 'Administrator', 'InstallationAuditEvent', 'AdministratorSession', 'ModelCredential', 'ModelTransferPolicy', 'ModelExecutionSettings', 'ModelCall'))
           AND has_any_column_privilege('townbase_runtime', c.oid, 'INSERT'))
         OR EXISTS (
           SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
           AND has_column_privilege('townbase_runtime', c.oid, a.attnum, 'UPDATE')
-          AND NOT (n.nspname = 'public' AND (c.relname IN ('BootstrapState', 'AuthenticationState') OR (c.relname = 'Administrator' AND a.attname IN ('passwordHash', 'updatedAt')) OR (c.relname = 'AdministratorSession' AND a.attname IN ('lastSeenAt', 'revokedAt')) OR (c.relname = 'Installation' AND a.attname IN ('initializedAt', 'updatedAt')) OR (c.relname = 'ModelCredential' AND a.attname IN ('enabled', 'formatVersion', 'keyId', 'nonce', 'ciphertext', 'tag', 'updatedAt')) OR (c.relname = 'ModelTransferPolicy' AND a.attname IN ('documentEmbedding', 'rag', 'attachment', 'updatedAt'))))
+          AND NOT (n.nspname = 'public' AND (c.relname IN ('BootstrapState', 'AuthenticationState') OR (c.relname = 'Administrator' AND a.attname IN ('passwordHash', 'updatedAt')) OR (c.relname = 'AdministratorSession' AND a.attname IN ('lastSeenAt', 'revokedAt')) OR (c.relname = 'Installation' AND a.attname IN ('initializedAt', 'updatedAt')) OR (c.relname = 'ModelCredential' AND a.attname IN ('enabled', 'formatVersion', 'keyId', 'nonce', 'ciphertext', 'tag', 'updatedAt')) OR (c.relname = 'ModelTransferPolicy' AND a.attname IN ('documentEmbedding', 'rag', 'attachment', 'updatedAt')) OR (c.relname = 'ModelExecutionSettings' AND a.attname IN ('answerModel', 'reasoning', 'inputTokenLimit', 'outputTokenLimit', 'monthlyBudgetNanoUsd', 'priceVersion', 'updatedAt')) OR (c.relname = 'ModelCall' AND a.attname IN ('status', 'chargedNanoUsd', 'errorCode', 'usage', 'providerId', 'completedAt'))))
         )
         OR has_table_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION,DELETE WITH GRANT OPTION')
         OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION')
-        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent', 'BootstrapState', 'Workspace', 'AuthenticationState', 'AdministratorSession', 'ModelCredential', 'ModelTransferPolicy'))
+        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent', 'BootstrapState', 'Workspace', 'AuthenticationState', 'AdministratorSession', 'ModelCredential', 'ModelTransferPolicy', 'ModelExecutionSettings', 'ModelCall'))
           AND (has_table_privilege('townbase_runtime', c.oid, 'SELECT')
             OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT')))
       ) ELSE false END

@@ -109,6 +109,7 @@ enum InstallationAuditAction {
   embedding_key_disabled
   embedding_key_deleted
   model_transfer_policy_changed
+  model_execution_settings_changed
 }
 
 // Seeded singleton, even before the operator explicitly links the installation.
@@ -144,6 +145,8 @@ model Installation {
   auditEvents         InstallationAuditEvent[]
   modelCredentials    ModelCredential[]
   modelTransferPolicy ModelTransferPolicy?
+  modelExecutionSettings ModelExecutionSettings?
+  modelCalls ModelCall[]
 }
 
 model Administrator {
@@ -421,4 +424,44 @@ model ModelTransferPolicy {
   attachment        Boolean @default(false)
   updatedAt         DateTime @updatedAt
   installation      Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+}
+
+// Current installation settings only; no future provider/plugin tables.
+model ModelExecutionSettings {
+  installationId       String       @id
+  answerModel          String       @default("gpt-6-luna") @db.VarChar(64)
+  reasoning            String       @default("low") @db.VarChar(16)
+  inputTokenLimit      Int          @default(16000)
+  outputTokenLimit     Int          @default(4096)
+  monthlyBudgetNanoUsd BigInt?
+  priceVersion         String?      @db.VarChar(64)
+  updatedAt            DateTime     @updatedAt
+  installation         Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+}
+
+// No prompt, attachment, answer, raw credential or raw provider errors here.
+// Unknown charge reservations survive restarts, month rollover and Key changes.
+model ModelCall {
+  installationId       String
+  requestId            String       @db.Uuid
+  ownerAdministratorId String
+  purpose              String       @db.VarChar(32)
+  model                String       @db.VarChar(64)
+  credentialTag        String       @db.VarChar(22)
+  inputDigest          String       @db.VarChar(64)
+  configurationDigest  String       @db.VarChar(64)
+  priceVersion         String       @db.VarChar(64)
+  reservedNanoUsd      BigInt
+  chargedNanoUsd       BigInt?
+  status               String       @db.VarChar(16)
+  errorCode            String?      @db.VarChar(64)
+  usage                Json?
+  providerId           String?      @db.VarChar(200)
+  createdAt            DateTime     @default(now())
+  deadlineAt           DateTime
+  completedAt          DateTime?
+  installation         Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+
+  @@id([installationId, requestId])
+  @@index([installationId, createdAt])
 }

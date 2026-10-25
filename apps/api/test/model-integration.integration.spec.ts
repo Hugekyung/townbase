@@ -1,3 +1,4 @@
+import { ModelExecutionService } from "../src/model-integration/model-execution.service";
 import "reflect-metadata";
 import { Test } from "@nestjs/testing";
 import type { NestExpressApplication } from "@nestjs/platform-express";
@@ -173,7 +174,7 @@ integration(
       if (!result.ok) throw new Error("Fixture requester unavailable");
       return result.requester;
     }
-    it("defaults to no transfers/no answer model, and preserves the fixed embedding", async () => {
+    it("defaults to no transfers/no paid calls until configured, and preserves the fixed embedding", async () => {
       const result = await call("get", base, true)
         .expect(200)
         .expect("Cache-Control", "no-store");
@@ -186,8 +187,9 @@ integration(
         model: "text-embedding-3-small",
         dimensions: 1536,
       });
-      expect(result.body.answerModel).toBeNull();
-      expect(result.body.capabilities.providerCalls).toBe(false);
+      expect(result.body.answerModel).toBe("gpt-6-luna");
+      expect(result.body.execution.blocked).toBe(true);
+      expect(result.body.capabilities.providerCalls).toBe(true);
       await expect(
         app
           .get(ModelIntegrationService)
@@ -220,6 +222,7 @@ integration(
           runtime,
           app.get(AuthService),
           new CredentialVault(),
+          app.get(ModelExecutionService),
         );
         const ctx = {
           installationId: "primary",
