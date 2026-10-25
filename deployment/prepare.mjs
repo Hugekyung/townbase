@@ -8,6 +8,20 @@ import {
 } from "node:fs";
 import path from "node:path";
 
+function validExistingSecret(name, stat, filename) {
+  if (!stat.isFile() || stat.isSymbolicLink()) return false;
+  if (name === "model_master_key" && stat.size > 128) return false;
+  const value = readFileSync(filename, "utf8").trim();
+  if (name !== "model_master_key") return value.length >= 32;
+  if (!/^[A-Za-z0-9_-]{43}$/.test(value)) return false;
+  const decoded = Buffer.from(value, "base64url");
+  try {
+    return decoded.length === 32 && decoded.toString("base64url") === value;
+  } finally {
+    decoded.fill(0);
+  }
+}
+
 const root = path.resolve(".townbase");
 const secrets = path.join(root, "secrets");
 for (const directory of [root, secrets]) {
@@ -20,7 +34,11 @@ for (const directory of [root, secrets]) {
   }
   chmodSync(directory, 0o700);
 }
-for (const name of ["postgres_password", "runtime_password"]) {
+for (const name of [
+  "postgres_password",
+  "runtime_password",
+  "model_master_key",
+]) {
   const filename = path.join(secrets, name);
   try {
     // 0700 parent protects the host file; selected containers mount it read-only.
@@ -31,11 +49,7 @@ for (const name of ["postgres_password", "runtime_password"]) {
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
     const stat = lstatSync(filename);
-    if (
-      !stat.isFile() ||
-      stat.isSymbolicLink() ||
-      readFileSync(filename, "utf8").trim().length < 32
-    ) {
+    if (!validExistingSecret(name, stat, filename)) {
       throw new Error(
         `Existing ${name} secret is invalid; it was not replaced`,
       );

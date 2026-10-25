@@ -102,6 +102,13 @@ enum InstallationAuditAction {
   recovery_token_issued
   recovery_token_rejected
   recovery_token_consumed
+  answer_key_updated
+  answer_key_disabled
+  answer_key_deleted
+  embedding_key_updated
+  embedding_key_disabled
+  embedding_key_deleted
+  model_transfer_policy_changed
 }
 
 // Seeded singleton, even before the operator explicitly links the installation.
@@ -135,6 +142,8 @@ model Installation {
   workspace           Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   administrator       Administrator?
   auditEvents         InstallationAuditEvent[]
+  modelCredentials    ModelCredential[]
+  modelTransferPolicy ModelTransferPolicy?
 }
 
 model Administrator {
@@ -380,4 +389,36 @@ model ActionDraft {
   @@index([workspaceId])
   @@unique([workspaceId, knowledgeGapId, type])
   @@index([knowledgeGapId])
+}
+
+
+enum ModelCredentialPurpose {
+  answer
+  embedding
+}
+
+// Only the current encrypted credential is stored, never a plaintext key/history.
+model ModelCredential {
+  installationId String
+  purpose        ModelCredentialPurpose
+  enabled        Boolean @default(true)
+  formatVersion  Int
+  keyId          String @db.VarChar(64)
+  nonce          String @db.VarChar(16)
+  ciphertext     String @db.VarChar(1024)
+  tag            String @db.VarChar(22)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  installation   Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+
+  @@id([installationId, purpose])
+}
+
+model ModelTransferPolicy {
+  installationId    String @id
+  documentEmbedding Boolean @default(false)
+  rag               Boolean @default(false)
+  attachment        Boolean @default(false)
+  updatedAt         DateTime @updatedAt
+  installation      Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
 }

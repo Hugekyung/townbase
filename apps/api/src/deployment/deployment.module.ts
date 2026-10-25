@@ -4,11 +4,12 @@ import { ReadinessController } from "./readiness.controller";
 import { SetupController } from "../setup/setup.controller";
 import { SetupService } from "../setup/setup.service";
 
+import { ModelIntegrationModule } from "../model-integration/model-integration.module";
 import { AuthModule } from "../auth/auth.module";
 
 // Intentionally excludes the legacy ingestion, MCP, gap and draft modules.
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, ModelIntegrationModule],
   controllers: [HealthController, ReadinessController, SetupController],
   providers: [SetupService],
 })

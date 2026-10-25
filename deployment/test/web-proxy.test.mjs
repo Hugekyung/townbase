@@ -16,7 +16,7 @@ const { createServer } = await import(
   pathToFileURL(requireWeb.resolve("vite"))
 );
 
-test("Vite forwards readiness, setup and authentication while preserving the browser origin boundary", async () => {
+test("Vite forwards readiness, setup, authentication and integration settings while preserving the browser origin boundary", async () => {
   const upstream = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -85,6 +85,11 @@ test("Vite forwards readiness, setup and authentication while preserving the bro
       ["/auth/logout", "POST"],
       ["/auth/password", "POST"],
       ["/auth/recover", "POST"],
+      ["/settings/model-integration", "GET"],
+      ["/settings/model-integration/credentials/embedding", "PUT"],
+      ["/settings/model-integration/credentials/embedding/disable", "POST"],
+      ["/settings/model-integration/credentials/embedding", "DELETE"],
+      ["/settings/model-integration/transfers", "PUT"],
     ]) {
       const response = await fetch(`${origin}${route}`, {
         method,
@@ -95,7 +100,7 @@ test("Vite forwards readiness, setup and authentication while preserving the bro
           Cookie: "townbase_session=synthetic-cookie",
           "Content-Type": "application/json",
         },
-        ...(method === "POST" ? { body: payload } : {}),
+        ...(!["GET", "HEAD"].includes(method) ? { body: payload } : {}),
       });
       assert.equal(response.status, 200);
       assert.deepEqual(await response.json(), {
@@ -107,7 +112,7 @@ test("Vite forwards readiness, setup and authentication while preserving the bro
         auth: "1",
         cookie: "townbase_session=synthetic-cookie",
         contentType: "application/json",
-        body: method === "POST" ? payload : "",
+        body: !["GET", "HEAD"].includes(method) ? payload : "",
         forwarded: [],
       });
     }

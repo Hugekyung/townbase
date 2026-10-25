@@ -70,6 +70,8 @@
 - B05는 AuthModule 전역 기본 인증과 메서드별 공개 예외를 사용한다. 신원은 세션/Installation.workspaceId에서만 만들며 DTO의 ID는 인증이 아니다. 자료 범위/소유 검사는 저장된 행을 입력으로 사용한다. 실제 자료/Key/작업 기능은 해당 단계에서 조회·저장·전송 경계에 검사를 연결한다. 새 테이블·범용 권한 엔진을 미리 추가하지 않는다. 실 DB 공통 검사 시험은 TOWNBASE_ACCESS_INTEGRATION=1과 postgres 호스트의 townbase_b05_test에서만 실행하며 owner URL/runtime secret이 필요하다. [B05 기록](docs/implementation/v0.2-b05-access.md)을 따른다.
 - 프로필 판정은 database 패키지의 runtime-profile을 공유한다. self_hosted/production에서 기존 MCP·수집 runner/CLI·개발 seed·구 평가 진입점을 실행 전에 거절한다. 비production legacy fixture는 유지한다. 실제 평가 명령은 build 제외된 ts-node 소스 진입점이며 오래된 dist로 검증하지 않는다. 운영 runtime과 build/migration 이미지의 개발 도구 포함 여부도 구분한다.
 - 기존 v0.1 DB 개발은 `compose.legacy.yml`을 명시한다. 새 운영 배포에서 이전 DB volume이나 `.env`를 자동 재사용하지 않는다. `self_hosted`와 `legacy_development`를 구분한다. 프로필 미설정은 모든 NODE_ENV에서 self_hosted이며, 기존 개발 실행은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시한다. production의 legacy 프로필은 시작을 거절한다. 아직 구현하지 않은 웹/E2E/복구 script를 실행 가능한 것으로 문서화하지 않는다.
+- C02/C03 기반은 /settings/model-integration의 관리자 전용 API다. Key 저장은 연결 성공이 아니며 connection=not_checked, 실제 호출/모델 선택은 비활성이다. 변경은 같은 AuthState 잠금 경계에서 현재 비밀번호를 매번 확인하고 감사와 함께 저장한다. 추가 ModelCredential/ModelTransferPolicy 권한은 deployment/runtime-role.mjs의 명시 목록을 따른다. API만 별도 model_master_key secret을 마운트하고 원래 값은 DB 백업과 분리해 보관한다. 설정 웹·실모델·비용 예약은 이 기반의 완료로 간주하지 않는다.
+- C02 실제 DB 시험은 TOWNBASE_INTEGRATION_SETTINGS_TEST=1과 postgres 호스트의 townbase_c02_test에서만 실행한다. owner URL/runtime secret이 필요하며 일반 API 시험에서는 건너뛴다. 신규 권한은 townbase_pr34_*_test의 runtime-role.integration.mjs로 검증한다. [C02/C03 기록](docs/implementation/v0.2-c02-c03-integration-settings.md)을 따른다.
 - v0.2 평가 명세/합성 문서·120문항은 `docs/evaluation/v0.2/README.md`를 따른다. A04 실행/미실행 결과는 같은 경로의 `baseline-2026-10-23.md`를 확인한다.
 - 기본 TASK의 문서 완료와 코드/실모델/품질 검증 완료를 구분한다. 추천 S 값은 승인 전 기본값이 아니며 해당 작업 착수 전에 결정한다.
 - 2026-10-22 사용자는 모델 외 기본 기술·수치 선택을 판단해 확정하도록 위임했다. `DECISIONS_v0_2_basic.md`의 S01·S03~S14를 적용하고 동일 항목의 승인을 반복 요청하지 않는다. 파서 버전·TLS 구성 등 범위 내 구현 세부는 공식 지원·현재 코드와 맞춰 기록한다. S02 답변 모델 전환·제품 범위 확대·보호 약화·외부 공개·커밋/푸시 승인은 이 위임과 구분한다.
@@ -83,6 +85,8 @@
 - 인증 화면은 세션과 폼 모드의 상태 전이를 함께 확인한다. 변경 중 만료는 로그인 복귀, 비로그인 복구는 모드 유지가 기준이다. 권한 시험은 허용 열과 허용 목록 외 모든 식별 열을 함께 검사한다. 운영 오류는 원문 대신 허용 코드로 진단하며 초기 등록·인증의 공통 규칙과 문서 상단 상태도 대조한다.
 - 반복 리뷰에서 시험 누락이 집중된 입력 본문/Content-Type·실패/대체 분기·열 단위 권한을 함께 확인한다. 독립 차단 조건은 다른 조건을 제거한 fixture로 검증하며 실제 서버 설정과 시험 구성을 공유한다.
 - 보안 설정을 바꿀 때 정상 정적 파일·HTML·API·오류 응답에 미치는 영향을 같이 확인한다. 배포/개발 proxy 시험은 실제 요청 경로·헤더·본문을 관측하고 보호를 약화시켜 통과시키지 않는다. 현재 정상 assets 빌드 파일만 캐시 재검증을 허용하며 HTML·API·오류는 no-store를 유지한다.
+- Key/정책 감사는 실제 저장·삭제·상태 전이와 함께 기록한다. count=0 및 이미 같은 상태인 요청을 변경 성공 감사로 남기지 않는다. 목적별 API 분기는 양쪽을 시험하고, 암호 변조 시험은 유효한 인코딩을 유지한 변조와 형식 오류를 분리한다.
+- 입력 정규식은 최대 크기·긴 공백/줄바꿈의 처리 시간도 확인한다. 제한값 검사는 파일 전체 읽기 전에 수행하고 성공 사례만으로 형식/정규 인코딩 검증 완료를 표시하지 않는다.
 - 시작 실패 처리는 예외 반환뿐 아니라 열린 핸들이 있는 실제 프로세스의 종료도 확인한다. exitCode만 설정하면 종료를 보장하지 않는다.
 - 실행 안내는 다른 터미널에서 복사한 개별 명령 블록에도 필요한 프로필을 명시하고, 선행 빌드·정확한 환경 변수·포트·설치/프로젝트 범위를 명시한다. 검증 기록은 소스/개발 환경·migration/build 이미지·runtime 이미지를 구분하고 실제 실행 증거보다 넓게 완료를 주장하지 않는다.
 
