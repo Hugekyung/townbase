@@ -28,7 +28,10 @@ import {
   fields,
 } from "./auth-policy";
 
-type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
+export type AuthTransaction = Parameters<
+  Parameters<PrismaClient["$transaction"]>[0]
+>[0];
+type Tx = AuthTransaction;
 type InstallationAuditAction = Parameters<
   Tx["installationAuditEvent"]["create"]
 >[0]["data"]["action"];
@@ -37,6 +40,7 @@ type Failure = {
   code: "invalid_request" | "unauthorized" | "throttled";
 };
 type Result<T = Record<never, never>> = ({ ok: true } & T) | Failure;
+class SensitiveSessionExpired extends Error {}
 export const credentialDigest = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 const validToken = (token: unknown): token is string =>
@@ -305,6 +309,80 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
         }),
       };
     }, true);
+  }
+
+  // Important settings re-enter the revocation boundary and verify the current
+  // password in the same transaction as the write and its audit event.
+  async sensitiveOperation<T extends object>(
+    token: string | undefined,
+    password: unknown,
+    expected: AdministratorContext,
+    work: (
+      tx: AuthTransaction,
+      context: AdministratorContext,
+      now: Date,
+    ) => Promise<T>,
+  ): Promise<Result<T>> {
+    try {
+      return await this.transaction<Result<T>>(async (tx, now) => {
+        const auth = await this.session(tx, token, now);
+        if (!auth) return { ok: false, code: "unauthorized" };
+        const installation = await tx.installation.findUnique({
+          where: { id: auth.administrator.installationId },
+          select: { id: true, workspaceId: true },
+        });
+        if (
+          !installation ||
+          installation.id !== expected.installationId ||
+          installation.workspaceId !== expected.workspaceId ||
+          auth.administrator.id !== expected.administratorId ||
+          !(await tx.workspace.findUnique({
+            where: { id: installation.workspaceId },
+            select: { id: true },
+          }))
+        )
+          return { ok: false, code: "unauthorized" };
+        const state = await tx.authenticationState.findUniqueOrThrow({
+          where: { id: "primary" },
+        });
+        if (state.loginBlockedUntil != null && state.loginBlockedUntil > now)
+          return { ok: false, code: "throttled" };
+        if (
+          !validPassword(password) ||
+          !(await verifyPassword(auth.administrator.passwordHash, password))
+        ) {
+          await this.reject(tx, now, "login");
+          return { ok: false, code: "unauthorized" };
+        }
+        const context: AdministratorContext = {
+          ...expected,
+          username: auth.administrator.username,
+          expiresAt: auth.session.expiresAt.toISOString(),
+        };
+        const value = await work(tx, context, now);
+        // Failure in work/audit rolls back this activity and all settings writes.
+        const [clock] = await tx.$queryRaw<
+          Array<{ now: Date }>
+        >`SELECT clock_timestamp() AS now`;
+        if (!clock) throw new Error("Authentication clock unavailable");
+        if (
+          clock.now >= auth.session.expiresAt ||
+          clock.now.getTime() - auth.session.lastSeenAt.getTime() >=
+            SESSION_IDLE_MS
+        )
+          throw new SensitiveSessionExpired();
+        await tx.administratorSession.update({
+          where: { tokenHash: auth.session.tokenHash },
+          data: { lastSeenAt: clock.now },
+        });
+        await this.resetLogin(tx);
+        return { ok: true, ...value };
+      });
+    } catch (error) {
+      if (error instanceof SensitiveSessionExpired)
+        return { ok: false, code: "unauthorized" };
+      throw error;
+    }
   }
 
   async logout(token?: string): Promise<Result> {

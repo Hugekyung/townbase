@@ -20,7 +20,11 @@ for (const directory of [root, secrets]) {
   }
   chmodSync(directory, 0o700);
 }
-for (const name of ["postgres_password", "runtime_password"]) {
+for (const name of [
+  "postgres_password",
+  "runtime_password",
+  "model_master_key",
+]) {
   const filename = path.join(secrets, name);
   try {
     // 0700 parent protects the host file; selected containers mount it read-only.
@@ -34,7 +38,17 @@ for (const name of ["postgres_password", "runtime_password"]) {
     if (
       !stat.isFile() ||
       stat.isSymbolicLink() ||
-      readFileSync(filename, "utf8").trim().length < 32
+      readFileSync(filename, "utf8").trim().length < 32 ||
+      (name === "model_master_key" &&
+        (() => {
+          if (stat.size > 128) return true;
+          const value = readFileSync(filename, "utf8").trim();
+          return (
+            !/^[A-Za-z0-9_-]{43}$/.test(value) ||
+            Buffer.from(value, "base64url").length !== 32 ||
+            Buffer.from(value, "base64url").toString("base64url") !== value
+          );
+        })())
     ) {
       throw new Error(
         `Existing ${name} secret is invalid; it was not replaced`,

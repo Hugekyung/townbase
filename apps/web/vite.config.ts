@@ -15,6 +15,7 @@ export default defineConfig({
       "/readyz": { ...localApi },
       "/setup": { ...localApi },
       "/auth": { ...localApi },
+      "/settings": { ...localApi },
     },
   },
 });

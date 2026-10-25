@@ -45,10 +45,11 @@ services:
     environment:
       POSTGRES_USER: townbase_runtime
       POSTGRES_PASSWORD_FILE: /run/secrets/runtime_password
+      TOWNBASE_MASTER_KEY_FILE: /run/secrets/model_master_key
       TOWNBASE_SETUP_LOCAL_HTTP: "1"
       TOWNBASE_PUBLIC_ORIGIN: ${TOWNBASE_PUBLIC_ORIGIN:-}
       TOWNBASE_TRUSTED_PROXY_IP: ${TOWNBASE_TRUSTED_PROXY_IP:-}
-    secrets: [runtime_password]
+    secrets: [runtime_password, model_master_key]
     ports:
       - "127.0.0.1:${TOWNBASE_PORT:-3000}:3000"
     volumes:
@@ -92,3 +93,5 @@ secrets:
     file: ./.townbase/secrets/postgres_password
   runtime_password:
     file: ./.townbase/secrets/runtime_password
+  model_master_key:
+    file: ./.townbase/secrets/model_master_key

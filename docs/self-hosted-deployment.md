@@ -1,6 +1,6 @@
 # v0.2 초기 배포 실행 안내
 
-현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·PostgreSQL/pgvector·migration·분리된 파일 volume. **문서 등록·채팅은 아직 사용할 수 없다.** 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
+현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·Key 암호화/전송 정책 설정 API·PostgreSQL/pgvector·migration·분리된 파일 volume. 모델 설정 웹·실제 모델 연결/연결 검사는 아직 제공하지 않는다. **문서 등록·채팅은 아직 사용할 수 없다.** 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
 
 ## 1. 첫 실행
 
@@ -30,7 +30,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" -w /workspace no
 
 브라우저 주소는 `http://` 뒤에 위 `TOWNBASE_STATUS_ADDRESS` 값을 붙인다. 기본 설정이면 `http://127.0.0.1:3000`이다. 포트를 바꾸려면 `.townbase/compose.env`의 값을 `TOWNBASE_PORT=3100`으로 저장한 뒤 같은 기동 명령을 실행한다. 모든 재기동·업그레이드·재시도에도 위와 같이 `--env-file .townbase/compose.env`를 사용한다. 이 파일에는 포트·시험 플랫폼 같은 배포 설정만 두고 기존 v0.1 `.env`나 API Key를 복사하지 않는다. 이 경우 브라우저와 상태 확인 주소도 `http://127.0.0.1:3100`으로 바꾼다. 기본 컨테이너 아키텍처는 `linux/amd64`다. ARM 개발 장비에서 에뮬레이션 없이 시험하려면 설정 파일에 `TOWNBASE_PLATFORM=linux/arm64`를 저장하되 별도 지원 검증으로 구분한다.
 
-기존 PR #34 초기 버전을 `townbase` 프로젝트로 시험했다면 새 이름으로 옮기지 말고 `-p townbase`를 계속 사용한다. 이름을 바꾸면 다른 volume을 참조해 데이터가 사라진 것처럼 보일 수 있다. 기존 DB·비밀 파일은 유지한 채 준비 명령을 재실행해 API용 비밀 파일을 추가하고, 업데이트한 migration을 실행한다. migration 완료 뒤 API 컨테이너도 재생성해야 새 제한 계정과 secret mount가 적용된다. `down -v`로 초기화하지 않는다.
+기존 PR #34 초기 버전을 `townbase` 프로젝트로 시험했다면 새 이름으로 옮기지 말고 `-p townbase`를 계속 사용한다. 이름을 바꾸면 다른 volume을 참조해 데이터가 사라진 것처럼 보일 수 있다. 기존 DB·비밀 파일은 유지한 채 준비 명령을 재실행해 필요한 비밀 파일(runtime_password·model_master_key)을 추가하고, 업데이트한 migration을 실행한다. migration 완료 뒤 API 컨테이너도 재생성해야 새 제한 계정과 secret mount가 적용된다. `down -v`로 초기화하지 않는다.
 
 ## 2. 기동과 공개 범위
 
@@ -47,17 +47,18 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" -w /workspace no
 | `.townbase/secrets/postgres_password` | 최초 준비 시 32-byte 난수 생성. 재실행해도 덮어쓰지 않음. 상위 폴더0700, 파일 읽기 전용. 호스트에서 상위 폴더 권한 유지 필수 |
 | Compose secret `/run/secrets/postgres_password` | DB/migration에만 읽기 전용 마운트. API에는 전달하지 않음 |
 | `.townbase/secrets/runtime_password` → `/run/secrets/runtime_password` | 별도 32-byte 난수. migration/API에만 읽기 전용 마운트. API는 제한 계정 URL을 구성하고 로그에 출력하지 않음. 재실행 시 값 보존·파일0444·상위 폴더0700 |
+| `.townbase/secrets/model_master_key` → `/run/secrets/model_master_key` | AES-256-GCM용 별도32-byte 난수. 호스트 상위 폴더0700·파일0444. API에만 읽기 전용 마운트하며 DB/migration에는 전달하지 않음. 기존 값 보존, 자동 회전/복구 없음 |
 | `postgres-data-v02` volume | 기존 v0.1 DB volume과 다름. 기존 DB에 새 비밀번호로 자동 연결하거나 데이터를 자동 가져오지 않음 |
 | `documents` volume | 지속 문서용. 원본 API/수집은 이후 구현하며 지금 정적 웹에 공개하지 않음 |
 | `attachments` volume | 일회성 첨부용, 지속 문서와 별도 경로/volume. 백업 제외·만료 삭제는 F/I에서 구현 |
 | `recovery` volume | 비밀번호 복구 토큰 전용. 디렉터리0700·파일0600. 초기 등록/문서/첨부와 분리하고 백업 제외. 자동 백업은 아직 없음 |
 | `bootstrap` volume | 초기 등록 토큰 전용. 디렉터리0700·파일0600. 문서/첨부·DB 백업과 분리하고 백업에서 제외할 대상. 자동 백업은 아직 없음 |
 
-`.env`나 API Key·고객 파일을 Docker 이미지에 넣지 않는다. `.dockerignore`는 `.env*`(예시 제외)·`.townbase`·repos·fixtures·로컬 node_modules/dist를 제외한다. 초기 등록 토큰은 아래 로컬 명령으로만 발급한다. API Key/master key와 관리자 복구 토큰은 B04/C에서 추가한다. 현재 DB secret을 잃어버려도 기존 DB가 자동 초기화되거나 비밀번호가 자동 교체되지는 않는다. 별도 안전한 위치에 보관하고 분실 시 운영자가 DB 복구 절차를 수행해야 한다.
+`.env`나 API Key·고객 파일을 Docker 이미지에 넣지 않는다. `.dockerignore`는 `.env*`(예시 제외)·`.townbase`·repos·fixtures·로컬 node_modules/dist를 제외한다. 초기 등록 토큰은 아래 로컬 명령으로만 발급한다. API Key는 ModelCredential에 암호문으로 저장하고 master key는 위 별도 파일로 관리한다. 관리자 복구 토큰은 recovery volume에만 둔다. master key는 DB 백업과 분리한 보호된 위치에 별도로 보관한다. 기존 암호문을 유지하려면 원래 master key가 필요하며, 파일을 지우고 prepare를 다시 실행해 새 키를 만들면 기존 API Key가 복구되는 것이 아니다. 원래 키를 복원하거나 해당 API Key를 명시적으로 다시 등록해야 한다. 현재 DB secret을 잃어버려도 기존 DB가 자동 초기화되거나 비밀번호가 자동 교체되지는 않는다. 별도 안전한 위치에 보관하고 분실 시 운영자가 DB 복구 절차를 수행해야 한다.
 
 `docker compose --env-file .townbase/compose.env -p my-townbase down`은 volume을 남긴다. **`down -v`는 DB와 파일 volume을 삭제하므로 운영 자료에 사용하지 않는다.** 코드 업데이트/배포 전 백업은 여전히 운영자 책임이며 자동 백업 기능은 없다.
 
-업그레이드는 쓰기를 중단하고 백업한 뒤 `docker compose --env-file .townbase/compose.env -p my-townbase stop api` → `docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --wait --wait-timeout 180`로 수행한다. 이미 실행 중인 구버전 API가 migration 실패 시 자동으로 중지되는 것은 아니다. 준비 상태 확인 후에만 reverse proxy로 다시 공개한다.
+업그레이드는 쓰기를 중단하고 DB와 별도 master key를 각각 보호해 보관한 뒤 `node deployment/prepare.mjs`로 추가 secret을 준비한다. 이후 `docker compose --env-file .townbase/compose.env -p my-townbase stop api` → `docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --wait --wait-timeout 180`로 수행한다. 이미 실행 중인 구버전 API가 migration 실패 시 자동으로 중지되는 것은 아니다. 준비 상태 확인 후에만 reverse proxy로 다시 공개한다.
 
 ## 4. 실패 확인과 재실행
 
@@ -122,7 +123,7 @@ root `pnpm build`는 database→rag-core→agent-core→connectors→API→web �
 
 ## PR #34 리뷰 보완 계약
 
-- DB 소유자 `townbase`와 API 계정 `townbase_runtime`을 분리한다. `postgres_password`는 DB·migration에만, 별도 `runtime_password`는 migration·API에만 마운트한다. API는 DB 연결·public schema USAGE와 `_prisma_migrations`, `Installation`, `Administrator`, `InstallationAuditEvent`, `BootstrapState`, `Workspace` SELECT를 허용한다. 초기 등록에 필요한 Installation/Administrator/InstallationAuditEvent INSERT, BootstrapState UPDATE, Installation의 initializedAt/updatedAt 열 UPDATE만 추가했다. B04는 AuthenticationState SELECT/UPDATE, AdministratorSession SELECT/INSERT·lastSeenAt/revokedAt 열 UPDATE, Administrator passwordHash/updatedAt 열 UPDATE만 추가한다. DELETE·테이블 생성/구조 변경·역할 관리·migration 실행 권한은 주지 않는다. 이후 권한은 해당 기능과 함께 명시적으로 추가한다.
+- DB 소유자 `townbase`와 API 계정 `townbase_runtime`을 분리한다. `postgres_password`는 DB·migration에만, 별도 `runtime_password`는 migration·API에만 마운트한다. API는 DB 연결·public schema USAGE와 `_prisma_migrations`, `Installation`, `Administrator`, `InstallationAuditEvent`, `BootstrapState`, `Workspace` SELECT를 허용한다. 초기 등록에 필요한 Installation/Administrator/InstallationAuditEvent INSERT, BootstrapState UPDATE, Installation의 initializedAt/updatedAt 열 UPDATE만 추가했다. B04는 AuthenticationState SELECT/UPDATE, AdministratorSession SELECT/INSERT·lastSeenAt/revokedAt 열 UPDATE, Administrator passwordHash/updatedAt 열 UPDATE만 추가한다. C02는 ModelCredential/ModelTransferPolicy SELECT·INSERT, 암호문/활성 상태·전송 boolean/updatedAt의 열 UPDATE와 ModelCredential DELETE만 추가한다. 두 테이블의 installationId 및 credential purpose/createdAt UPDATE는 거절한다. 정책·감사·관리자·문서 등의 DELETE, 테이블 생성/구조 변경·역할 관리·migration 실행 권한은 주지 않는다. 이후 권한은 해당 기능과 함께 명시적으로 추가한다.
 - migration이 실행 잠금 안에서 제한 계정을 생성/갱신하고 기존 직접 권한·역할 membership을 정리한다. API 계정 비밀번호는 보호된 파일에서 읽으며 로그에 남기지 않는다. 기존 DB 비밀번호는 자동 변경하지 않는다. 비밀 파일을 분실했을 때 새로 생성해 기존 DB가 복구된다고 가정하지 않는다.
 - API와 migration은 모두 node 사용자·읽기 전용 root·capability 제거·권한 상승 금지로 실행한다. migration의 임시 캐시는 `/tmp` tmpfs에 둔다. 비밀 파일은 새 생성과 재실행 모두 `0444`, 상위 디렉터리는 `0700`을 적용하며 값은 보존한다.
 - `/readyz`는 두 저장소 각각에서 임의 이름의 작은 파일을 배타 생성·쓰기·동기화·삭제한 뒤 준비 완료를 표시한다. 검사 순간의 쓰기 가능 여부이며 이후 모든 저장의 성공을 보장하지 않는다. DB 확인 도중 실패하면 연결을 다시 확인해 구조 오류와 연결 장애를 구분한다.
@@ -130,7 +131,7 @@ root `pnpm build`는 database→rag-core→agent-core→connectors→API→web �
 
 - 재사용 DB에 허용 범위를 넘는 사용자 schema·객체·기본 권한이 남아 API 제한을 우회하면 migration은 `TOWNBASE_UNSAFE_RUNTIME_GRANTS`로 실패하고 API 시작을 차단한다. 우회 권한이 발견되면 트랜잭션 변경을 되돌린다. API 계정의 직접 public schema·테이블·sequence·DB 권한과 역할 소속은 설정 과정에서 정리한다. PUBLIC 및 다른 계정의 객체·기본 ACL은 일괄 삭제하지 않는다. 단 PUBLIC의 public schema CREATE와 현재 DB CREATE/TEMPORARY 권한은 성공한 설정에서 제거한다. 이 DDL 제한은 같은 DB의 모든 계정에 적용된다. 설치 DB를 확인한 운영자가 필요한 권한만 명시적으로 정리한 뒤 재시도한다.
 
-- B02 운영 DB는 설치 전용이다. PostgreSQL 시스템 schema를 제외한 모든 사용자 schema를 검사한다. API는 public 외 사용자 schema의 USAGE/CREATE를 허용하지 않으며 테이블 허용 목록은 schema까지 포함한 public의 위 여섯 테이블이다. 모든 사용자 schema의 테이블/열/sequence 권한과 모든 생성 역할의 관련 전역/schema 기본 ACL을 검사한다.
+- B02 운영 DB는 설치 전용이다. PostgreSQL 시스템 schema를 제외한 모든 사용자 schema를 검사한다. API는 public 외 사용자 schema의 USAGE/CREATE를 허용하지 않으며 테이블 허용 목록은 schema까지 포함한 public의 위 명시 목록이다. 모든 사용자 schema의 테이블/열/sequence 권한과 모든 생성 역할의 관련 전역/schema 기본 ACL을 검사한다.
 - 사용자 schema의 실행 가능한 임의 함수·프로시저는 차단한다. migration에 필요한 vector extension에 실제 소속된 SECURITY INVOKER 루틴만 기본 허용하며, SECURITY DEFINER는 extension 소속이어도 차단한다. 루틴·schema를 포함한 API/PUBLIC 기본 ACL 우회도 거절한다. PostgreSQL 시스템 schema와 필요한 vector extension이 신뢰 경계이며, DB 최고 관리자의 임의 객체 변조까지 방어하는 별도 DB 보안 제품을 뜻하지 않는다.
 
 
@@ -206,8 +207,29 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 등록된 self-hosted HTTP 처리 경로는 기본적으로 관리자 세션을 요구한다. 공개 예외는 정적 웹·health/readyz·초기 상태/등록·로그인·로그아웃·복구 소비뿐이다. 공개 예외에도 기존 Origin·전송·JSON·비밀번호/토큰·시도 제한을 적용한다. 세션 조회·비밀번호 변경은 공통 검사 대상이다. 요청의 workspaceId/installationId/administratorId 또는 x-*-id 헤더는 신원 증명이 아니며, 저장된 세션의 설치/자료 범위와 다르면403이다. 검증 불가 상태는503으로 차단한다.
 
-기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서·채팅·Key·실행 API도 아직 제공하지 않는다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
+기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서·채팅·실행 API는 아직 제공하지 않으며 Key 보관·전송 설정만10절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
 
 운영 runtime에는 connectors 패키지와 평가/seed 개발 소스·도구가 포함되지 않는다. 빌드/migration 환경에는 있으므로 그 환경에서도 프로필 보호가 필요하다. 유지보수 migration/bootstrap/recovery는 기존 서버 로컬 secret/토큰 절차를 따른다. 일반 데이터 기능을 활성화하는 CLI는 아니다. 설치 운영자의 임의 코드 실행/DB 소유자 권한을 격리하는 sandbox로 설명하지 않는다.
 
 개발 검증은 pnpm build 후 pnpm test:deployment를 실행한다. 실제 API/Connector/database 빌드 산출물, web 의존성, ts-node와 Node24 실행 환경이 필요하다. production runtime은 시험 runner가 아니다. 상세 목록·허용/거절 조건·실행 증거는 [B05 기록](implementation/v0.2-b05-access.md)을 따른다.
+
+
+## 10. Key·외부 전송 설정 API (C02/C03 기반)
+
+설정 웹은 아직 없으며 관리자 세션을 사용하는 API만 제공한다. production은 API와 동일 origin·기존 TLS/Origin 보호를 적용한다. 개발 Vite도 /settings를 Host/Origin·cookie·본문을 보존해 전달한다. 모든 설정 응답은 no-store이며 원문 Key·암호문·master 식별자를 반환하지 않는다. 저장소 오류는503의 integration_unavailable과 master_key_unavailable/credential_unavailable/database_unavailable 등 고정 reason으로 구분하며 원문 예외를 노출하지 않는다.
+
+| 경로 | 본문/응답 |
+| --- | --- |
+| GET /settings/model-integration | 마스킹된 Key 상태, 고정 임베딩 모델/차원, 전송 boolean. 답변 모델은 null·지원 목록은 빈 배열, providerCalls/connectionCheck/answerModelSelection은 false |
+| PUT /settings/model-integration/credentials/answer 또는 embedding | currentPassword·apiKey만 허용. 새 암호문으로 저장/교체하고 해당 Key 활성화. 연결 상태는 not_checked |
+| POST /settings/model-integration/credentials/answer/disable 또는 embedding/disable | currentPassword만 허용. 해당 Key 비활성화 |
+| DELETE /settings/model-integration/credentials/answer 또는 embedding | JSON currentPassword만 허용. 현재 암호문 행 삭제. 원문/과거 암호문을 별도 이력에 복사하지 않음 |
+| PUT /settings/model-integration/transfers | currentPassword·documentEmbedding·rag·attachment를 모두 명시. 세 boolean은 독립적으로 저장, 최초 미설정은 모두 false |
+
+X-Townbase-Auth: 1·JSON·동일 Origin/Host·유효 cookie가 필요하다. 변경마다 현재 비밀번호를 재입력하며 같은 트랜잭션에서 최신 세션/설치와 비밀번호를 확인한다. 성공 변경과 감사 이벤트는 함께 저장하거나 함께 취소한다. 잘못된 비밀번호는 기존 로그인 시도 제한을 적용한다. S04의5분보다 오래된 재인증을 재사용하지 않도록, 이번에는 재인증 허용 상태를 별도로 캐시하지 않고 매번 확인한다.
+
+Key 저장은 OpenAI 자격 증명 보관 경로이며 실제 계정/모델 지원 검증 완료를 뜻하지 않는다. 임베딩은 text-embedding-3-small/1536 읽기 전용, 모델·차원·공급자·임의 endpoint 필드를 변경 요청에 넣으면 거절한다. 실제 연결 검사·답변 모델 선택/호출·토큰 및 비용 관리는 C01/C04에서 연결하기 전까지 활성화하지 않는다.
+
+전송 설정은 등록 문서 임베딩, RAG 질문 임베딩/대화·근거·답변, 일회성 첨부 모델 전달을 구분한다. 내부 사전 검사는 고정 OpenAI embeddings/responses endpoint만 인정하고 private key·OpenAI Key·GitHub/Slack 토큰·명시 비밀 설정 패턴 및 .env/인증 키 파일명을 로컬에서 차단한다. 완전한 비밀 탐지나 외부 전송 완료를 보장하는 기능이 아니다. 실제 네트워크 직전 검사·자격 증명 상태·비용 예약과의 연결은 C01/C04/D/E/F의 해당 호출 경로에서 검증해야 한다.
+
+self-hosted가 공급자 미전송을 뜻하지는 않는다. 현재 단계에는 외부 모델 호출 자체가 없다. 향후 호출 시 공급자 보관 옵션까지 안내하며, Responses의 store:false와 공급자 측 모든 보관 제거를 같은 뜻으로 설명하지 않는다. [OpenAI 데이터 제어](https://developers.openai.com/api/docs/guides/your-data)·[고정 임베딩 문서](https://developers.openai.com/api/docs/guides/embeddings)를 기준으로 실제 연동 시 재확인한다.

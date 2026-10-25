@@ -298,6 +298,10 @@ for (const [table, privilege, column] of [
   ["AdministratorSession", "UPDATE", "administratorId"],
   ["AdministratorSession", "UPDATE", "installationId"],
   ["AdministratorSession", "UPDATE", "createdAt"],
+  ["ModelCredential", "UPDATE", "installationId"],
+  ["ModelCredential", "UPDATE", "purpose"],
+  ["ModelCredential", "UPDATE", "createdAt"],
+  ["ModelTransferPolicy", "UPDATE", "installationId"],
   ["Document", "SELECT", "id"],
   ["Document", "INSERT", "id"],
   ["Document", "UPDATE", "id"],
@@ -319,3 +323,42 @@ for (const [table, privilege, column] of [
     await configure();
   });
 }
+
+test("C02 grants only credential/policy writes and no identity mutations or policy deletion", async () => {
+  await configure();
+  const [rights] = await db.$queryRaw`SELECT
+    has_table_privilege('townbase_runtime', 'public."ModelCredential"', 'SELECT') AS credential_read,
+    has_table_privilege('townbase_runtime', 'public."ModelCredential"', 'INSERT') AS credential_insert,
+    has_table_privilege('townbase_runtime', 'public."ModelCredential"', 'DELETE') AS credential_delete,
+    has_table_privilege('townbase_runtime', 'public."ModelCredential"', 'UPDATE') AS credential_table_update,
+    has_column_privilege('townbase_runtime', 'public."ModelCredential"', 'ciphertext', 'UPDATE') AS credential_rotate,
+    has_column_privilege('townbase_runtime', 'public."ModelCredential"', 'purpose', 'UPDATE') AS credential_rebind,
+    has_column_privilege('townbase_runtime', 'public."ModelTransferPolicy"', 'rag', 'UPDATE') AS policy_change,
+    has_table_privilege('townbase_runtime', 'public."ModelTransferPolicy"', 'DELETE') AS policy_delete`;
+  assert.deepEqual(rights, {
+    credential_read: true,
+    credential_insert: true,
+    credential_delete: true,
+    credential_table_update: false,
+    credential_rotate: true,
+    credential_rebind: false,
+    policy_change: true,
+    policy_delete: false,
+  });
+});
+
+test("C02 refuses PUBLIC DELETE on a policy or audit table", async () => {
+  for (const table of ["ModelTransferPolicy", "InstallationAuditEvent"]) {
+    await db.$executeRawUnsafe(`GRANT DELETE ON public."${table}" TO PUBLIC`);
+    try {
+      await assert.rejects(configure, {
+        code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
+      });
+    } finally {
+      await db.$executeRawUnsafe(
+        `REVOKE DELETE ON public."${table}" FROM PUBLIC`,
+      );
+    }
+    await configure();
+  }
+});

@@ -45,11 +45,13 @@ test("prepare preserves an existing secret and protects its parent directory", (
       ["-e", "process.umask(0o077); require(process.argv[1])", prepare],
       { cwd: dir },
     );
-    const files = ["postgres_password", "runtime_password"].map((name) =>
-      path.join(dir, ".townbase/secrets", name),
-    );
+    const files = [
+      "postgres_password",
+      "runtime_password",
+      "model_master_key",
+    ].map((name) => path.join(dir, ".townbase/secrets", name));
     const values = files.map((filename) => readFileSync(filename, "utf8"));
-    assert.notEqual(values[0], values[1]);
+    assert.equal(new Set(values).size, 3);
     for (const [index, filename] of files.entries()) {
       assert.equal(Buffer.from(values[index].trim(), "base64url").length, 32);
       assert.equal(lstatSync(filename).mode & 0o777, 0o444);
@@ -66,7 +68,11 @@ test("prepare preserves an existing secret and protects its parent directory", (
   }
 });
 
-for (const name of ["postgres_password", "runtime_password"]) {
+for (const name of [
+  "postgres_password",
+  "runtime_password",
+  "model_master_key",
+]) {
   test(`prepare identifies invalid ${name} without replacing it or disclosing its value`, () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "townbase-invalid-secret-"));
     const prepare = fileURLToPath(new URL("../prepare.mjs", import.meta.url));

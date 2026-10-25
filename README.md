@@ -141,7 +141,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --w
 
 기본 포트의 상태 화면은 `http://127.0.0.1:3000`이다. `TOWNBASE_PORT`를 바꿨다면 브라우저 주소도 해당 포트를 사용한다(예:3100이면 `http://127.0.0.1:3100`). 실제 게시 주소는 `docker compose --env-file .townbase/compose.env -p my-townbase port api 3000`으로 확인한다. 포트 변경은 `.townbase/compose.env`에 저장하며 이후 모든 Compose 명령에도 같은 `--env-file`과 `-p`를 사용한다. DB 포트는 외부에 열리지 않는다. 외부 접속/TLS와 오류 복구는 [배포 안내](docs/self-hosted-deployment.md)를 따른다.
 
-최초 관리자 등록은 [보호된 로컬 토큰 발급 안내](docs/self-hosted-deployment.md#7-최초-관리자-등록-b03)를 따른다. 등록 완료 후 로그인·세션은 다음 B04 단계다.
+최초 관리자 등록은 [보호된 로컬 토큰 발급 안내](docs/self-hosted-deployment.md#7-최초-관리자-등록-b03)를 따른다. 등록 완료 후 로그인·세션·비밀번호 변경·로컬 복구를 제공한다. Key·전송 정책은 [설정 API 안내](docs/self-hosted-deployment.md#10-key외부-전송-설정-api-c02c03-기반)를 따르며, 설정 웹·실제 모델 연결은 아직 없다.
 
 ## 기존 v0.1 로컬 개발 실행
 
