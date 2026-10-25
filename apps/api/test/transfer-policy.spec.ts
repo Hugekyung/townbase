@@ -68,6 +68,8 @@ describe("local outbound preflight", () => {
     "xoxb-1234567890-1234567890",
     "OPENAI_API_KEY=private-value",
     "export DATABASE_PASSWORD=private-value",
+    "\t export\t SERVICE_TOKEN \t=\tprivate-value",
+    "public text\r\n  API_KEY = private-value",
     "sk-\u200bproj-synthetic-canary-1234567890",
   ])(
     "blocks secret patterns locally without returning the value: %p",

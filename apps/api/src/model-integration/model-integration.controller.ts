@@ -1,3 +1,4 @@
+import { databaseFailureCode } from "../diagnostics/database-failure";
 import {
   Body,
   Controller,
@@ -28,16 +29,7 @@ export function integrationFailureCode(error: unknown): string {
     ["master_key_unavailable", "credential_unavailable"].includes(error.code)
   )
     return error.code;
-  const code =
-    error != null && typeof error === "object"
-      ? (("code" in error ? error.code : undefined) ??
-        ("errorCode" in error ? error.errorCode : undefined))
-      : undefined;
-  if (["P1001", "P1002", "P1017"].some((allowed) => code === allowed))
-    return "database_unavailable";
-  if (["P1008", "P2024", "P2028"].some((allowed) => code === allowed))
-    return "database_transaction_unavailable";
-  return "storage_unavailable";
+  return databaseFailureCode(error) ?? "storage_unavailable";
 }
 function purpose(value: string): CredentialPurpose {
   if (value !== "answer" && value !== "embedding")

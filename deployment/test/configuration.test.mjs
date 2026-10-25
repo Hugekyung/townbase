@@ -100,3 +100,72 @@ for (const name of [
     }
   });
 }
+
+for (const [label, value] of [
+  ["wrong length", "A".repeat(44)],
+  ["noncanonical encoding", "A".repeat(42) + "B"],
+  ["invalid alphabet", "!".repeat(43)],
+]) {
+  test(`prepare rejects master ${label} beyond the generic minimum length`, () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "townbase-master-shape-"));
+    const prepare = fileURLToPath(new URL("../prepare.mjs", import.meta.url));
+    try {
+      execFileSync(process.execPath, [prepare], { cwd: dir });
+      const filename = path.join(dir, ".townbase/secrets/model_master_key");
+      chmodSync(filename, 0o600);
+      writeFileSync(filename, value);
+      assert.throws(
+        () =>
+          execFileSync(process.execPath, [prepare], {
+            cwd: dir,
+            stdio: "pipe",
+          }),
+        (error) => {
+          const output = Buffer.concat([error.stdout, error.stderr]).toString();
+          assert.ok(
+            output.includes("Existing model_master_key secret is invalid"),
+          );
+          assert.ok(!output.includes(value));
+          return true;
+        },
+      );
+      assert.equal(readFileSync(filename, "utf8"), value);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
+
+test("prepare rejects an oversized master before reading its contents", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "townbase-master-size-"));
+  const prepare = fileURLToPath(new URL("../prepare.mjs", import.meta.url));
+  try {
+    execFileSync(process.execPath, [prepare], { cwd: dir });
+    const filename = path.join(dir, ".townbase/secrets/model_master_key");
+    chmodSync(filename, 0o600);
+    writeFileSync(filename, "A".repeat(129));
+    const preload = path.join(dir, "no-master-read.cjs");
+    writeFileSync(
+      preload,
+      `const fs=require('node:fs');const read=fs.readFileSync;fs.readFileSync=function(filename,...args){if(typeof filename==='string'&&filename.endsWith('/model_master_key'))throw new Error('unexpected_secret_read');return read.call(this,filename,...args);};`,
+    );
+    assert.throws(
+      () =>
+        execFileSync(process.execPath, ["--require", preload, prepare], {
+          cwd: dir,
+          stdio: "pipe",
+        }),
+      (error) => {
+        const output = Buffer.concat([error.stdout, error.stderr]).toString();
+        assert.ok(
+          output.includes("Existing model_master_key secret is invalid"),
+        );
+        assert.ok(!output.includes("unexpected_secret_read"));
+        return true;
+      },
+    );
+    assert.equal(readFileSync(filename, "utf8").length, 129);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

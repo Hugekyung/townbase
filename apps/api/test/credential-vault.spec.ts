@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { mkdtemp, writeFile, chmod, symlink, rm } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
@@ -20,6 +21,7 @@ describe("installation-bound credential encryption", () => {
     process.env.TOWNBASE_MASTER_KEY_FILE = master;
   });
   afterEach(async () => {
+    jest.restoreAllMocks();
     if (original == null) delete process.env.TOWNBASE_MASTER_KEY_FILE;
     else process.env.TOWNBASE_MASTER_KEY_FILE = original;
     await rm(directory, { recursive: true, force: true });
@@ -53,6 +55,64 @@ describe("installation-bound credential encryption", () => {
       vault.reveal("primary", "answer", { ...value, formatVersion: 2 }),
     ).rejects.toThrow();
   });
+  it.each(["nonce", "ciphertext", "tag"] as const)(
+    "rejects canonically encoded %s tampering at authentication",
+    async (field) => {
+      const sealed = await vault.seal("primary", "answer", key);
+      const bytes = Buffer.from(sealed[field], "base64url");
+      bytes[0] = bytes[0]! ^ 1;
+      const encoded = bytes.toString("base64url");
+      expect(encoded.length).toBe(sealed[field].length);
+      await expect(
+        vault.reveal("primary", "answer", { ...sealed, [field]: encoded }),
+      ).rejects.toThrow("credential_unavailable");
+    },
+  );
+  it.each([false, true])(
+    "wipes owned plaintext buffers even when authentication fails: %p",
+    async (corrupt) => {
+      const sealed = { ...(await vault.seal("primary", "answer", key)) };
+      if (corrupt) {
+        const tag = Buffer.from(sealed.tag, "base64url");
+        tag[0] = tag[0]! ^ 1;
+        sealed.tag = tag.toString("base64url");
+      }
+      const captured: Buffer[] = [],
+        create = crypto.createDecipheriv,
+        concat = Buffer.concat;
+      const factory = (...args: unknown[]) => {
+        const decipher = Reflect.apply(create, crypto, args) as ReturnType<
+          typeof crypto.createDecipheriv
+        >;
+        const update = decipher.update.bind(decipher);
+        decipher.update = ((...parameters: unknown[]) => {
+          const value = Reflect.apply(update, decipher, parameters) as Buffer;
+          captured.push(value);
+          return value;
+        }) as typeof decipher.update;
+        return decipher;
+      };
+      jest
+        .spyOn(crypto, "createDecipheriv")
+        .mockImplementation(factory as typeof crypto.createDecipheriv);
+      jest.spyOn(Buffer, "concat").mockImplementation((list, length) => {
+        const value = concat(list, length);
+        if (list.some((buffer) => captured.includes(buffer as Buffer)))
+          captured.push(value);
+        return value;
+      });
+      if (corrupt)
+        await expect(vault.reveal("primary", "answer", sealed)).rejects.toThrow(
+          "credential_unavailable",
+        );
+      else expect(await vault.reveal("primary", "answer", sealed)).toBe(key);
+      expect(captured.length).toBeGreaterThan(0);
+      expect(captured.some((buffer) => buffer.length > 0)).toBe(true);
+      expect(
+        captured.every((buffer) => buffer.every((byte) => byte === 0)),
+      ).toBe(true);
+    },
+  );
   it("fails closed for missing, malformed, writable, symlinked and replaced master keys", async () => {
     const value = await vault.seal("primary", "answer", key);
     delete process.env.TOWNBASE_MASTER_KEY_FILE;

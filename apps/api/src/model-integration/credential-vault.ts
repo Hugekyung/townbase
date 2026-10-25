@@ -23,8 +23,17 @@ export class CredentialStorageError extends Error {
     super(code);
   }
 }
+// Format v1 encrypts printable ASCII. SQL compatibility is tested at this bound.
+export const API_KEY_MIN_LENGTH = 16;
+export const API_KEY_MAX_LENGTH = 512;
+export const MAX_CIPHERTEXT_LENGTH = Math.ceil((API_KEY_MAX_LENGTH * 8) / 6);
 export function validApiKey(value: unknown): value is string {
-  return typeof value === "string" && /^[\x21-\x7e]{16,512}$/.test(value);
+  return (
+    typeof value === "string" &&
+    value.length >= API_KEY_MIN_LENGTH &&
+    value.length <= API_KEY_MAX_LENGTH &&
+    /^[\x21-\x7e]+$/.test(value)
+  );
 }
 function decode(value: string, bytes?: number): Buffer {
   if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value))
@@ -33,8 +42,10 @@ function decode(value: string, bytes?: number): Buffer {
   if (
     decoded.toString("base64url") !== value ||
     (bytes != null && decoded.length !== bytes)
-  )
+  ) {
+    decoded.fill(0);
     throw new Error("Credential unavailable");
+  }
   return decoded;
 }
 @Injectable()
@@ -104,6 +115,7 @@ export class CredentialVault {
     envelope: CredentialEnvelope,
   ): Promise<string> {
     const master = await this.master();
+    const plaintextBuffers: Buffer[] = [];
     try {
       const keyId = createHash("sha256").update(master).digest("hex");
       if (envelope.formatVersion !== 1 || envelope.keyId !== keyId)
@@ -115,17 +127,20 @@ export class CredentialVault {
       );
       decipher.setAAD(this.aad(installationId, purpose, keyId));
       decipher.setAuthTag(decode(envelope.tag, 16));
-      if (envelope.ciphertext.length > 683)
+      if (envelope.ciphertext.length > MAX_CIPHERTEXT_LENGTH)
         throw new Error("Credential unavailable");
-      const value = Buffer.concat([
-        decipher.update(decode(envelope.ciphertext)),
-        decipher.final(),
-      ]).toString("utf8");
+      // Track the early update buffer before final() authenticates: final may throw.
+      plaintextBuffers.push(decipher.update(decode(envelope.ciphertext)));
+      plaintextBuffers.push(decipher.final());
+      const plaintext = Buffer.concat(plaintextBuffers);
+      plaintextBuffers.push(plaintext);
+      const value = plaintext.toString("utf8");
       if (!validApiKey(value)) throw new Error("Credential unavailable");
       return value;
     } catch {
       throw new CredentialStorageError("credential_unavailable");
     } finally {
+      for (const buffer of plaintextBuffers) buffer.fill(0);
       master.fill(0);
     }
   }

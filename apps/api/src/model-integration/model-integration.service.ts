@@ -146,15 +146,18 @@ export class ModelIntegrationService {
     purpose: CredentialPurpose,
   ) {
     return this.change(token, password, context, async (tx, fresh) => {
-      await tx.modelCredential.updateMany({
-        where: { installationId: fresh.installationId, purpose },
+      const changed = await tx.modelCredential.updateMany({
+        where: { installationId: fresh.installationId, purpose, enabled: true },
         data: { enabled: false },
       });
-      await this.audit(
-        tx,
-        fresh,
-        purpose === "answer" ? "answer_key_disabled" : "embedding_key_disabled",
-      );
+      if (changed.count > 0)
+        await this.audit(
+          tx,
+          fresh,
+          purpose === "answer"
+            ? "answer_key_disabled"
+            : "embedding_key_disabled",
+        );
       return { enabled: false };
     });
   }
@@ -165,14 +168,15 @@ export class ModelIntegrationService {
     purpose: CredentialPurpose,
   ) {
     return this.change(token, password, context, async (tx, fresh) => {
-      await tx.modelCredential.deleteMany({
+      const removed = await tx.modelCredential.deleteMany({
         where: { installationId: fresh.installationId, purpose },
       });
-      await this.audit(
-        tx,
-        fresh,
-        purpose === "answer" ? "answer_key_deleted" : "embedding_key_deleted",
-      );
+      if (removed.count > 0)
+        await this.audit(
+          tx,
+          fresh,
+          purpose === "answer" ? "answer_key_deleted" : "embedding_key_deleted",
+        );
       return { configured: false, enabled: false };
     });
   }
@@ -183,6 +187,22 @@ export class ModelIntegrationService {
     transfers: TransferFlags,
   ) {
     return this.change(token, password, context, async (tx, fresh) => {
+      const existing = await tx.modelTransferPolicy.findUnique({
+        where: { installationId: fresh.installationId },
+      });
+      if (
+        existing != null &&
+        existing.documentEmbedding === transfers.documentEmbedding &&
+        existing.rag === transfers.rag &&
+        existing.attachment === transfers.attachment
+      )
+        return {
+          transfers: {
+            documentEmbedding: existing.documentEmbedding,
+            rag: existing.rag,
+            attachment: existing.attachment,
+          },
+        };
       const value = await tx.modelTransferPolicy.upsert({
         where: { installationId: fresh.installationId },
         create: { installationId: fresh.installationId, ...transfers },

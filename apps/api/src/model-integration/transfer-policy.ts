@@ -77,7 +77,7 @@ export function inspectTransfer(
     /\bsk-[a-zA-Z0-9_-]{16,}/,
     /\b(?:gh[pousr]_[a-zA-Z0-9]{16,}|github_pat_[a-zA-Z0-9_]{16,})/,
     /\bxox[baprs]-[a-zA-Z0-9-]{10,}/,
-    /(?:^|[\r\n])\s*(?:export\s+)?(?:[A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY))\s*=\s*\S+/im,
+    /(?:^|[\r\n])[ \t]*(?:export[ \t]+)?(?:[A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY))[ \t]*=[ \t]*\S+/im,
   ];
   if (
     patterns.some((pattern) => pattern.test(normalized)) ||

@@ -347,8 +347,11 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
         });
         if (state.loginBlockedUntil != null && state.loginBlockedUntil > now)
           return { ok: false, code: "throttled" };
+        if (!validPassword(password)) {
+          await this.reject(tx, now, "login");
+          return { ok: false, code: "invalid_request" };
+        }
         if (
-          !validPassword(password) ||
           !(await verifyPassword(auth.administrator.passwordHash, password))
         ) {
           await this.reject(tx, now, "login");
