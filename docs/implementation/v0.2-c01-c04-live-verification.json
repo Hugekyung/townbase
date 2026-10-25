@@ -1,5 +1,7 @@
 {
   "date": "2026-10-26",
+  "dateTimezone": "Asia/Seoul",
+  "timestampTimezone": "UTC",
   "runtimeImage": "sha256:939b7bf9a69e4b630e7811f7d7e68073715922f4cb9a8f351e9b87674a624b98",
   "runtimePlatform": "linux/amd64 on local Docker",
   "database": "postgres/townbase_c01_live_test",

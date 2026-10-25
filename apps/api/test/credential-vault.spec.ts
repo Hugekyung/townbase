@@ -113,6 +113,27 @@ describe("installation-bound credential encryption", () => {
       ).toBe(true);
     },
   );
+  it("uses one prepared master without file access during decryption and wipes it on dispose", async () => {
+    const sealed = await vault.seal("primary", "answer", key);
+    const reader = await vault.prepareReader();
+    await rm(master);
+    const create = crypto.createDecipheriv;
+    let captured: Buffer | undefined;
+    jest.spyOn(crypto, "createDecipheriv").mockImplementation(((
+      ...args: unknown[]
+    ) => {
+      captured = args[1] as Buffer;
+      return Reflect.apply(create, crypto, args);
+    }) as typeof crypto.createDecipheriv);
+    expect(reader.reveal("primary", "answer", sealed)).toBe(key);
+    expect(captured!.some((byte) => byte !== 0)).toBe(true);
+    reader.dispose();
+    reader.dispose();
+    expect(captured!.every((byte) => byte === 0)).toBe(true);
+    expect(() => reader.reveal("primary", "answer", sealed)).toThrow(
+      "credential_unavailable",
+    );
+  });
   it("fails closed for missing, malformed, writable, symlinked and replaced master keys", async () => {
     const value = await vault.seal("primary", "answer", key);
     delete process.env.TOWNBASE_MASTER_KEY_FILE;

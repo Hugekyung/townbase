@@ -44,6 +44,14 @@ export function parseBudget(value: unknown): bigint | null {
 export function usd(nano: bigint): string {
   return `${nano / 1000000000n}.${(nano % 1000000000n).toString().padStart(9, "0")}`;
 }
+// Settings budgets are writable in cents; usage/charges keep nano precision.
+export function budgetUsd(nano: bigint): string {
+  if (nano <= 0n || nano % 10000000n !== 0n)
+    throw new ModelCallError("invalid_budget");
+  const value = `${nano / 1000000000n}.${((nano / 10000000n) % 100n).toString().padStart(2, "0")}`;
+  if (parseBudget(value) !== nano) throw new ModelCallError("invalid_budget");
+  return value;
+}
 export function validExecution(value: unknown): value is ExecutionSettings {
   if (value == null || typeof value !== "object" || Array.isArray(value))
     return false;
@@ -103,6 +111,35 @@ export function cost(model: string, usage: Usage): bigint {
     BigInt(usage.output) * r.output
   );
 }
+export function assertAdmittedUsage(
+  model: string,
+  usage: Usage,
+  inputLimit: number,
+  outputLimit: number,
+  reserved: bigint,
+): void {
+  if (usage == null || typeof usage !== "object")
+    throw new ModelCallError("usage_out_of_bounds", 502);
+  const counts = [
+    usage.input,
+    usage.cached,
+    usage.write30,
+    usage.write12,
+    usage.output,
+    usage.reasoning,
+  ];
+  if (
+    !counts.every(
+      (v) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0,
+    ) ||
+    usage.input > inputLimit ||
+    usage.output > outputLimit ||
+    usage.reasoning > usage.output ||
+    usage.cached + usage.write30 + usage.write12 > usage.input ||
+    cost(model, usage) > reserved
+  )
+    throw new ModelCallError("usage_out_of_bounds", 502);
+}
 export function reservation(
   model: string,
   input: number,
@@ -120,7 +157,7 @@ export function digest(value: unknown): string {
 export function validRequestId(value: unknown): value is string {
   return (
     typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       value,
     )
   );

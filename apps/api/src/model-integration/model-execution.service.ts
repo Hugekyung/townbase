@@ -6,7 +6,11 @@ import {
   type AuthTransaction,
 } from "../auth/auth.service";
 import { DeploymentDatabase } from "../deployment/deployment-database";
-import { CredentialVault, type CredentialPurpose } from "./credential-vault";
+import {
+  CredentialVault,
+  type CredentialPurpose,
+  type PreparedCredentialReader,
+} from "./credential-vault";
 import {
   DEFAULT_TRANSFERS,
   FIXED_EMBEDDING,
@@ -20,6 +24,8 @@ import {
   PRICE_VERSION,
   ModelCallError,
   cost,
+  budgetUsd,
+  assertAdmittedUsage,
   digest,
   inputBound,
   parseBudget,
@@ -73,7 +79,7 @@ export class ModelExecutionService {
           monthlyBudgetUsd:
             row.monthlyBudgetNanoUsd == null
               ? null
-              : usd(row.monthlyBudgetNanoUsd),
+              : budgetUsd(row.monthlyBudgetNanoUsd),
         };
   }
   private async lock(tx: Tx, installationId: string) {
@@ -101,7 +107,7 @@ export class ModelExecutionService {
         const current = await this.settings(tx, fresh.installationId);
         const normalized = {
           ...value,
-          monthlyBudgetUsd: budget == null ? null : usd(budget),
+          monthlyBudgetUsd: budget == null ? null : budgetUsd(budget),
         };
         if (digest(current) === digest(normalized))
           return { settings: current };
@@ -173,7 +179,7 @@ export class ModelExecutionService {
         const limit =
           settings.monthlyBudgetUsd == null
             ? null
-            : parseBudgetDecimal(settings.monthlyBudgetUsd);
+            : parseBudget(settings.monthlyBudgetUsd)!;
         return {
           settings,
           priceVersion: PRICE_VERSION,
@@ -322,6 +328,18 @@ export class ModelExecutionService {
       input.input.length > 64000
     )
       throw new ModelCallError("invalid_call_input");
+    if (
+      input.fileNames != null &&
+      (!Array.isArray(input.fileNames) ||
+        input.fileNames.some((name) => typeof name !== "string"))
+    )
+      throw new ModelCallError("invalid_call_input");
+    input = {
+      requestId: input.requestId.toLowerCase(),
+      purpose: input.purpose,
+      input: input.input,
+      fileNames: [...(input.fileNames ?? [])],
+    };
     const purpose: CredentialPurpose =
       input.purpose === "document_embedding" ||
       input.purpose === "rag_question_embedding"
@@ -333,26 +351,7 @@ export class ModelExecutionService {
       input: input.input,
       fileNames: input.fileNames ?? [],
     });
-    const work = async (tx: Tx, fresh: AdministratorContext) => {
-      await this.lock(tx, fresh.installationId);
-      const [clockRow] = await tx.$queryRaw<
-        Array<{ now: Date }>
-      >`SELECT clock_timestamp() AS now`;
-      if (!clockRow) throw new ModelCallError("clock_unavailable", 503);
-      const now = clockRow.now;
-      const clock = now!;
-      await tx.modelCall.updateMany({
-        where: {
-          installationId: fresh.installationId,
-          status: "dispatching",
-          deadlineAt: { lte: clock },
-        },
-        data: {
-          status: "unknown",
-          errorCode: "interrupted_or_timeout",
-          completedAt: clock,
-        },
-      });
+    const findPrior = async (tx: Tx, fresh: AdministratorContext) => {
       const prior = await tx.modelCall.findUnique({
         where: {
           installationId_requestId: {
@@ -361,14 +360,16 @@ export class ModelExecutionService {
           },
         },
       });
-      if (prior != null) {
-        if (
-          prior.ownerAdministratorId !== fresh.administratorId ||
-          prior.inputDigest !== inputDigest
-        )
-          throw new ModelCallError("request_id_conflict", 409);
-        return { prior };
-      }
+      if (
+        prior != null &&
+        (prior.ownerAdministratorId !== fresh.administratorId ||
+          prior.inputDigest !== inputDigest)
+      )
+        throw new ModelCallError("request_id_conflict", 409);
+      return prior;
+    };
+    // Cheap DB/CPU preflight before file access; repeated under admission locks.
+    const preflight = async (tx: Tx, fresh: AdministratorContext) => {
       const settings = await this.settings(tx, fresh.installationId);
       if (settings.priceVersion !== PRICE_VERSION)
         throw new ModelCallError("price_not_confirmed", 409);
@@ -376,7 +377,7 @@ export class ModelExecutionService {
         throw new ModelCallError("invalid_model_settings");
       if (settings.monthlyBudgetUsd == null)
         throw new ModelCallError("budget_not_configured", 409);
-      const limit = parseBudgetDecimal(settings.monthlyBudgetUsd);
+      const limit = parseBudget(settings.monthlyBudgetUsd)!;
       const policy = await tx.modelTransferPolicy.findUnique({
         where: { installationId: fresh.installationId },
       });
@@ -397,11 +398,6 @@ export class ModelExecutionService {
       });
       if (credential == null || !credential.enabled)
         throw new ModelCallError("credential_not_enabled", 409);
-      const key = await this.vault.reveal(
-        fresh.installationId,
-        purpose,
-        credential,
-      );
       const bound = inputBound(input.input);
       if (
         bound > settings.inputTokenLimit ||
@@ -416,6 +412,57 @@ export class ModelExecutionService {
         outputLimit: purpose === "embedding" ? 0 : settings.outputTokenLimit,
         reasoning: settings.reasoning,
       };
+      return { settings, limit, credential, model, request };
+    };
+    const existingWork = async (tx: Tx, fresh: AdministratorContext) => {
+      const prior = await findPrior(tx, fresh);
+      if (prior == null) await preflight(tx, fresh);
+      return { prior };
+    };
+    const existing =
+      check == null
+        ? await this.auth.authorizedOperation(token, context, existingWork)
+        : await this.auth.sensitiveOperation(
+            token,
+            password,
+            context,
+            existingWork,
+          );
+    if (!existing.ok) this.rejectAuthorization(existing.code);
+    if (existing.prior != null) return { call: this.view(existing.prior) };
+    // Loading a missing/slow secret must not hold revocation/session/installation locks.
+    // The admission below rechecks session, policy and the latest credential row.
+    const reader = await this.vault.prepareReader();
+    const work = async (
+      tx: Tx,
+      fresh: AdministratorContext,
+      reader: PreparedCredentialReader,
+    ) => {
+      await this.lock(tx, fresh.installationId);
+      const [clockRow] = await tx.$queryRaw<
+        Array<{ now: Date }>
+      >`SELECT clock_timestamp() AS now`;
+      if (!clockRow) throw new ModelCallError("clock_unavailable", 503);
+      const now = clockRow.now;
+      const clock = now!;
+      await tx.modelCall.updateMany({
+        where: {
+          installationId: fresh.installationId,
+          status: "dispatching",
+          deadlineAt: { lte: clock },
+        },
+        data: {
+          status: "unknown",
+          errorCode: "interrupted_or_timeout",
+          completedAt: clock,
+        },
+      });
+      const prior = await findPrior(tx, fresh);
+      if (prior != null) return { prior };
+      const { settings, limit, credential, model, request } = await preflight(
+        tx,
+        fresh,
+      );
       if (purpose === "answer") {
         if (
           (await tx.modelCall.count({
@@ -438,13 +485,11 @@ export class ModelExecutionService {
         )
           throw new ModelCallError("call_rate_limited", 429);
       }
-      const held = reservation(
-        model,
+      const admittedInputLimit =
         purpose === "embedding"
           ? Math.min(8192, settings.inputTokenLimit)
-          : settings.inputTokenLimit,
-        request.outputLimit,
-      );
+          : settings.inputTokenLimit;
+      const held = reservation(model, admittedInputLimit, request.outputLimit);
       const exposure = await this.exposure(
         tx,
         fresh.installationId,
@@ -452,6 +497,7 @@ export class ModelExecutionService {
       );
       if (exposure.charged + exposure.held + held > limit)
         throw new ModelCallError("budget_exceeded", 429);
+      const key = reader.reveal(fresh.installationId, purpose, credential);
       const row = await tx.modelCall.create({
         data: {
           installationId: fresh.installationId,
@@ -469,21 +515,21 @@ export class ModelExecutionService {
           deadlineAt: new Date(clock.getTime() + TIMEOUT_MS),
         },
       });
-      return { dispatch: { row, request, key } };
+      return { dispatch: { row, request, key, admittedInputLimit } };
     };
-    const authorization =
-      check == null
-        ? await this.auth.authorizedOperation(token, context, work)
-        : await this.auth.sensitiveOperation(token, password, context, work);
-    if (!authorization.ok)
-      throw new ModelCallError(
-        authorization.code,
-        authorization.code === "throttled"
-          ? 429
-          : authorization.code === "invalid_request"
-            ? 400
-            : 401,
-      );
+    const authorize = async () => {
+      try {
+        const admit = (tx: Tx, fresh: AdministratorContext) =>
+          work(tx, fresh, reader);
+        return check == null
+          ? await this.auth.authorizedOperation(token, context, admit)
+          : await this.auth.sensitiveOperation(token, password, context, admit);
+      } finally {
+        reader.dispose();
+      }
+    };
+    const authorization = await authorize();
+    if (!authorization.ok) this.rejectAuthorization(authorization.code);
     if (authorization.prior != null)
       return { call: this.view(authorization.prior) };
     const dispatch = authorization.dispatch!;
@@ -511,6 +557,13 @@ export class ModelExecutionService {
         dispatch.key,
         dispatch.request,
         AbortSignal.timeout(remaining),
+      );
+      assertAdmittedUsage(
+        dispatch.request.model,
+        result.usage,
+        dispatch.admittedInputLimit,
+        dispatch.request.outputLimit,
+        dispatch.row.reservedNanoUsd,
       );
     } catch (error) {
       const code =
@@ -556,9 +609,10 @@ export class ModelExecutionService {
     });
     return { call: await this.status(context, input.requestId), result };
   }
-}
-// Stored normalized USD permits nano precision; public writes accept cents only.
-function parseBudgetDecimal(value: string): bigint {
-  const [whole, fraction = ""] = value.split(".");
-  return BigInt(whole!) * 1000000000n + BigInt(fraction.padEnd(9, "0"));
+  private rejectAuthorization(code: string): never {
+    throw new ModelCallError(
+      code,
+      code === "throttled" ? 429 : code === "invalid_request" ? 400 : 401,
+    );
+  }
 }

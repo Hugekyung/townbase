@@ -16,6 +16,15 @@ export type CredentialEnvelope = Readonly<{
   ciphertext: string;
   tag: string;
 }>;
+// One-operation master snapshot. Callers must dispose before network I/O.
+export type PreparedCredentialReader = Readonly<{
+  reveal: (
+    installationId: string,
+    purpose: CredentialPurpose,
+    envelope: CredentialEnvelope,
+  ) => string;
+  dispose: () => void;
+}>;
 export class CredentialStorageError extends Error {
   constructor(
     readonly code: "master_key_unavailable" | "credential_unavailable",
@@ -109,12 +118,39 @@ export class CredentialVault {
       master.fill(0);
     }
   }
+  async prepareReader(): Promise<PreparedCredentialReader> {
+    const master = await this.master();
+    let disposed = false;
+    return {
+      reveal: (installationId, purpose, envelope) => {
+        if (disposed)
+          throw new CredentialStorageError("credential_unavailable");
+        return this.revealPrepared(master, installationId, purpose, envelope);
+      },
+      dispose: () => {
+        disposed = true;
+        master.fill(0);
+      },
+    };
+  }
   async reveal(
     installationId: string,
     purpose: CredentialPurpose,
     envelope: CredentialEnvelope,
   ): Promise<string> {
-    const master = await this.master();
+    const prepared = await this.prepareReader();
+    try {
+      return prepared.reveal(installationId, purpose, envelope);
+    } finally {
+      prepared.dispose();
+    }
+  }
+  private revealPrepared(
+    master: Buffer,
+    installationId: string,
+    purpose: CredentialPurpose,
+    envelope: CredentialEnvelope,
+  ): string {
     const plaintextBuffers: Buffer[] = [];
     try {
       const keyId = createHash("sha256").update(master).digest("hex");
@@ -141,7 +177,6 @@ export class CredentialVault {
       throw new CredentialStorageError("credential_unavailable");
     } finally {
       for (const buffer of plaintextBuffers) buffer.fill(0);
-      master.fill(0);
     }
   }
 }

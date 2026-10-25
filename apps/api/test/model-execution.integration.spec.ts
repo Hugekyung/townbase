@@ -208,7 +208,7 @@ integration("model execution with isolated DB and synthetic provider", () => {
   }
   function check(
     purpose = "answer",
-    id = randomUUID(),
+    id: string = randomUUID(),
     currentPassword = password,
   ) {
     return call("post", base + `/checks/${purpose}`, true).send({
@@ -261,7 +261,7 @@ integration("model execution with isolated DB and synthetic provider", () => {
       ).toBe(count);
       const r = await call("get", base + "/execution", true).expect(200);
       expect(r.body.settings.answerModel).toBe(answerModel);
-      expect(r.body.settings.monthlyBudgetUsd).toBe("20.000000000");
+      expect(r.body.settings.monthlyBudgetUsd).toBe("20.00");
       await call("put", base + "/execution", true)
         .send(config({ currentPassword: "incorrect password value" }))
         .expect(401);
@@ -579,10 +579,10 @@ integration("model execution with isolated DB and synthetic provider", () => {
       data: { expiresAt: new Date(Date.now() + 300) },
     });
     const vault = app.get(CredentialVault);
-    const reveal = vault.reveal.bind(vault);
-    jest.spyOn(vault, "reveal").mockImplementationOnce(async (...args) => {
+    const prepare = vault.prepareReader.bind(vault);
+    jest.spyOn(vault, "prepareReader").mockImplementationOnce(async () => {
       await new Promise((resolve) => setTimeout(resolve, 400));
-      return reveal(...args);
+      return prepare();
     });
     await expect(
       app.get(ModelExecutionService).execute(token(), context, {
@@ -629,6 +629,255 @@ integration("model execution with isolated DB and synthetic provider", () => {
       (await app.get(ModelExecutionService).snapshot(await requester()))
         .heldUsd,
     ).toBe("0.000000000");
+  });
+  it.each([
+    ["answer", 16001, 2],
+    ["answer", 10, 4097],
+    ["embedding", 8193, 0],
+    ["embedding", 10, 1],
+  ] as const)(
+    "retains an ambiguous %s reservation for usage input=%i output=%i",
+    async (purpose, input, output) => {
+      await ready();
+      provider.call.mockResolvedValueOnce({
+        outcome: "succeeded",
+        providerId: "resp_synthetic",
+        text: "must not return this",
+        usage: {
+          input,
+          cached: 0,
+          write30: 0,
+          write12: 0,
+          output,
+          reasoning: 0,
+        },
+      });
+      const id = randomUUID();
+      const service = app.get(ModelExecutionService);
+      const response = await service.check(
+        token(),
+        password,
+        await requester(),
+        id,
+        purpose,
+      );
+      expect(response.result).toBeUndefined();
+      expect(response.call).toMatchObject({
+        status: "unknown",
+        errorCode: "usage_out_of_bounds",
+        chargedUsd: null,
+        usage: null,
+      });
+      const row = await owner.modelCall.findUniqueOrThrow({
+        where: {
+          installationId_requestId: {
+            installationId: "primary",
+            requestId: id,
+          },
+        },
+      });
+      expect(row.chargedNanoUsd).toBeNull();
+      expect(row.reservedNanoUsd).toBeGreaterThan(0n);
+      const held = (await service.snapshot(await requester())).heldUsd;
+      await check(purpose, id).expect(200);
+      expect(provider.call).toHaveBeenCalledTimes(1);
+      expect((await service.snapshot(await requester())).heldUsd).toBe(held);
+    },
+  );
+  it("accepts uppercase UUID creation, lowercase retry and either-case lookup as one call", async () => {
+    await ready();
+    const id = "ABCDEFAB-ABCD-4ABC-ABCD-ABCDEFABCDEF";
+    const r = await check("answer", id).expect(200);
+    expect(r.body.call.requestId).toBe(id.toLowerCase());
+    await check("answer", id.toLowerCase()).expect(200);
+    for (const requestId of [id, id.toLowerCase()])
+      await call("get", base + "/calls/" + requestId, true).expect(200);
+    expect(provider.call).toHaveBeenCalledTimes(1);
+    expect(await owner.modelCall.count()).toBe(1);
+  });
+  it("preserves the public budget read-modify-write format and no-op audit", async () => {
+    await ready();
+    const r = await call("get", base + "/execution", true).expect(200);
+    expect(r.body.settings.monthlyBudgetUsd).toBe("20.00");
+    const before = await owner.installationAuditEvent.count({
+      where: { action: "model_execution_settings_changed" },
+    });
+    await call("put", base + "/execution", true)
+      .send({ ...r.body.settings, currentPassword: password })
+      .expect(200);
+    expect(
+      await owner.installationAuditEvent.count({
+        where: { action: "model_execution_settings_changed" },
+      }),
+    ).toBe(before);
+    await call("put", base + "/execution", true)
+      .send({
+        ...r.body.settings,
+        currentPassword: password,
+        outputTokenLimit: 128,
+      })
+      .expect(200);
+    expect(
+      (await call("get", base + "/execution", true).expect(200)).body.settings
+        .outputTokenLimit,
+    ).toBe(128);
+  });
+  it.each(["purpose", "fileNames"])(
+    "conflicts on changed %s even with the same ID and text",
+    async (field) => {
+      await ready();
+      const service = app.get(ModelExecutionService),
+        context = await requester(),
+        id = randomUUID();
+      const input = {
+        requestId: id,
+        purpose: "rag_answer" as const,
+        input: "same synthetic text",
+        fileNames: ["one.txt"],
+      };
+      await service.execute(token(), context, input);
+      const changed =
+        field === "purpose"
+          ? { ...input, purpose: "attachment_answer" as const }
+          : { ...input, fileNames: ["two.txt"] };
+      await expect(service.execute(token(), context, changed)).rejects.toThrow(
+        "request_id_conflict",
+      );
+      expect(provider.call).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each(["execute", "check"])(
+    "allows logout while %s waits for the secret volume",
+    async (mode) => {
+      await ready();
+      const service = app.get(ModelExecutionService),
+        context = await requester(),
+        vault = app.get(CredentialVault),
+        prepare = vault.prepareReader.bind(vault);
+      let signal: () => void = () => {},
+        release: () => void = () => {};
+      const started = new Promise<void>((resolve) => {
+          signal = resolve;
+        }),
+        gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      let disposed = false;
+      jest.spyOn(vault, "prepareReader").mockImplementationOnce(async () => {
+        signal();
+        await gate;
+        const reader = await prepare();
+        return {
+          ...reader,
+          dispose: () => {
+            disposed = true;
+            reader.dispose();
+          },
+        };
+      });
+      const operation =
+        mode === "execute"
+          ? service.execute(token(), context, {
+              requestId: randomUUID(),
+              purpose: "rag_answer",
+              input: "Synthetic",
+            })
+          : service.check(token(), password, context, randomUUID(), "answer");
+      const outcome = operation.then(
+        () => ({ code: "unexpected_success" }),
+        (error) => ({ code: error.code as string }),
+      );
+      await started;
+      try {
+        await call("post", "/auth/logout", true)
+          .send({})
+          .timeout({ response: 5000, deadline: 6000 })
+          .expect(200);
+      } finally {
+        release();
+      }
+      expect(await outcome).toEqual({ code: "unauthorized" });
+      expect(disposed).toBe(true);
+      expect(provider.call).not.toHaveBeenCalled();
+      expect(await owner.modelCall.count()).toBe(0);
+    },
+    15000,
+  );
+  it("uses a Key rotated during secret preloading, never the earlier credential row", async () => {
+    await ready();
+    const vault = app.get(CredentialVault),
+      prepare = vault.prepareReader.bind(vault);
+    const rotated = key + "rotated";
+    jest.spyOn(vault, "prepareReader").mockImplementationOnce(async () => {
+      const reader = await prepare();
+      await putKey("answer", rotated).timeout({ response: 5000 }).expect(200);
+      return reader;
+    });
+    await execute();
+    expect(provider.call.mock.calls[0]![0]).toBe(rotated);
+  });
+  it("checks the latest policy after preloading and disposes on rejection", async () => {
+    await ready();
+    const vault = app.get(CredentialVault),
+      prepare = vault.prepareReader.bind(vault);
+    let reader:
+      | Awaited<ReturnType<CredentialVault["prepareReader"]>>
+      | undefined;
+    jest.spyOn(vault, "prepareReader").mockImplementationOnce(async () => {
+      reader = await prepare();
+      await call("put", base + "/transfers", true)
+        .send({
+          currentPassword: password,
+          documentEmbedding: false,
+          rag: false,
+          attachment: false,
+        })
+        .timeout({ response: 5000 })
+        .expect(200);
+      return reader;
+    });
+    await expect(execute()).rejects.toThrow("transfer_not_allowed");
+    const row = await owner.modelCredential.findUniqueOrThrow({
+      where: {
+        installationId_purpose: {
+          installationId: "primary",
+          purpose: "answer",
+        },
+      },
+    });
+    expect(() => reader!.reveal("primary", "answer", row)).toThrow(
+      "credential_unavailable",
+    );
+    expect(provider.call).not.toHaveBeenCalled();
+    expect(await owner.modelCall.count()).toBe(0);
+  });
+  it("rejects unconfigured budget or denied transfers before touching secret storage", async () => {
+    await ready({ monthlyBudgetUsd: null });
+    await rm(process.env.TOWNBASE_MASTER_KEY_FILE!);
+    const spy = jest.spyOn(app.get(CredentialVault), "prepareReader");
+    await check().expect(409).expect({ code: "budget_not_configured" });
+    await configure().then((r) => expect(r.status).toBe(200));
+    await call("put", base + "/transfers", true)
+      .send({
+        currentPassword: password,
+        documentEmbedding: false,
+        rag: false,
+        attachment: false,
+      })
+      .expect(200);
+    await check().expect(403).expect({ code: "transfer_not_allowed" });
+    expect(spy).not.toHaveBeenCalled();
+    expect(provider.call).not.toHaveBeenCalled();
+  });
+  it("returns a duplicate status without loading a missing master", async () => {
+    await ready();
+    const id = randomUUID();
+    await check("answer", id).expect(200);
+    await rm(process.env.TOWNBASE_MASTER_KEY_FILE!);
+    const spy = jest.spyOn(app.get(CredentialVault), "prepareReader");
+    await check("answer", id).expect(200);
+    expect(spy).not.toHaveBeenCalled();
+    expect(provider.call).toHaveBeenCalledTimes(1);
   });
   it("rolls back settings when audit persistence fails", async () => {
     await ready();

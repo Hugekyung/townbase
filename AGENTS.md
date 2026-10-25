@@ -119,3 +119,6 @@
 - 실제 DB 시험은 TOWNBASE_MODEL_EXECUTION_TEST=1과 postgres 호스트의 townbase_c01_test에서만 실행한다. owner URL/runtime secret이 필요하며 공급자는 합성 구현으로 교체한다. 권한 시험은 기존 townbase_pr34_*_test guard를 사용한다. 실계정 호출은 별도 Key·계정 권한·비용 상한 확인 후에만 실행한다. [구현 기록](docs/implementation/v0.2-c01-c04-model-execution.md)을 따른다.
 
 - C01/C04 실계정 합성 연결 검증은 2026-10-26 사용자 명시 승인·총 US$0.10 상한으로 Luna/Sol/임베딩 각1회 성공했다. 예상 합계 US$0.000084180·실제 usage/readback은 [증거](docs/implementation/v0.2-c01-c04-live-verification.json)를 따른다. 품질 평가·최종 청구서 대조를 완료한 것으로 표시하지 않는다. 비용 기록이 있는 townbase_c01_live_test는 일반 합성 DB 시험의 reset 대상이 아니다.
+
+- PR #39 보완: 설정 예산 monthlyBudgetUsd는 GET/변경 응답 소수2자리·PUT 정수/소수2자리까지로 왕복 가능하게 유지한다. 비용/usage 금액의9자리 표현과 구분한다. UUID v4는 대소문자 모두 같은 ID로 처리한다. 입력·출력 usage와 계산 비용을 입장 당시 한도/예약액에 대조하고 위반 시 unknown·예약 유지·결과 미반환을 검증한다.
+- 호출 입장의 파일 I/O는 인증/설치 transaction 밖에서 수행한다. 준비한 master는 단일 작업만 사용하고 성공/실패와 무관하게 지운다. 입장 시 최신 세션·Key·정책/예산을 다시 검사한다. 지연 중 로그아웃·Key 교체·정책 변경과 기존 ID의 master 없는 재조회도 함께 시험한다.

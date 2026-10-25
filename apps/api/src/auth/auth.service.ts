@@ -320,7 +320,7 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   }
 
   // Short authenticated DB operation, serialized against session revocation.
-  // External I/O must happen only after this transaction has committed.
+  // Callback: DB/CPU only. Load files before entry; call networks after commit.
   async authorizedOperation<T extends object>(
     token: string | undefined,
     expected: AdministratorContext,
