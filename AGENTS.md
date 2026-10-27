@@ -131,3 +131,11 @@
 - 원본/버전/완료된 추출 결과를 실제 저장·별도 인증 요청으로 재조회한다. 파서/파일 I/O는 인증 transaction 밖에서 하고 저장 직전 최신 신원을 재검사한다. `extracted`를 검색 가능으로 표시하지 않는다. D02/D03에서 공개 업로드 전 미완료 파일/재시작/orphan 정리와 제품 API를 연결한다.
 - FileOriginal/FileVersion/FileExtractionRun에 SELECT/INSERT만 추가했다. 수정·삭제 권한은 아직 없으며 관련 기능 단계에서 열 단위로 확장한다. enum 추가와 사용 migration은 분리했다. 기존 metadata/벡터 보존과 신규/기존 SQL 적용을 검증했다.
 - 실 DB suite는 `TOWNBASE_FILE_FOUNDATION_TEST=1`과 정확한 `postgres/townbase_d01_test`, owner URL/runtime secret 파일을 요구한다. 일반 API 시험은 건너뛴다. Connector의 DB 없는 회귀도 `--testPathIgnorePatterns=integration.spec.ts`로 분리한다. [D01 검증·제한](docs/implementation/v0.2-d01-file-extraction.md)을 따른다.
+
+
+## PR #40 D01 보완 경계 (2026-10-28)
+
+- 파일 I/O 오류는 storage_unavailable로 정규화하며 close 실패도 unlink 시도에 연결한다. unlink 실패를 삭제 완료로 취급하지 않는다. 자식 error 이벤트 뒤 close까지 슬롯/감시를 유지한다.
+- 20261028010000 후속 migration은 JSON envelope의 숫자/정수·비어 있지 않은 segments와 per-version 실행 인덱스를 추가한다. 저장 JSON을 결과/후속 처리에 사용하기 전 공통 assertExtraction의 본문·위치·글자 수 계약을 검사한다. 기존 D01 migrations를 재작성하지 않는다.
+- D01 DB suite는 정확한 guard 뒤 알려진 fixture만 시험 전후 정리한다. ModelCall이나 다른 설치가 있으면 거절한다. 같은 DB 반복/중단 상태를 시험하며 실행마다 DB를 reset해 재실행 문제를 감추지 않는다.
+- Node permission의 읽기 범위는 API node_modules/pnpm 트리를 포함하고 --allow-addons는 addon 전역 로딩 허용이다. 특정 addon만 선별하거나 OS sandbox를 보장한다고 기록하지 않는다. [PR #40 검증 범위](docs/implementation/v0.2-d01-review-response.md)를 따른다.

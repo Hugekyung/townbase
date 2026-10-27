@@ -521,4 +521,5 @@ model FileExtractionRun {
   fileVersion    FileVersion @relation(fields: [installationId, versionId], references: [installationId, id], onDelete: Restrict)
 
   @@index([installationId, completedAt])
+  @@index([installationId, versionId, completedAt])
 }

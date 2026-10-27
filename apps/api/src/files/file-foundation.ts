@@ -6,6 +6,8 @@ import { FileExtractor } from "./file-extractor";
 import { FileStorage } from "./file-storage";
 import {
   FILE_LIMITS,
+  assertExtraction,
+  type FileFormat,
   FileError,
   fileFormat,
   type FileExtraction,
@@ -146,6 +148,10 @@ export class FileFoundation {
           },
         });
         if (!original) throw new NotFoundException();
+        for (const version of original.versions) {
+          if (version.extraction != null)
+            assertExtraction(version.extraction, version.format as FileFormat);
+        }
         // storageKey is internal. An authenticated raw-file reference is a D02 endpoint.
         return {
           original: {
