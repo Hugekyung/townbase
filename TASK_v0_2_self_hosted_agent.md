@@ -2,7 +2,7 @@
 
 > 작성일: 2026-10-21 / 재작성: 2026-10-22  
 > 기준: [기본 PRD](PRD_v0_2_self_hosted_agent.md), [선택·승인 기록](DECISIONS_v0_2_basic.md), 루트 [AGENTS.md](AGENTS.md)  
-> 상태: 기본 기능 작업 분해와 모델 외 기본 선택 확정 완료. S01·S03~S14는 사용자 위임에 따라 채택했다. S02는 도입자 Key·지원 답변 모델 선택·임베딩 small/1536 고정 정책을 반영했다. 최초 답변 모델 ID/API는 C에서 확인한다. A03 명세와 A04 실행 결과는 아래 증거를 따른다. B01은 main 커밋 `80cb3ab`로 전달했다. B02 배포·초기 웹은 로컬 구현·검증 후 [PR #34](https://github.com/Hugekyung/townbase/pull/34)로 전달했다. PR 리뷰21개 보완은 후속 커밋 `e311ecc`로 전달했다. 재리뷰 보완은 `4adfb14`로 전달했다. 추가 리뷰6개와 관련 경계를 함께 보완했으며 최신 검증은240개 통과다. 2026-10-23 사용자가 재리뷰 보완의 commit/push·PR 댓글 등록까지 승인했다. [대응 기록](docs/implementation/v0.2-b02-review-response.md)을 따른다. PR #34는 main `24ad492`로 병합·동기화했다. B03은 별도 브랜치에서 로컬 구현·검증을 마쳤으며 2026-10-24 사용자가 commit/push·main 대상 PR 생성을 승인했다. PR #35 리뷰18건의 보완은 [대응 기록](docs/implementation/v0.2-b03-review-response.md)을 따른다. PR #35는 main `092a4ed`로 병합·동기화했다. B04는 `codex/v02-b04-administrator-auth`에서 로컬 구현·검증을 마쳤으며 2026-10-24 사용자가 commit/push·main 대상 PR 생성을 승인했다. PR #36 리뷰17건 보완은 `bcba158`로 전달했고 main `3cc61de`로 병합·동기화했다. [대응 기록](docs/implementation/v0.2-b04-review-response.md)을 따른다. B05는 `c74d409`와 [PR #37](https://github.com/Hugekyung/townbase/pull/37)로 전달했다. 2026-10-25 리뷰5건을 보완하고263개 회귀 시험을 통과했다. [대응 기록](docs/implementation/v0.2-b05-review-response.md)을 따른다. PR #37은 main `bccefe0`에 병합했다. C02/C03 설정·보호 기반은 `codex/v02-c02-c03-integration-settings`에서 로컬 구현·417개 시험 검증을 마쳤으며 2026-10-25 사용자 승인 후 `53b95e7`과 [PR #38](https://github.com/Hugekyung/townbase/pull/38)로 전달했다. 리뷰14건의 후속 보완·290개 검증은 [대응 기록](docs/implementation/v0.2-c02-c03-review-response.md)을 따른다. 실제 모델은 아직 연결하지 않는다.
+> 상태: 기본 기능 작업 분해와 모델 외 기본 선택 확정 완료. S01·S03~S14는 사용자 위임에 따라 채택했다. S02는 도입자 Key·지원 답변 모델 선택·임베딩 small/1536 고정 정책을 반영했다. 최초 답변 모델 ID/API는 C에서 확인한다. A03 명세와 A04 실행 결과는 아래 증거를 따른다. B01은 main 커밋 `80cb3ab`로 전달했다. B02 배포·초기 웹은 로컬 구현·검증 후 [PR #34](https://github.com/Hugekyung/townbase/pull/34)로 전달했다. PR 리뷰21개 보완은 후속 커밋 `e311ecc`로 전달했다. 재리뷰 보완은 `4adfb14`로 전달했다. 추가 리뷰6개와 관련 경계를 함께 보완했으며 최신 검증은240개 통과다. 2026-10-23 사용자가 재리뷰 보완의 commit/push·PR 댓글 등록까지 승인했다. [대응 기록](docs/implementation/v0.2-b02-review-response.md)을 따른다. PR #34는 main `24ad492`로 병합·동기화했다. B03은 별도 브랜치에서 로컬 구현·검증을 마쳤으며 2026-10-24 사용자가 commit/push·main 대상 PR 생성을 승인했다. PR #35 리뷰18건의 보완은 [대응 기록](docs/implementation/v0.2-b03-review-response.md)을 따른다. PR #35는 main `092a4ed`로 병합·동기화했다. B04는 `codex/v02-b04-administrator-auth`에서 로컬 구현·검증을 마쳤으며 2026-10-24 사용자가 commit/push·main 대상 PR 생성을 승인했다. PR #36 리뷰17건 보완은 `bcba158`로 전달했고 main `3cc61de`로 병합·동기화했다. [대응 기록](docs/implementation/v0.2-b04-review-response.md)을 따른다. B05는 `c74d409`와 [PR #37](https://github.com/Hugekyung/townbase/pull/37)로 전달했다. 2026-10-25 리뷰5건을 보완하고263개 회귀 시험을 통과했다. [대응 기록](docs/implementation/v0.2-b05-review-response.md)을 따른다. PR #37은 main `bccefe0`에 병합했다. C02/C03 설정·보호 기반은 `codex/v02-c02-c03-integration-settings`에서 로컬 구현·417개 시험 검증을 마쳤으며 2026-10-25 사용자 승인 후 `53b95e7`과 [PR #38](https://github.com/Hugekyung/townbase/pull/38)로 전달했다. 리뷰14건의 후속 보완·290개 검증은 [대응 기록](docs/implementation/v0.2-c02-c03-review-response.md)을 따른다. PR #38은 실제 모델 호출이 없는 기반이다. 2026-10-26 승인 모델의 C01/C04 후속 로컬 구현은 아래 기록을 따르며 실계정 합성 호출3회는 성공했고 한국어 RAG 품질과 최종 청구서 대조는 별도다.
 
 ## 0. 사용법·범위
 
@@ -73,12 +73,14 @@
 
 | 상태 | TASK | 수행·산출물 | 검증 |
 | --- | --- | --- | --- |
-| 미착수 | V02B-C01 | 지원 답변 모델 선택 adapter와 고정 임베딩 `text-embedding-3-small`/1536 adapter, 실제 모델/계정·API parameter·context·출력·reasoning 예산 확인 | 합성 입력으로 live 호출과 usage 확인. 잘못된 모델/차원·가용성 오류 표시 |
-| 일부 구현·검증, PR #38 검토 중 | V02B-C02 | Key 암호화·마스킹·교체·비활성화/삭제 저장 기반. 실제 연결 검사·답변 모델 설정은 C01/C04 후속 | 별도 요청·서비스/컨테이너 재시작 재조회, 마스킹·교체된 Key 복호화, 고정 임베딩 변경 거절, master 누락/변조 차단 검증. 실제 연결·답변 모델 변경/재조회는 미완료 |
-| 일부 구현·검증, PR #38 검토 중 | V02B-C03 | 용도별 전송 허용 저장·기본 비밀값/endpoint의 로컬 사전 검사. 실제 호출 경계·운영 fake fallback 차단은 C01/C04 및 후속 자료 기능 | 기본 거절·용도 독립성·패턴/endpoint 차단·긴 입력 처리 검증. 실제 외부 호출 직전 통합·반출 미발생 검증은 미완료 |
-| 미착수 | V02B-C04 | 호출 ID·모델·usage·시간·가격표/추정·비용 예약/정산·한도·timeout·오류 기록 | 임베딩+답변 합산, 미입력 예산·미확인 가격·timeout 청구 불명 처리, 중복 요청의 임의 재호출 금지 |
+| 구현·실계정 합성 호출 검증, PR #39 검토 중 | V02B-C01 | 지원 답변 모델 선택 adapter와 고정 임베딩 `text-embedding-3-small`/1536 adapter, 실제 모델/계정·API parameter·context·출력·reasoning 예산 확인 | 합성 입력으로 live 호출과 usage 확인. 잘못된 모델/차원·가용성 오류 표시 |
+| 기반 main 병합, 후속 로컬 구현·실계정 검증 | V02B-C02 | Key 암호화·마스킹·교체·비활성화/삭제 저장 기반. 후속 C01/C04에서 답변 모델 설정·합성 연결 검사 로컬 구현·실계정 검증 | 별도 요청·서비스/컨테이너 재시작 재조회, 마스킹·교체된 Key 복호화, 고정 임베딩 변경 거절, master 누락/변조 차단 검증. 모델 변경/재조회·합성 연결 검사 저장은 후속 로컬 구현. 실제 계정의 두 답변 모델·임베딩 연결 검사와 usage 정산/재조회3회 성공 |
+| 기반 main 병합, C 호출 경계 로컬 검증·D/E/F 후속 | V02B-C03 | 용도별 전송 허용 저장·기본 비밀값/endpoint의 로컬 사전 검사. C01/C04 네트워크 경계 로컬 통합. D/E/F 자료별 접근·전송·fake fallback 차단은 후속 검증 | 기본 거절·용도 독립성·패턴/endpoint 차단·긴 입력 처리 검증. C 호출 서비스의 전송 전 차단은 합성/loopback으로 검증. 실제 계정의 합성 입력3회 성공. D/E/F 자료 경계는 후속 검증 |
+| 구현·실제 usage 정산 검증, PR #39 검토 중 | V02B-C04 | 호출 ID·모델·usage·시간·가격표/추정·비용 예약/정산·한도·timeout·오류 기록 | 임베딩+답변 합산, 미입력 예산·미확인 가격·timeout 청구 불명 처리, 중복 요청의 임의 재호출 금지 |
 
-C02/C03 첫 PR은 Key 암호화/조회/교체/비활성화/삭제·중요 변경 재인증·감사·전송 정책 저장·로컬 사전 검사 기반이다. C02의 실제 연결 검사·답변 모델 설정과 C03의 실제 호출 직전 통합은 C01/C04와 함께 검증하기 전까지 완료가 아니다. [구현 기록](docs/implementation/v0.2-c02-c03-integration-settings.md)을 따른다.
+2026-10-25 PR #38을 main `d42a894`로 병합·로컬 동기화했다. 리뷰 2차3건 대응·247개 검증은 [대응 기록](docs/implementation/v0.2-c02-c03-review-response.md)을 따른다. C01/C04는 `codex/v02-c01-c04-model-execution`에서 [착수안](docs/implementation/v0.2-c01-c04-model-execution-plan.md)을 정리했으며 2026-10-26 Luna 기본·Sol 선택 승인을 받았다. C01/C04 코드는 로컬 구현·검증 단계이며 실제 OpenAI 합성 호출3회가 성공했고 usage/예상 비용·별도 DB 재조회까지 확인했다.
+
+C02/C03 첫 PR은 Key 암호화/조회/교체/비활성화/삭제·중요 변경 재인증·감사·전송 정책 저장·로컬 사전 검사 기반이다. C01/C04 후속은 2026-10-26 승인 모델로 로컬 구현했다. 모델 설정·고정 합성 연결 검사·C 네트워크 경계·usage/예약/정산은 합성 응답·실제 제한 계정 DB·운영 이미지로 검증한다. 실제 계정의 합성 호출·usage/추정 정산은3회 성공했다. 품질 평가와 D/E/F 자료 경계 통합은 후속 범위다. [후속 기록](docs/implementation/v0.2-c01-c04-model-execution.md)을 따른다. [구현 기록](docs/implementation/v0.2-c02-c03-integration-settings.md)을 따른다.
 
 종료: 사내 문서를 연결하기 전에 합성 입력에서 실제 모델·비밀 저장·전송 차단·비용 경로가 검증된다. 공급자 측 보관 옵션/요청 저장 여부도 확인·안내하며 내부 미색인과 혼동하지 않는다.
 
@@ -202,3 +204,10 @@ package.json 정적 목록이다. 2026-10-23에 실제 실행한 범위·제외�
 각 단계 종료 시 적용 S 값·관련 TASK 상태·변경 파일·실행 명령·DB/파일/실행 ID 재조회·정상/실패 증거·남은 제한·저장소 전달 상태를 기록한다. 비밀값·사내 원문은 증거에서 제외한다. 증거 저장 위치는 구현 시작 시 정하고 문서화한다.
 
 A03/A04 준비와 B01 저장 기반을 main `80cb3ab`로 전달했다. B02는 `codex/v02-b02-deployment-foundation`에서 배포·초기 웹·산출물 소비 경로를 로컬 구현·검증했다. [B02 검증 기록](docs/implementation/v0.2-b02-verification.md)을 따르며 구현 커밋 `a6749a9`와 [PR #34](https://github.com/Hugekyung/townbase/pull/34)로 전달했다. PR #34는 main `24ad492`로 병합됐고 로컬 main 동기화를 마쳤다. B03 최초 관리자 등록을 `codex/v02-b03-initial-administrator`에서 로컬 구현·검증을 마쳤다. [B03 기록](docs/implementation/v0.2-b03-administrator.md)을 따른다. PR #35는 main `092a4ed`에 병합됐다. B04 로그인·세션·로컬 복구를 별도 브랜치에서 로컬 구현·검증했다. [B04 기록](docs/implementation/v0.2-b04-authentication.md)을 따르며 2026-10-24 사용자의 승인으로 commit/push·main PR 전달 경로를 따른다. PR #36은 main `3cc61de`로 병합됐다. B05 공통 접근 검사를 `codex/v02-b05-access-boundaries`에서 로컬 구현·검증했고 2026-10-24 사용자가 commit/push·main PR 생성을 승인했다. 다음 구현은 C 모델·Key·전송 설정이다. S02의 초기 답변 모델 ID/API 검증은 C에서 하며 B와 분리한다. 2026-10-23 사용자의 승인으로 작업 브랜치 commit/push와 main 대상 PR 생성을 수행했다. 이전 main 직접 푸시는 B01 기록이며 B02는 PR 검토 경로를 따른다.
+
+
+2026-10-26 C01/C04 구현·자동 시험456개·실계정 합성 호출3회 검증 요약 후 사용자가 commit/push·main 대상 PR 생성을 승인했다. [구현 기록](docs/implementation/v0.2-c01-c04-model-execution.md)과 저장소 PR 기록을 따른다.
+
+2026-10-26 PR #39 리뷰10건(타당8·부분 타당2)은 권장 방향으로 로컬 보완했다. 이번 재검증 범위와 전달 상태는 [리뷰 대응 기록](docs/implementation/v0.2-c01-c04-review-response.md)을 따른다.
+
+PR #39 후속 자동 시험은 API288·C01 실제 DB41·C02 실제 DB31·배포18=378개 통과다. 최초456개 및 실계정3회와 범위가 다르므로 합산하지 않는다. 추가 유료 호출 없이 운영 이미지 재시작 검증까지 마쳤으며 2026-10-26 사용자가 후속 commit/push·PR 댓글 등록을 승인했다. 전달 결과는 PR #39 기록을 따른다.

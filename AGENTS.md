@@ -70,7 +70,7 @@
 - B05는 AuthModule 전역 기본 인증과 메서드별 공개 예외를 사용한다. 신원은 세션/Installation.workspaceId에서만 만들며 DTO의 ID는 인증이 아니다. 자료 범위/소유 검사는 저장된 행을 입력으로 사용한다. 실제 자료/Key/작업 기능은 해당 단계에서 조회·저장·전송 경계에 검사를 연결한다. 새 테이블·범용 권한 엔진을 미리 추가하지 않는다. 실 DB 공통 검사 시험은 TOWNBASE_ACCESS_INTEGRATION=1과 postgres 호스트의 townbase_b05_test에서만 실행하며 owner URL/runtime secret이 필요하다. [B05 기록](docs/implementation/v0.2-b05-access.md)을 따른다.
 - 프로필 판정은 database 패키지의 runtime-profile을 공유한다. self_hosted/production에서 기존 MCP·수집 runner/CLI·개발 seed·구 평가 진입점을 실행 전에 거절한다. 비production legacy fixture는 유지한다. 실제 평가 명령은 build 제외된 ts-node 소스 진입점이며 오래된 dist로 검증하지 않는다. 운영 runtime과 build/migration 이미지의 개발 도구 포함 여부도 구분한다.
 - 기존 v0.1 DB 개발은 `compose.legacy.yml`을 명시한다. 새 운영 배포에서 이전 DB volume이나 `.env`를 자동 재사용하지 않는다. `self_hosted`와 `legacy_development`를 구분한다. 프로필 미설정은 모든 NODE_ENV에서 self_hosted이며, 기존 개발 실행은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시한다. production의 legacy 프로필은 시작을 거절한다. 아직 구현하지 않은 웹/E2E/복구 script를 실행 가능한 것으로 문서화하지 않는다.
-- C02/C03 기반은 /settings/model-integration의 관리자 전용 API다. Key 저장은 연결 성공이 아니며 connection=not_checked, 실제 호출/모델 선택은 비활성이다. 변경은 같은 AuthState 잠금 경계에서 현재 비밀번호를 매번 확인하고 감사와 함께 저장한다. 추가 ModelCredential/ModelTransferPolicy 권한은 deployment/runtime-role.mjs의 명시 목록을 따른다. API만 별도 model_master_key secret을 마운트하고 원래 값은 DB 백업과 분리해 보관한다. 설정 웹·실모델·비용 예약은 이 기반의 완료로 간주하지 않는다.
+- C02/C03 기반은 /settings/model-integration의 관리자 전용 API다. Key 저장은 연결 성공이 아니며 connection=not_checked, PR #38 당시 실제 호출/모델 선택은 비활성이었으며 후속 C01/C04는 아래 기록을 따른다. 변경은 같은 AuthState 잠금 경계에서 현재 비밀번호를 매번 확인하고 감사와 함께 저장한다. 추가 ModelCredential/ModelTransferPolicy 권한은 deployment/runtime-role.mjs의 명시 목록을 따른다. API만 별도 model_master_key secret을 마운트하고 원래 값은 DB 백업과 분리해 보관한다. 설정 웹·실모델·비용 예약은 이 기반의 완료로 간주하지 않는다.
 - C02 실제 DB 시험은 TOWNBASE_INTEGRATION_SETTINGS_TEST=1과 postgres 호스트의 townbase_c02_test에서만 실행한다. owner URL/runtime secret이 필요하며 일반 API 시험에서는 건너뛴다. 신규 권한은 townbase_pr34_*_test의 runtime-role.integration.mjs로 검증한다. [C02/C03 기록](docs/implementation/v0.2-c02-c03-integration-settings.md)을 따른다.
 - v0.2 평가 명세/합성 문서·120문항은 `docs/evaluation/v0.2/README.md`를 따른다. A04 실행/미실행 결과는 같은 경로의 `baseline-2026-10-23.md`를 확인한다.
 - 기본 TASK의 문서 완료와 코드/실모델/품질 검증 완료를 구분한다. 추천 S 값은 승인 전 기본값이 아니며 해당 작업 착수 전에 결정한다.
@@ -108,3 +108,17 @@
 - 저장소에 노출되는 문서와 코드는 계획 문서에서 쓰는 네이밍과 맞춘다.
 - 새 디렉터리가 생기면, 그 하위 트리에만 특별 규칙이 필요할 때 더 깊은 `AGENTS.md`를 추가한다.
 - 저장소에 실제 명령어, 패키지 구조, 런타임 제약이 생기면 이 루트 가이드를 갱신한다.
+
+
+## C01/C04 모델 실행 적용 상태 (2026-10-26)
+
+- 사용자는 gpt-6-luna 기본·gpt-6.1-sol 선택을 승인했다. API는 고정 OpenAI Responses/Embeddings만 사용한다. 임베딩 small/1536은 변경하지 않는다. /settings/model-integration/execution·checks/:purpose·calls/:requestId는 관리자 보호 경로다. 설정 웹·문서/채팅/첨부 제품 흐름은 후속 단계다.
+- ModelExecutionService만 후속 D/E/F 호출 서비스로 사용한다. 먼저 저장된 신원·전송·활성 Key·모델/가격·예산을 검사하고 DB에 호출 ID와 비용을 원자적으로 예약한다. 네트워크 I/O는 인증/예약 transaction 밖에서 실행한다. 기존 legacy adapter를 self_hosted에 직접 연결하지 않는다.
+- 예산/가격 확인 기본 null은 유료 호출 차단이다. 가격표 버전·단가는 공식 문서를 대조해 제품 변경으로 관리한다. 임베딩/답변 합산·UTC 월·이전 월 미확인 예약 이월·nanoUSD 계산을 유지한다. 같은 요청 ID를 자동 유료 재호출하지 않는다. 전송 후 미확인 실패는 예약을 유지하며, 전송 전 deadline 만료인 not_sent만0원으로 확정한다.
+- 입력은 UTF-8 bytes+256 framing의 보수적 상한으로 거절하며 정확한 tokenizer와 혼동하지 않는다. 응답의 캐시 읽기/30분·12시간 쓰기와 추론 포함 출력을 구분한다. 원문·답변·Key는 공용 비용 기록에 저장하지 않는다. D/E/F 결과 저장과 구분한다.
+- 실제 DB 시험은 TOWNBASE_MODEL_EXECUTION_TEST=1과 postgres 호스트의 townbase_c01_test에서만 실행한다. owner URL/runtime secret이 필요하며 공급자는 합성 구현으로 교체한다. 권한 시험은 기존 townbase_pr34_*_test guard를 사용한다. 실계정 호출은 별도 Key·계정 권한·비용 상한 확인 후에만 실행한다. [구현 기록](docs/implementation/v0.2-c01-c04-model-execution.md)을 따른다.
+
+- C01/C04 실계정 합성 연결 검증은 2026-10-26 사용자 명시 승인·총 US$0.10 상한으로 Luna/Sol/임베딩 각1회 성공했다. 예상 합계 US$0.000084180·실제 usage/readback은 [증거](docs/implementation/v0.2-c01-c04-live-verification.json)를 따른다. 품질 평가·최종 청구서 대조를 완료한 것으로 표시하지 않는다. 비용 기록이 있는 townbase_c01_live_test는 일반 합성 DB 시험의 reset 대상이 아니다.
+
+- PR #39 보완: 설정 예산 monthlyBudgetUsd는 GET/변경 응답 소수2자리·PUT 정수/소수2자리까지로 왕복 가능하게 유지한다. 비용/usage 금액의9자리 표현과 구분한다. UUID v4는 대소문자 모두 같은 ID로 처리한다. 입력·출력 usage와 계산 비용을 입장 당시 한도/예약액에 대조하고 위반 시 unknown·예약 유지·결과 미반환을 검증한다.
+- 호출 입장의 파일 I/O는 인증/설치 transaction 밖에서 수행한다. 준비한 master는 단일 작업만 사용하고 성공/실패와 무관하게 지운다. 입장 시 최신 세션·Key·정책/예산을 다시 검사한다. 지연 중 로그아웃·Key 교체·정책 변경과 기존 ID의 master 없는 재조회도 함께 시험한다.

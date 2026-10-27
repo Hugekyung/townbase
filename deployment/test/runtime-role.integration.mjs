@@ -302,6 +302,19 @@ for (const [table, privilege, column] of [
   ["ModelCredential", "UPDATE", "purpose"],
   ["ModelCredential", "UPDATE", "createdAt"],
   ["ModelTransferPolicy", "UPDATE", "installationId"],
+  ["ModelExecutionSettings", "UPDATE", "installationId"],
+  ["ModelCall", "UPDATE", "installationId"],
+  ["ModelCall", "UPDATE", "requestId"],
+  ["ModelCall", "UPDATE", "ownerAdministratorId"],
+  ["ModelCall", "UPDATE", "purpose"],
+  ["ModelCall", "UPDATE", "model"],
+  ["ModelCall", "UPDATE", "credentialTag"],
+  ["ModelCall", "UPDATE", "inputDigest"],
+  ["ModelCall", "UPDATE", "configurationDigest"],
+  ["ModelCall", "UPDATE", "priceVersion"],
+  ["ModelCall", "UPDATE", "reservedNanoUsd"],
+  ["ModelCall", "UPDATE", "createdAt"],
+  ["ModelCall", "UPDATE", "deadlineAt"],
   ["Document", "SELECT", "id"],
   ["Document", "INSERT", "id"],
   ["Document", "UPDATE", "id"],
@@ -361,4 +374,63 @@ test("C02 refuses PUBLIC DELETE on a policy or audit table", async () => {
     }
     await configure();
   }
+});
+
+test("C01 grants only enumerated execution columns and no call deletion", async () => {
+  await configure();
+  for (const [table, allowed] of [
+    [
+      "ModelExecutionSettings",
+      [
+        "answerModel",
+        "reasoning",
+        "inputTokenLimit",
+        "outputTokenLimit",
+        "monthlyBudgetNanoUsd",
+        "priceVersion",
+        "updatedAt",
+      ],
+    ],
+    [
+      "ModelCall",
+      [
+        "status",
+        "chargedNanoUsd",
+        "errorCode",
+        "usage",
+        "providerId",
+        "completedAt",
+      ],
+    ],
+  ]) {
+    const columns =
+      await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname=${table} AND a.attnum>0 AND NOT a.attisdropped`;
+    assert.ok(columns.length > allowed.length);
+    assert.deepEqual(
+      columns
+        .filter((c) => c.writable)
+        .map((c) => c.attname)
+        .sort(),
+      [...allowed].sort(),
+    );
+    const [rights] =
+      await db.$queryRaw`SELECT has_table_privilege('townbase_runtime',format('public.%I',${table}),'DELETE,UPDATE,TRUNCATE') AS broad`;
+    assert.equal(rights.broad, false);
+  }
+});
+
+test("C01 refuses PUBLIC deletion of execution settings or calls", async () => {
+  for (const table of ["ModelExecutionSettings", "ModelCall"]) {
+    await db.$executeRawUnsafe(`GRANT DELETE ON public."${table}" TO PUBLIC`);
+    try {
+      await assert.rejects(configure, {
+        code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
+      });
+    } finally {
+      await db.$executeRawUnsafe(
+        `REVOKE DELETE ON public."${table}" FROM PUBLIC`,
+      );
+    }
+  }
+  await configure();
 });

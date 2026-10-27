@@ -1,6 +1,6 @@
 # v0.2 초기 배포 실행 안내
 
-현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·Key 암호화/전송 정책 설정 API·PostgreSQL/pgvector·migration·분리된 파일 volume. 모델 설정 웹·실제 모델 연결/연결 검사는 아직 제공하지 않는다. **문서 등록·채팅은 아직 사용할 수 없다.** 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
+현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·Key 암호화/전송 정책 설정 API·PostgreSQL/pgvector·migration·분리된 파일 volume. 모델/예산 설정과 합성 연결 검사 API도 제공한다. 실제 OpenAI 계정의 합성 연결 검사3회는 성공했다. 설정 웹·실제 RAG 품질 평가는 후속 범위다. Key·예산·가격표 확인·전송 허용을 모두 갖추면 연결 검사도 유료 호출을 수행한다. **문서 등록·채팅은 아직 사용할 수 없다.** 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
 
 ## 1. 첫 실행
 
@@ -71,7 +71,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase up -d --build --w
 - secret 미준비: `node deployment/prepare.mjs`. 기존 파일을 삭제해서 해결하지 않는다.
 - DB 준비 실패: 디스크/volume·보관된 DB 비밀과 현재 secret 일치를 확인한다. 기존 DB를 새 volume으로 바꿔 성공처럼 숨기지 않는다.
 - migration 실패/중복 runner: API 시작을 막는다. 기존 runner 종료와 Prisma 상태를 확인한 뒤 재실행한다. 실패 로그는 비밀값이 섞일 수 있는 Prisma 원문 대신 요약만 남긴다. 실제 상태 확인은 해당 테스트/운영 대상을 검증한 관리자가 migration 컨테이너 안에서 수행한다. 실패를 임의로 `resolve --applied` 하지 않는다.
-- API healthy 실패: `/readyz`에서 DB·구조·저장소를 구분해 확인한다. DB 중단 시 `/health`가200이어도 준비 상태는503이다. 복구 후 다시 조회한다. 아직 없는 인증 기능은 항상 unavailable이다.
+- API healthy 실패: `/readyz`에서 DB·구조·저장소를 구분해 확인한다. DB 중단 시 `/health`가200이어도 준비 상태는503이다. 복구 후 다시 조회한다. 상태 확인 성공은 모델 설정이나 문서/채팅의 준비 완료를 뜻하지 않는다.
 - 앱 버전보다 새 DB migration도 정상 준비로 표시하지 않는다. downgrade가 필요하면 [B01 복원 절차](implementation/v0.2-b01-storage.md)를 따른다. 자료를 임의 삭제하는 down migration은 제공하지 않는다.
 
 ## 5. 외부 접속과 TLS 계약
@@ -207,7 +207,7 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 등록된 self-hosted HTTP 처리 경로는 기본적으로 관리자 세션을 요구한다. 공개 예외는 정적 웹·health/readyz·초기 상태/등록·로그인·로그아웃·복구 소비뿐이다. 공개 예외에도 기존 Origin·전송·JSON·비밀번호/토큰·시도 제한을 적용한다. 세션 조회·비밀번호 변경은 공통 검사 대상이다. 요청의 workspaceId/installationId/administratorId 또는 x-*-id 헤더는 신원 증명이 아니며, 저장된 세션의 설치/자료 범위와 다르면403이다. 검증 불가 상태는503으로 차단한다.
 
-기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서·채팅·실행 API는 아직 제공하지 않으며 Key 보관·전송 설정만10절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
+기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서·채팅·실행 API는 아직 제공하지 않으며 Key/모델/예산·전송 설정과 합성 연결 검사를10~11절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
 
 운영 runtime에는 connectors 패키지와 평가/seed 개발 소스·도구가 포함되지 않는다. 빌드/migration 환경에는 있으므로 그 환경에서도 프로필 보호가 필요하다. 유지보수 migration/bootstrap/recovery는 기존 서버 로컬 secret/토큰 절차를 따른다. 일반 데이터 기능을 활성화하는 CLI는 아니다. 설치 운영자의 임의 코드 실행/DB 소유자 권한을 격리하는 sandbox로 설명하지 않는다.
 
@@ -220,7 +220,7 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 | 경로 | 본문/응답 |
 | --- | --- |
-| GET /settings/model-integration | 마스킹된 Key 상태, 고정 임베딩 모델/차원, 전송 boolean. 답변 모델은 null·지원 목록은 빈 배열, providerCalls/connectionCheck/answerModelSelection은 false |
+| GET /settings/model-integration | 마스킹된 Key 상태, 고정 임베딩 모델/차원, 전송 boolean. 답변 모델 기본 gpt-6-luna·지원 목록 gpt-6-luna/gpt-6.1-sol. capabilities는 구현된 기능이며, execution.blocked가 예산/가격표 차단 상태를 별도 표시 |
 | PUT /settings/model-integration/credentials/answer 또는 embedding | currentPassword·apiKey만 허용. 새 암호문으로 저장/교체하고 해당 Key 활성화. 연결 상태는 not_checked |
 | POST /settings/model-integration/credentials/answer/disable 또는 embedding/disable | currentPassword만 허용. 해당 Key 비활성화 |
 | DELETE /settings/model-integration/credentials/answer 또는 embedding | JSON currentPassword만 허용. 현재 암호문 행 삭제. 원문/과거 암호문을 별도 이력에 복사하지 않음 |
@@ -228,8 +228,32 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 X-Townbase-Auth: 1·JSON·동일 Origin/Host·유효 cookie가 필요하다. 변경마다 현재 비밀번호를 재입력하며 같은 트랜잭션에서 최신 세션/설치와 비밀번호를 확인한다. 성공 변경과 감사 이벤트는 함께 저장하거나 함께 취소한다. 없는/이미 비활성 Key의 반복 disable·반복 delete 및 동일한 기존 전송 정책 저장은 변경 감사 이벤트를 만들지 않는다. 비밀번호 형식 오류는400, 틀린 비밀번호는401이며 두 실패 모두 시도 제한에 기록된다. 시도 제한 중에는 올바른 비밀번호도429로 거절하며, 형식/비밀번호 확인보다 제한 상태를 먼저 검사한다. S04의5분보다 오래된 재인증을 재사용하지 않도록, 이번에는 재인증 허용 상태를 별도로 캐시하지 않고 매번 확인한다.
 
-Key 저장은 OpenAI 자격 증명 보관 경로이며 실제 계정/모델 지원 검증 완료를 뜻하지 않는다. 임베딩은 text-embedding-3-small/1536 읽기 전용, 모델·차원·공급자·임의 endpoint 필드를 변경 요청에 넣으면 거절한다. 실제 연결 검사·답변 모델 선택/호출·토큰 및 비용 관리는 C01/C04에서 연결하기 전까지 활성화하지 않는다.
+Key 저장은 OpenAI 자격 증명 보관 경로이며 실제 계정/모델 지원 검증 완료를 뜻하지 않는다. 임베딩은 text-embedding-3-small/1536 읽기 전용, 모델·차원·공급자·임의 endpoint 필드를 변경 요청에 넣으면 거절한다. 답변 모델/예산·가격표 확인과 합성 연결 검사는11절을 따른다. Key 변경은 모델 선택을 바꾸지 않으며, Key 또는 설정 변경 후 과거 연결 검사를 현재 성공으로 표시하지 않는다.
 
-전송 설정은 등록 문서 임베딩, RAG 질문 임베딩/대화·근거·답변, 일회성 첨부 모델 전달을 구분한다. 내부 사전 검사는 고정 OpenAI embeddings/responses endpoint만 인정하고 private key·OpenAI Key·GitHub/Slack 토큰·명시 비밀 설정 패턴 및 .env/인증 키 파일명을 로컬에서 차단한다. 완전한 비밀 탐지나 외부 전송 완료를 보장하는 기능이 아니다. 실제 네트워크 직전 검사·자격 증명 상태·비용 예약과의 연결은 C01/C04/D/E/F의 해당 호출 경로에서 검증해야 한다.
+전송 설정은 등록 문서 임베딩, RAG 질문 임베딩/대화·근거·답변, 일회성 첨부 모델 전달을 구분한다. 내부 사전 검사는 고정 OpenAI embeddings/responses endpoint만 인정하고 private key·OpenAI Key·GitHub/Slack 토큰·명시 비밀 설정 패턴 및 .env/인증 키 파일명을 로컬에서 차단한다. 완전한 비밀 탐지나 외부 전송 완료를 보장하는 기능이 아니다. C의 호출 서비스는 실제 네트워크 전 검사·자격 증명·비용 예약을 연결한다. D/E/F는 이 서비스를 사용하고 추가 자료/소유/첨부 격리를 검증해야 한다.
 
-self-hosted가 공급자 미전송을 뜻하지는 않는다. 현재 단계에는 외부 모델 호출 자체가 없다. 향후 호출 시 공급자 보관 옵션까지 안내하며, Responses의 store:false와 공급자 측 모든 보관 제거를 같은 뜻으로 설명하지 않는다. [OpenAI 데이터 제어](https://developers.openai.com/api/docs/guides/your-data)·[고정 임베딩 문서](https://developers.openai.com/api/docs/guides/embeddings)를 기준으로 실제 연동 시 재확인한다.
+self-hosted가 공급자 미전송을 뜻하지는 않는다. 연결 검사도 허용 후에는 고정 OpenAI endpoint로 합성 입력을 보낸다. 답변은 store:false·foreground·도구 없이 호출한다.  Responses의 store:false와 공급자 측 모든 보관 제거를 같은 뜻으로 설명하지 않는다. [OpenAI 데이터 제어](https://developers.openai.com/api/docs/guides/your-data)·[고정 임베딩 문서](https://developers.openai.com/api/docs/guides/embeddings)를 기준으로 실제 연동 시 재확인한다.
+
+
+## 11. 모델·예산·연결 검사 API (C01/C04)
+
+설정 웹은 후속 G 범위이며 아래 API도10절의 세션·JSON·동일 Origin 보호를 사용한다. GET 외 변경/연결 검사는 `currentPassword` 재확인을 요구한다. 모델 선택은 Luna 기본·Sol 선택으로 2026-10-26 승인했다. 2026-10-26 실제 계정에서 두 답변 모델·임베딩의 합성 호출과 usage 정산/재조회3회가 성공했다. 한국어 출처 답변 품질·공급자 최종 청구서 대조와는 구분한다.
+
+| 경로 | 계약 |
+| --- | --- |
+| GET /settings/model-integration/execution | 설정·현재 가격표 버전/모델별 USD 단가·UTC 달의 정산/미확인 예약액·80% 경고·비용 차단 상태 |
+| PUT /settings/model-integration/execution | currentPassword, answerModel, reasoning, inputTokenLimit, outputTokenLimit, monthlyBudgetUsd, priceVersion의7개 필드를 모두 전송. 동일 값은 재인증하되 변경 감사는 추가하지 않음 |
+| POST /settings/model-integration/checks/answer 또는 embedding | currentPassword·requestId(UUID v4)만 허용. 서버 고정 합성 문장으로 검사. answer는 rag, embedding은 documentEmbedding 전송 허용이 필요. 새 requestId는 새 유료 시도 |
+| GET /settings/model-integration/calls/:requestId | 같은 설치·소유자의 요청 상태·모델·시간·usage·정산/예약액·고정 오류 코드 재조회. 입력·답변·Key는 반환하지 않음 |
+
+`answerModel`은 gpt-6-luna/gpt-6.1-sol, reasoning은 none/low/medium/high/xhigh/max이며 Sol은 none을 허용하지 않는다. 초기 low. 입력 한도512~16,000·출력128~4,096 tokens이며 출력에는 추론도 포함한다. 입력은 UTF-8 bytes+256 framing을 보수적인 상한으로 검사한다. 정확한 공급자 tokenizer와 같지 않아 일부 정상 긴 입력도 거절할 수 있으며 몰래 자르지 않는다. 단일 임베딩 입력은8,192 이내의 같은 상한을 적용한다. E/F에서 질문·근거·대화/첨부의 개별 예산도 적용한다.
+
+`monthlyBudgetUsd`는 null(미설정/차단) 또는 양수 USD 문자열이다. GET의 settings는 소수2자리로 반환하고 PUT은 정수/소수2자리까지 받는다(최대99999.99). GET의 settings에 currentPassword를 추가하면 예산을 다시 변환하지 않고 PUT할 수 있다. 비용/usage의 chargedUsd·heldUsd 등은 별도로 소수9자리를 유지한다. $20 개발 기준을 자동 입력하지 않는다. 가격 확인은 GET으로 확인한 현재 `priceVersion`인 `openai-global-standard-2026-10-26`을 명시한다. null·다른/오래된 버전은 호출 차단이며 가격표 갱신은 제품 변경으로 검증한다. 한도는 글로벌 Standard 기준 추정이며 세금·환율·다른 앱이 같은 Key로 쓴 비용·최종 공급자 청구를 통제하지 않는다.
+
+예약은 설정 입력 상한과 최대 출력, 가능한 캐시 쓰기 중 최고 단가를 사용해 임베딩/답변 합산액을 DB에서 원자적으로 확보한다. 금액은 정수 nanoUSD로 계산하고 API에는 USD 문자열로 반환한다. 80% 이상 경고·100% 신규 차단이며 예약을 넣으면 한도를 넘는 요청도 차단한다. 월은 UTC 달력 기준. 지난달의 정산 완료 금액은 다음달 합계에서 빠지지만 미확인 예약은 계속 합산한다. 현재 답변 동시1개·분당10회·호출90초 제한을 적용한다.
+
+동일 requestId·용도·본문·파일명 목록(순서 포함)은 기존 상태만 반환하고 자동 재전송하지 않는다. 다른 용도·본문·파일명의 ID 재사용은409. UUID v4는 대소문자를 모두 허용하고 같은 ID로 취급한다. 출력은 내부 최초 호출의 결과로만 제공하며 C의 비용 기록은 원문/답변 저장소가 아니다. D/E/F는 별도 실행·대화/작업 결과 저장과 연결해야 한다. 요청 상태가 dispatching/unknown이거나 오류/비어 있는 답변이면 새 ID로 자동 재시도하지 않는다.
+
+입장 예약 후 실제 전송 전에90초 deadline이 지난 경우만 not_sent/0원으로 확정하며, 같은 ID로 다시 보내지 않는다. 전송 뒤 HTTP 실패·timeout·응답/usage 파싱 실패는 보수적으로 청구 불명 unknown으로 남기고 예약을 유지한다. 응답 후 DB 정산이 실패하면 기존 dispatching/예약이 남으며, 90초가 지난 건은 조회에서 unknown으로 보이고 다음 호출 입장 시 실제 상태도 정리한다. 입력·출력 usage나 계산 비용이 입장 당시 한도/예약액을 넘으면 usage_out_of_bounds인 unknown으로 남기고 결과를 반환하거나 정상 정산하지 않는다. incomplete도 이 검사를 통과한 usage만 비용을 정산하되 성공으로 표시하지 않는다. 자동 예약 해제·청구 확인/해제 API는 제공하지 않는다. 미확인 건은 공급자 사용 내역과 대조하고, 재시도/수동 정산 절차는 별도로 검토한다. 기존 Key·모델·예산 변경과 재시작으로 예약을 지우지 않는다.
+
+[공식 가격](https://developers.openai.com/api/docs/pricing)·[캐시 요금/usage](https://developers.openai.com/api/docs/guides/prompt-caching)의 일반 입력·캐시 읽기·30분/12시간 쓰기·출력을 구분한다. 답변의 추론 tokens는 출력에 포함하며 두 번 더하지 않는다. store:false는 보안 로그·캐시를 포함한 공급자의 모든 보관을 없애는 옵션이 아니다. 원격 보관 정책은 계정/옵션과 [공식 데이터 제어](https://developers.openai.com/api/docs/guides/your-data)를 함께 확인한다.

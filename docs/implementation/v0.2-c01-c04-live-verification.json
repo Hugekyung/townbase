@@ -1,0 +1,161 @@
+{
+  "date": "2026-10-26",
+  "dateTimezone": "Asia/Seoul",
+  "timestampTimezone": "UTC",
+  "runtimeImage": "sha256:939b7bf9a69e4b630e7811f7d7e68073715922f4cb9a8f351e9b87674a624b98",
+  "runtimePlatform": "linux/amd64 on local Docker",
+  "database": "postgres/townbase_c01_live_test",
+  "authorization": {
+    "projectKeyAndAccount": true,
+    "syntheticInputTransfer": true,
+    "maximumTestUsd": "0.10"
+  },
+  "requestParameters": {
+    "answerReasoning": "low",
+    "productInputLimit": 512,
+    "answerMaxOutputTokens": 4096,
+    "answerStore": false,
+    "answerBackground": false,
+    "embeddingDimensions": 1536,
+    "automaticRetries": false
+  },
+  "calls": [
+    {
+      "model": "gpt-6-luna",
+      "purpose": "check_answer",
+      "requestId": "76d6a18e-8f19-4bb1-b3c6-12cd62a77764",
+      "status": "succeeded",
+      "createdAt": "2026-10-25T15:55:06.158Z",
+      "durationMs": 3043,
+      "usage": {
+        "input": 15,
+        "cached": 0,
+        "output": 5,
+        "write12": 0,
+        "write30": 0,
+        "reasoning": 0
+      },
+      "estimatedChargedUsd": "0.000004000",
+      "reservedUsd": "0.002176000",
+      "readbackMatched": true,
+      "providerMetadata": {
+        "endpoint": "responses",
+        "httpStatus": 200,
+        "model": "gpt-6-luna",
+        "status": "completed",
+        "usage": {
+          "input_tokens": 15,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cache_write_tokens_details": {
+              "ttl_12h_tokens": 0,
+              "ttl_30m_tokens": 0
+            },
+            "cached_tokens": 0
+          },
+          "output_tokens": 5,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 20
+        },
+        "errorCode": null,
+        "errorParam": null,
+        "embeddingDimensions": null
+      }
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "purpose": "check_answer",
+      "requestId": "9526e506-4b37-439a-af7a-1a96faf7539c",
+      "status": "succeeded",
+      "createdAt": "2026-10-25T15:55:09.305Z",
+      "durationMs": 1725,
+      "usage": {
+        "input": 15,
+        "cached": 0,
+        "output": 5,
+        "write12": 0,
+        "write30": 0,
+        "reasoning": 0
+      },
+      "estimatedChargedUsd": "0.000080000",
+      "reservedUsd": "0.043520000",
+      "readbackMatched": true,
+      "providerMetadata": {
+        "endpoint": "responses",
+        "httpStatus": 200,
+        "model": "gpt-6.1-sol",
+        "status": "completed",
+        "usage": {
+          "input_tokens": 15,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cache_write_tokens_details": {
+              "ttl_12h_tokens": 0,
+              "ttl_30m_tokens": 0
+            },
+            "cached_tokens": 0
+          },
+          "output_tokens": 5,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 20
+        },
+        "errorCode": null,
+        "errorParam": null,
+        "embeddingDimensions": null
+      }
+    },
+    {
+      "model": "text-embedding-3-small",
+      "purpose": "check_embedding",
+      "requestId": "520682e0-480c-47d0-a7ad-85d4efb55813",
+      "status": "succeeded",
+      "createdAt": "2026-10-25T15:55:11.098Z",
+      "durationMs": 3593,
+      "usage": {
+        "input": 9,
+        "cached": 0,
+        "output": 0,
+        "write12": 0,
+        "write30": 0,
+        "reasoning": 0
+      },
+      "estimatedChargedUsd": "0.000000180",
+      "reservedUsd": "0.000010240",
+      "readbackMatched": true,
+      "providerMetadata": {
+        "endpoint": "embeddings",
+        "httpStatus": 200,
+        "model": "text-embedding-3-small",
+        "status": null,
+        "usage": {
+          "prompt_tokens": 9,
+          "total_tokens": 9
+        },
+        "errorCode": null,
+        "errorParam": null,
+        "embeddingDimensions": 1536
+      }
+    }
+  ],
+  "estimatedTotalUsd": "0.000084180",
+  "remainingHeldUsd": "0.000000000",
+  "providerFinalInvoiceVerified": false,
+  "qualityBenchmarkPerformed": false,
+  "cleanup": {
+    "answerCredentialRemoved": true,
+    "embeddingCredentialRemoved": true,
+    "transfersDisabled": true,
+    "loggedOut": true,
+    "projectEnvUnchanged": true,
+    "databaseCredentialRows": 0,
+    "databaseEnabledTransferRows": 0,
+    "activeSessionRows": 0,
+    "temporaryMasterRemoved": true,
+    "apiContainerRemoved": true
+  },
+  "evidenceCapture": "Response metadata only. Native requests/responses unchanged; no Key, prompt content, generated answer or vectors recorded."
+}
