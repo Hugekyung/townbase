@@ -37,3 +37,10 @@ export const RAG_CORE_PACKAGE_INFO = {
   name: "@townbase/rag-core",
   version: "0.1.0",
 } as const;
+
+export {
+  parseMarkdownSections,
+  parseMarkdownSectionsWithLocations,
+  type MarkdownSection,
+  type LocatedMarkdownSection,
+} from "./markdown";

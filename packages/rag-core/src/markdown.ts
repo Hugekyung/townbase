@@ -7,9 +7,15 @@ export type MarkdownSection = Readonly<{
 const HEADING_RE = /^ {0,3}(#{1,6})\s+(.+?)\s*$/;
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
 
-export const parseMarkdownSections = (content: string): readonly MarkdownSection[] => {
+export type LocatedMarkdownSection = MarkdownSection &
+  Readonly<{ lineStart: number; lineEnd: number }>;
+
+export const parseMarkdownSectionsWithLocations = (
+  content: string,
+): readonly LocatedMarkdownSection[] => {
   const lines = content.split(/\r?\n/);
-  const sections: MarkdownSection[] = [];
+  const sections: LocatedMarkdownSection[] = [];
+  let bodyStartLine = 1;
   let bodyLines: string[] = [];
   let headingPath: string[] = [];
   let sawHeading = false;
@@ -23,14 +29,16 @@ export const parseMarkdownSections = (content: string): readonly MarkdownSection
     }
 
     sections.push({
+      lineStart: bodyStartLine,
+      lineEnd: bodyStartLine + bodyLines.length - 1,
       headingPath: [...path],
-      sectionTitle: path.length === 0 ? null : path[path.length - 1] ?? null,
+      sectionTitle: path.length === 0 ? null : (path[path.length - 1] ?? null),
       content: raw,
     });
     bodyLines = [];
   };
 
-  for (const line of lines) {
+  for (const [lineIndex, line] of lines.entries()) {
     if (FENCE_RE.test(line)) {
       inFence = !inFence;
       bodyLines.push(line);
@@ -40,6 +48,7 @@ export const parseMarkdownSections = (content: string): readonly MarkdownSection
     const headingMatch = inFence ? null : HEADING_RE.exec(line);
     if (headingMatch !== null) {
       flushSection(headingPath);
+      bodyStartLine = lineIndex + 2;
       const headingLevelToken = headingMatch[1];
       const headingTitleToken = headingMatch[2];
       if (headingLevelToken === undefined || headingTitleToken === undefined) {
@@ -61,3 +70,15 @@ export const parseMarkdownSections = (content: string): readonly MarkdownSection
   flushSection(headingPath);
   return sawHeading ? sections : [];
 };
+
+// Preserve the existing public result shape for legacy chunking consumers.
+export const parseMarkdownSections = (
+  content: string,
+): readonly MarkdownSection[] =>
+  parseMarkdownSectionsWithLocations(content).map(
+    ({ headingPath, sectionTitle, content: body }) => ({
+      headingPath,
+      sectionTitle,
+      content: body,
+    }),
+  );

@@ -126,3 +126,8 @@ PR #38의 C02/C03 기반은 main `d42a894`에 병합·동기화했다. [C01/C04 
 2026-10-26 실계정 검증 결과: Luna·Sol·고정 임베딩 각1회, 총3회 성공. 실제 usage 기반 예상 합계 US$0.000084180이며 최종 공급자 청구서 확인과 구분한다. 시험 Key 저장본·전송 허용·세션·컨테이너·임시 master를 정리했고 원래 설정 파일은 변경하지 않았다. [검증 증거](docs/implementation/v0.2-c01-c04-live-verification.json)를 따른다.
 
 PR #39 리뷰 보완은 모델·가격·예산 정책을 바꾸지 않는다. 설정 예산의 읽기/쓰기 형식을 소수2자리로 맞추고 비용 금액은9자리 정밀도를 유지한다. 초과 usage는 unknown으로 예약을 유지하며, 호출용 master 파일 준비와 최신 세션/자료/비용 검사 경계를 분리한다. [대응 기록](docs/implementation/v0.2-c01-c04-review-response.md)을 따른다.
+
+
+## D01 파일 처리 구현 세부 (2026-10-27)
+
+S05의 형식/한도를 유지한다. PDF.js 6.4.299(Apache-2.0), Mammoth 1.13.0(BSD-2-Clause), ZIP 사전 검사 yauzl 3.4.0(MIT)을 현재 Node24에 고정했다. 기존 Markdown parser와 UTF-8 TXT를 사용한다. Linux 로컬 자식 프로세스의 DATA512 MiB·V8 heap128 MiB 및 RSS512 MiB 감시/30초 종료를 적용하며 순간 전체 RSS의 cgroup 보장은 아니다. 코드 의존성/폰트 읽기와 필요한 native addon만 허용하는 Node permission은 악성 코드 격리 보장이 아니다. 공개 업로드 API·분할/임베딩·실행 큐는 후속 단계다. 현재 저장·재조회와 적용 환경의 증거는 [D01 기록](docs/implementation/v0.2-d01-file-extraction.md)을 따른다.
