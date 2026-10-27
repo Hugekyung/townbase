@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { realpathSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,9 +14,13 @@ import {
 // One local parser at a time. D03 adds the persisted indexing queue, not a worker server.
 export class FileExtractor {
   private busy = false;
+  // A request may finish before the OS can reap its child. Never admit another
+  // parser until that child closes (or the operator restarts this process).
+  private strandedChild: ChildProcess | null = null;
   async extract(fileName: string, input: Buffer): Promise<FileExtraction> {
     if (process.env.NODE_ENV === "production" && process.platform !== "linux")
       throw new FileError("parser_unavailable");
+    if (this.strandedChild !== null) throw new FileError("parser_unavailable");
     const format = fileFormat(fileName);
     if (input.length > FILE_LIMITS.bytes) throw new FileError("file_too_large");
     if (this.busy) throw new FileError("parser_busy");
@@ -80,52 +84,89 @@ export class FileExtractor {
           });
       return await new Promise<FileExtraction>((resolve, reject) => {
         let reason: FileError | undefined,
-          total = 0;
+          total = 0,
+          closed = false,
+          settled = false,
+          stopping = false,
+          attempts = 0;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let monitor: ReturnType<typeof setInterval> | undefined;
+        let retry: ReturnType<typeof setTimeout> | undefined;
+        let terminationDeadline: ReturnType<typeof setTimeout> | undefined;
         const chunks: Buffer[] = [];
+        const channel = child.stdio[3] as import("node:stream").Readable | null;
+        const clean = () => {
+          clearTimeout(timer);
+          clearInterval(monitor);
+          clearTimeout(retry);
+          clearTimeout(terminationDeadline);
+        };
+        const quarantine = () => {
+          if (closed || settled) return;
+          this.strandedChild = child;
+          settled = true;
+          clean();
+          chunks.length = 0;
+          // Keep the process reference and close listener, but do not retain the
+          // request body or keep accepting output from an unreaped parser.
+          child.stdin?.destroy();
+          channel?.destroy();
+          console.error("TOWNBASE_PARSER_TERMINATION_FAILED");
+          reject(new FileError("parser_unavailable"));
+        };
+        const signal = () => {
+          if (closed || settled) return;
+          attempts++;
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            reason ??= new FileError("parser_unavailable");
+          }
+          if (!closed && !settled && attempts < 3)
+            retry = setTimeout(signal, 250);
+        };
         const stop = (code: FileError["code"]) => {
           reason ??= new FileError(code);
-          child.kill("SIGKILL");
+          if (stopping || closed || settled) return;
+          stopping = true;
+          clearTimeout(timer);
+          clearInterval(monitor);
+          // A successful kill() return only means the signal was sent. Bound
+          // termination even when no error and no close ever arrive.
+          terminationDeadline = setTimeout(quarantine, 1000);
+          signal();
         };
-        const timer = setTimeout(
+        timer = setTimeout(
           () => stop("extraction_timeout"),
           FILE_LIMITS.timeoutMs,
         );
-        const monitor = linux
-          ? setInterval(() => {
-              try {
-                const status = readFileSync(
-                  `/proc/${child.pid}/status`,
-                  "utf8",
-                );
-                const match = /^VmRSS:\s+(\d+)\s+kB/m.exec(status);
-                if (match && Number(match[1]) * 1024 > FILE_LIMITS.memoryBytes)
-                  stop("extraction_limit");
-              } catch (error) {
-                // A disappearing /proc row is normal only after termination.
-                if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-                  stop("parser_unavailable");
-              }
-            }, 20)
-          : undefined;
-        const clean = () => {
-          clearTimeout(timer);
-          if (monitor) clearInterval(monitor);
-        };
-        child.on("error", () => {
-          // error also covers failed kill/send operations on a live child.
-          // Keep monitoring and the busy slot until close confirms termination.
-          reason ??= new FileError("parser_unavailable");
-        });
-        const channel = child.stdio[3] as import("node:stream").Readable;
-        channel.on("data", (chunk: Buffer) => {
+        if (linux)
+          monitor = setInterval(() => {
+            try {
+              const status = readFileSync(`/proc/${child.pid}/status`, "utf8");
+              const match = /^VmRSS:\s+(\d+)\s+kB/m.exec(status);
+              if (match && Number(match[1]) * 1024 > FILE_LIMITS.memoryBytes)
+                stop("extraction_limit");
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+                stop("parser_unavailable");
+            }
+          }, 20);
+        child.on("error", () => stop("parser_unavailable"));
+        channel?.on("data", (chunk: Buffer) => {
+          if (stopping || settled) return;
           total += chunk.length;
           if (total > 8 * 1024 * 1024) stop("extraction_limit");
           else chunks.push(chunk);
         });
-        channel.on("error", () => stop("parser_failed"));
-        child.stdin!.on("error", () => undefined); // EPIPE on timeout/OOM is handled on close.
-        child.on("close", (code) => {
+        channel?.on("error", () => stop("parser_failed"));
+        child.stdin?.on("error", () => undefined); // EPIPE is finalized on close/deadline.
+        child.once("close", (code) => {
+          closed = true;
           clean();
+          if (this.strandedChild === child) this.strandedChild = null;
+          if (settled) return;
+          settled = true;
           if (reason) return reject(reason);
           if (code !== 0) return reject(new FileError("parser_failed"));
           try {
@@ -142,7 +183,8 @@ export class FileExtractor {
             reject(new FileError("parser_failed"));
           }
         });
-        child.stdin!.end(bytes);
+        if (!channel || !child.stdin) stop("parser_unavailable");
+        else child.stdin.end(bytes);
       });
     } finally {
       this.busy = false;
