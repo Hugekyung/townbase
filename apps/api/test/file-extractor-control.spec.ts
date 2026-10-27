@@ -91,6 +91,39 @@ describe("D01 child termination boundary", () => {
     await rejected;
     expect(jest.getTimerCount()).toBe(0);
   });
+  test("error before close keeps the slot and watchdog until actual close", async () => {
+    const extractor = new FileExtractor();
+    const pending = extractor.extract("a.txt", Buffer.from("text"));
+    let settled = false;
+    const outcome = pending.then(
+      () => {
+        settled = true;
+        return "success";
+      },
+      (error) => {
+        settled = true;
+        return error.code;
+      },
+    );
+    child.emit("error", new Error("synthetic live-child error"));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    await expect(
+      extractor.extract("b.txt", Buffer.from("text")),
+    ).rejects.toMatchObject({ code: "parser_busy" });
+    jest.advanceTimersByTime(FILE_LIMITS.timeoutMs);
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+    child.emit("error", new Error("synthetic kill race"));
+    child.emit("close", 1);
+    expect(await outcome).toBe("parser_unavailable");
+    expect(jest.getTimerCount()).toBe(0);
+    const retry = extractor.extract("b.txt", Buffer.from("text"));
+    const rejected = expect(retry).rejects.toMatchObject({
+      code: "parser_failed",
+    });
+    child.emit("close", 1);
+    await rejected;
+  });
   test("child gets no account secrets, NODE_OPTIONS, writable filesystem or subprocess permission", async () => {
     const pending = new FileExtractor().extract("a.txt", Buffer.from("text"));
     const spawn = jest.mocked(processes.spawn).mock.calls[0]!;

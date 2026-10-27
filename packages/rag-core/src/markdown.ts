@@ -19,7 +19,7 @@ export const parseMarkdownSectionsWithLocations = (
   let bodyLines: string[] = [];
   let headingPath: string[] = [];
   let sawHeading = false;
-  let inFence = false;
+  let fence: { marker: string; length: number } | null = null;
 
   const flushSection = (path: readonly string[]): void => {
     const raw = bodyLines.join("\n");
@@ -39,13 +39,30 @@ export const parseMarkdownSectionsWithLocations = (
   };
 
   for (const [lineIndex, line] of lines.entries()) {
-    if (FENCE_RE.test(line)) {
-      inFence = !inFence;
+    const delimiter = FENCE_RE.exec(line);
+    if (fence !== null) {
       bodyLines.push(line);
+      // Closing fences must match the opening character, be at least as long,
+      // and contain only trailing spaces/tabs (no language/info string).
+      if (
+        delimiter?.[1]?.[0] === fence.marker &&
+        delimiter[1].length >= fence.length &&
+        /^[ \t]*$/.test(line.slice(delimiter[0].length))
+      )
+        fence = null;
       continue;
     }
+    if (delimiter?.[1] != null) {
+      const token = delimiter[1];
+      // Backticks are not permitted in a backtick fence's info string.
+      if (token[0] !== "`" || !line.slice(delimiter[0].length).includes("`")) {
+        fence = { marker: token[0]!, length: token.length };
+        bodyLines.push(line);
+        continue;
+      }
+    }
 
-    const headingMatch = inFence ? null : HEADING_RE.exec(line);
+    const headingMatch = HEADING_RE.exec(line);
     if (headingMatch !== null) {
       flushSection(headingPath);
       bodyStartLine = lineIndex + 2;

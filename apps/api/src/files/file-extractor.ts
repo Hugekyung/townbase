@@ -112,8 +112,9 @@ export class FileExtractor {
           if (monitor) clearInterval(monitor);
         };
         child.on("error", () => {
-          clean();
-          reject(new FileError("parser_unavailable"));
+          // error also covers failed kill/send operations on a live child.
+          // Keep monitoring and the busy slot until close confirms termination.
+          reason ??= new FileError("parser_unavailable");
         });
         const channel = child.stdio[3] as import("node:stream").Readable;
         channel.on("data", (chunk: Buffer) => {
