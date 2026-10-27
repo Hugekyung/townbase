@@ -257,3 +257,10 @@ self-hosted가 공급자 미전송을 뜻하지는 않는다. 연결 검사도 �
 입장 예약 후 실제 전송 전에90초 deadline이 지난 경우만 not_sent/0원으로 확정하며, 같은 ID로 다시 보내지 않는다. 전송 뒤 HTTP 실패·timeout·응답/usage 파싱 실패는 보수적으로 청구 불명 unknown으로 남기고 예약을 유지한다. 응답 후 DB 정산이 실패하면 기존 dispatching/예약이 남으며, 90초가 지난 건은 조회에서 unknown으로 보이고 다음 호출 입장 시 실제 상태도 정리한다. 입력·출력 usage나 계산 비용이 입장 당시 한도/예약액을 넘으면 usage_out_of_bounds인 unknown으로 남기고 결과를 반환하거나 정상 정산하지 않는다. incomplete도 이 검사를 통과한 usage만 비용을 정산하되 성공으로 표시하지 않는다. 자동 예약 해제·청구 확인/해제 API는 제공하지 않는다. 미확인 건은 공급자 사용 내역과 대조하고, 재시도/수동 정산 절차는 별도로 검토한다. 기존 Key·모델·예산 변경과 재시작으로 예약을 지우지 않는다.
 
 [공식 가격](https://developers.openai.com/api/docs/pricing)·[캐시 요금/usage](https://developers.openai.com/api/docs/guides/prompt-caching)의 일반 입력·캐시 읽기·30분/12시간 쓰기·출력을 구분한다. 답변의 추론 tokens는 출력에 포함하며 두 번 더하지 않는다. store:false는 보안 로그·캐시를 포함한 공급자의 모든 보관을 없애는 옵션이 아니다. 원격 보관 정책은 계정/옵션과 [공식 데이터 제어](https://developers.openai.com/api/docs/guides/your-data)를 함께 확인한다.
+
+
+### D01 내부 파일 추출 기반
+
+D01은 파일 업로드 웹/API를 공개하지 않는다. API 이미지에 고정 PDF.js/Mammoth/ZIP 검사를 포함하고 별도 로컬 프로세스로 본문과 위치를 추출하는 기반이다. FileOriginal/FileVersion/FileExtractionRun의 SELECT/INSERT만 runtime 계정에 추가했으며 UPDATE/DELETE는 없다. sourceType의 uploaded_file enum migration을 먼저 commit한 뒤 파일 테이블 migration을 적용한다. 기존 문서/벡터는 유지한다.
+
+Linux 파서에는 DATA512 MiB·V8 heap128 MiB·RSS512 MiB 감시/30초 종료가 적용된다. RSS 감시의 짧은 간격과 전체 메모리의 cgroup 보장은 다르다. 실제 runtime 이미지의 read-only root·비특권·network none에서 4형식을 검증했지만 HTTP 업로드/색인/검색은 아직 없다. 후속 D02에서 지정된 documents volume에 연결하고 미완료 파일 정리를 포함한 관리 API를 제공한다. [D01 구현·시험 범위](implementation/v0.2-d01-file-extraction.md)를 따른다.

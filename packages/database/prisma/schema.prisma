@@ -26,6 +26,7 @@ enum SourceType {
   github_issue
   github_pr
   slack_thread
+  uploaded_file
 }
 
 enum KnowledgeType {
@@ -147,6 +148,9 @@ model Installation {
   modelTransferPolicy ModelTransferPolicy?
   modelExecutionSettings ModelExecutionSettings?
   modelCalls ModelCall[]
+  fileOriginals FileOriginal[]
+  fileVersions FileVersion[]
+  fileExtractionRuns FileExtractionRun[]
 }
 
 model Administrator {
@@ -161,6 +165,7 @@ model Administrator {
   auditEvents         InstallationAuditEvent[]
 
   sessions            AdministratorSession[]
+  fileOriginals       FileOriginal[]
 
   @@unique([installationId, id])
 }
@@ -464,4 +469,56 @@ model ModelCall {
 
   @@id([installationId, requestId])
   @@index([installationId, createdAt])
+}
+
+// D01 persistence foundation. No public upload/indexing endpoint until D02/D03.
+model FileOriginal {
+  id                   String @id @db.Uuid
+  installationId       String
+  ownerAdministratorId String
+  title                String @db.VarChar(255)
+  createdAt            DateTime @default(now())
+  installation         Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+  owner                Administrator @relation(fields: [installationId, ownerAdministratorId], references: [installationId, id], onDelete: Restrict)
+  versions             FileVersion[]
+
+  @@unique([installationId, id])
+}
+
+model FileVersion {
+  id             String @id @db.Uuid
+  installationId String
+  originalId     String @db.Uuid
+  version        Int
+  fileName       String @db.VarChar(255)
+  format         String @db.VarChar(8)
+  byteSize       Int
+  contentHash    String @db.VarChar(64)
+  storageKey     String @unique @db.VarChar(80)
+  sourceType     SourceType @default(uploaded_file)
+  knowledgeTypes KnowledgeType[]
+  domainTags     String[]
+  documentStatus DocumentStatus @default(active)
+  extraction     Json?
+  createdAt      DateTime @default(now())
+  installation   Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+  original       FileOriginal @relation(fields: [installationId, originalId], references: [installationId, id], onDelete: Restrict)
+  runs           FileExtractionRun[]
+
+  @@unique([installationId, id])
+  @@unique([installationId, originalId, version])
+}
+
+model FileExtractionRun {
+  id             String @id @db.Uuid
+  installationId String
+  versionId      String @db.Uuid
+  status         String @db.VarChar(16)
+  errorCode      String? @db.VarChar(64)
+  startedAt      DateTime
+  completedAt    DateTime
+  installation   Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+  fileVersion    FileVersion @relation(fields: [installationId, versionId], references: [installationId, id], onDelete: Restrict)
+
+  @@index([installationId, completedAt])
 }

@@ -122,3 +122,12 @@
 
 - PR #39 보완: 설정 예산 monthlyBudgetUsd는 GET/변경 응답 소수2자리·PUT 정수/소수2자리까지로 왕복 가능하게 유지한다. 비용/usage 금액의9자리 표현과 구분한다. UUID v4는 대소문자 모두 같은 ID로 처리한다. 입력·출력 usage와 계산 비용을 입장 당시 한도/예약액에 대조하고 위반 시 unknown·예약 유지·결과 미반환을 검증한다.
 - 호출 입장의 파일 I/O는 인증/설치 transaction 밖에서 수행한다. 준비한 master는 단일 작업만 사용하고 성공/실패와 무관하게 지운다. 입장 시 최신 세션·Key·정책/예산을 다시 검사한다. 지연 중 로그아웃·Key 교체·정책 변경과 기존 ID의 master 없는 재조회도 함께 시험한다.
+
+
+## D01 파일 추출 기반 적용 상태 (2026-10-27)
+
+- `apps/api/src/files/`는 내부 기반이며 아직 controller/업로드 웹/임베딩 경로가 없다. PDF.js 6.4.299·Mammoth 1.13.0·yauzl 3.4.0을 API production 의존성으로 고정한다. worker는 API build가 만든 JS로 실행하므로 파일 시험 전 `pnpm build`가 필요하다.
+- 지속 파일 20 MiB·30만 Unicode code points·30초, DOCX 해제100 MiB·1,000 entries·100배를 적용한다. Linux 별도 로컬 프로세스의 DATA512 MiB/V8 heap128 MiB·RSS512 MiB 감시와 강제 종료를 사용한다. 이것을 cgroup의 순간 전체 RSS 보장과 혼동하지 않는다. 비Linux production은 거절한다.
+- 원본/버전/완료된 추출 결과를 실제 저장·별도 인증 요청으로 재조회한다. 파서/파일 I/O는 인증 transaction 밖에서 하고 저장 직전 최신 신원을 재검사한다. `extracted`를 검색 가능으로 표시하지 않는다. D02/D03에서 공개 업로드 전 미완료 파일/재시작/orphan 정리와 제품 API를 연결한다.
+- FileOriginal/FileVersion/FileExtractionRun에 SELECT/INSERT만 추가했다. 수정·삭제 권한은 아직 없으며 관련 기능 단계에서 열 단위로 확장한다. enum 추가와 사용 migration은 분리했다. 기존 metadata/벡터 보존과 신규/기존 SQL 적용을 검증했다.
+- 실 DB suite는 `TOWNBASE_FILE_FOUNDATION_TEST=1`과 정확한 `postgres/townbase_d01_test`, owner URL/runtime secret 파일을 요구한다. 일반 API 시험은 건너뛴다. Connector의 DB 없는 회귀도 `--testPathIgnorePatterns=integration.spec.ts`로 분리한다. [D01 검증·제한](docs/implementation/v0.2-d01-file-extraction.md)을 따른다.
