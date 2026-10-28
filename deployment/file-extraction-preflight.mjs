@@ -25,7 +25,7 @@ export async function checkFileExtractionUpgrade(client) {
   if (!table?.present) return;
   const predicate = await fileExtractionPredicate();
   const [report] = await client.$queryRawUnsafe(`
-    WITH incompatible AS MATERIALIZED (
+    WITH incompatible AS NOT MATERIALIZED (
       SELECT "id" FROM public."FileVersion" WHERE (${predicate}) IS NOT TRUE
     ), sample AS (SELECT "id" FROM incompatible ORDER BY "id" LIMIT 20)
     SELECT (SELECT count(*)::text FROM incompatible) AS count,

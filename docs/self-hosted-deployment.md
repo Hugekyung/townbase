@@ -280,7 +280,7 @@ migration 컨테이너는 `db:deploy`를 시작하기 전에 기존 FileVersion�
 
 ### 파서 종료 실패 복구
 
-추출 제한은30초이며 종료 정리를 최대1초 더 기다린다. SIGKILL은 최대3회(최초/250ms/500ms) 시도한다. 신호 전송 성공도 실제 종료로 간주하지 않는다. 이 시간 안에 close가 없으면 요청은 `parser_unavailable`로 끝내고 `TOWNBASE_PARSER_TERMINATION_FAILED` 코드만 기록한다. 해당 FileExtractor는 자식 참조를 유지하고 새 추출을 차단한다. 종료 지연 중에는 파일 본문/결과를 계속 쌓지 않으며 부모 쪽 입출력 파이프를 닫는다.
+추출 제한은30초이며 종료 정리를 최대1초 더 기다린다. SIGKILL은 최대3회(최초/250ms/500ms) 시도한다. 신호 전송 성공도 실제 종료로 간주하지 않는다. 이 시간 안에 close가 없으면 요청은 `parser_unavailable`로 끝내고 `TOWNBASE_PARSER_TERMINATION_FAILED` 코드만 기록한다. 해당 FileExtractor는 자식 참조를 유지하고 새 추출을 차단한다. 종료 지연 중에는 파일 본문/결과를 계속 쌓지 않으며 close가 확인되지 않아 1초 대기 후 격리할 때 부모 쪽 입출력 파이프를 닫는다.
 
 늦게라도 close가 오면 차단을 해제한다. 종료 확인이 계속 불가능하면 설치 운영자가 API 컨테이너를 재시작하고 로그·준비 상태를 확인한다. 아래 `my-townbase`는 최초 설치에서 정한 프로젝트 이름으로 맞춘다.
 

@@ -9,11 +9,12 @@ import {
 function client(present, report) {
   return {
     sql: [],
-    async $queryRaw() {
+    async $queryRaw(strings, ...values) {
+      this.sql.push({ kind: "tagged", text: strings.join("?"), values });
       return [{ present }];
     },
     async $queryRawUnsafe(sql) {
-      this.sql.push(sql);
+      this.sql.push({ kind: "unsafe", text: sql });
       return [report];
     },
   };
@@ -21,13 +22,19 @@ function client(present, report) {
 test("fresh installation without FileVersion needs no data query", async () => {
   const db = client(false);
   await checkFileExtractionUpgrade(db);
-  assert.deepEqual(db.sql, []);
+  assert.equal(db.sql.length, 1);
+  assert.equal(db.sql[0].kind, "tagged");
+  assert.equal(
+    db.sql[0].text,
+    `SELECT to_regclass('public."FileVersion"') IS NOT NULL AS present`,
+  );
+  assert.deepEqual(db.sql[0].values, []);
 });
 test("compatible existing files pass inspection with the exact shipped CHECK", async () => {
   const db = client(true, { count: "0", ids: [] });
   await checkFileExtractionUpgrade(db);
   const predicate = await fileExtractionPredicate();
-  assert.ok(db.sql[0].includes(`WHERE (${predicate}) IS NOT TRUE`));
+  assert.ok(db.sql[1].text.includes(`WHERE (${predicate}) IS NOT TRUE`));
   const migration = await readFile(
     new URL(
       "../../packages/database/prisma/migrations/20261028010000_file_extraction_contract/migration.sql",
@@ -36,9 +43,11 @@ test("compatible existing files pass inspection with the exact shipped CHECK", a
     "utf8",
   );
   assert.ok(migration.includes(`CHECK (\n${predicate}\n);`));
-  assert.match(db.sql[0], /LIMIT 20/);
+  assert.equal(db.sql.length, 2);
+  assert.match(db.sql[1].text, /LIMIT 20/);
+  assert.match(db.sql[1].text, /AS NOT MATERIALIZED/);
   assert.doesNotMatch(
-    db.sql[0],
+    db.sql[1].text,
     /SELECT \*|fileName|contentHash|SELECT "extraction"/,
   );
 });
@@ -70,6 +79,33 @@ test("missing or malformed reports never become success or expose raw diagnostic
         );
         return true;
       },
+    );
+  }
+});
+
+// The guard itself is read-only, including malformed/missing result handling.
+import { assertFreshPreflightDatabase } from "./file-extraction-preflight-guard.mjs";
+test("fresh test DB guard permits only an explicitly empty public schema", async () => {
+  let queries = 0;
+  await assertFreshPreflightDatabase({
+    async $queryRaw(strings) {
+      queries++;
+      assert.match(strings.join(""), /pg_class/);
+      assert.match(strings.join(""), /relkind IN/);
+      return [{ empty: true }];
+    },
+  });
+  assert.equal(queries, 1);
+});
+test("fresh test DB guard rejects existing or unknown schema state", async () => {
+  for (const rows of [[{ empty: false }], [], [{}]]) {
+    await assert.rejects(
+      assertFreshPreflightDatabase({
+        async $queryRaw() {
+          return rows;
+        },
+      }),
+      /Fresh dedicated preflight DB required/,
     );
   }
 });

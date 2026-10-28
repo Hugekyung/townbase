@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { databaseEnvironment } from "../database-env.mjs";
+import { assertFreshPreflightDatabase } from "./file-extraction-preflight-guard.mjs";
 import { checkFileExtractionUpgrade } from "../file-extraction-preflight.mjs";
 
 // Opt-in fresh disposable DB only. Excluded from the ordinary *.test.mjs glob.
@@ -27,13 +28,42 @@ test(
   async () => {
     let directory;
     try {
-      const [fresh] =
-        await db.$queryRaw`SELECT to_regclass('public."Workspace"') IS NULL AS empty`;
-      assert.equal(
-        fresh.empty,
-        true,
-        "Fresh dedicated preflight DB required; do not reset an existing DB implicitly",
+      await assertFreshPreflightDatabase(db);
+      // Only objects created after the fresh guard may be removed by this test.
+      await db.$executeRawUnsafe(
+        'CREATE TABLE public."_prisma_migrations" (id text)',
       );
+      try {
+        await assert.rejects(
+          assertFreshPreflightDatabase(db),
+          /Fresh dedicated/,
+        );
+        await db.$executeRawUnsafe(
+          `INSERT INTO public."_prisma_migrations" VALUES ('synthetic-history')`,
+        );
+        await assert.rejects(
+          assertFreshPreflightDatabase(db),
+          /Fresh dedicated/,
+        );
+        const rows = await db.$queryRawUnsafe(
+          'SELECT * FROM public."_prisma_migrations"',
+        );
+        assert.deepEqual(rows, [{ id: "synthetic-history" }]);
+      } finally {
+        await db.$executeRawUnsafe('DROP TABLE public."_prisma_migrations"');
+      }
+      await db.$executeRawUnsafe(
+        'CREATE TABLE public."partial_fixture" (id text)',
+      );
+      try {
+        await assert.rejects(
+          assertFreshPreflightDatabase(db),
+          /Fresh dedicated/,
+        );
+      } finally {
+        await db.$executeRawUnsafe('DROP TABLE public."partial_fixture"');
+      }
+      await assertFreshPreflightDatabase(db);
       await checkFileExtractionUpgrade(db); // No table is a supported new-install state.
       directory = await mkdtemp(
         path.join(tmpdir(), "townbase-pr41-migrations-"),
@@ -94,7 +124,8 @@ test(
       });
       const canary = "PR41_ORIGINAL_CONTENT_MUST_NOT_APPEAR";
       const ids = [];
-      for (const codePoints of [1, "1"]) {
+      for (let i = 0; i < 25; i++) {
+        const codePoints = i % 2 === 0 ? 1 : "1";
         const id = randomUUID();
         ids.push(id);
         await db.fileVersion.create({
@@ -137,8 +168,14 @@ test(
         diagnostic.includes("TOWNBASE_FILE_EXTRACTION_PREFLIGHT_FAILED"),
         true,
       );
-      assert.equal(diagnostic.includes("incompatible_count=2"), true);
-      assert.ok(ids.every((id) => diagnostic.includes(id)));
+      assert.equal(diagnostic.includes("incompatible_count=25"), true);
+      const sample = [...ids].sort().slice(0, 20);
+      assert.ok(sample.every((id) => diagnostic.includes(id)));
+      assert.ok(
+        ids
+          .filter((id) => !sample.includes(id))
+          .every((id) => !diagnostic.includes(id)),
+      );
       assert.equal(diagnostic.includes(canary), false);
       assert.equal(diagnostic.includes(url.password), false);
       assert.equal(diagnostic.includes(process.env.DATABASE_URL), false);
@@ -175,14 +212,6 @@ test(
         });
       const stable = () =>
         db.fileVersion.findMany({
-          select: {
-            id: true,
-            originalId: true,
-            version: true,
-            contentHash: true,
-            storageKey: true,
-            byteSize: true,
-          },
           orderBy: { id: "asc" },
         });
       const stableBefore = await stable();

@@ -145,4 +145,4 @@
 
 - 파서 종료는 SIGKILL 최대3회·1초 정리 후 요청을 parser_unavailable로 반환할 수 있다. 반환이 OS 종료 성공을 뜻하지 않는다. 미종료 자식 참조를 유지해 같은 인스턴스의 새 추출을 차단하고 늦은 close/운영자 재시작으로 복구한다. 진단은 TOWNBASE_PARSER_TERMINATION_FAILED 코드만 사용한다.
 - deployment/migrate.mjs는 advisory lock 뒤 별도 autocommit 검사 연결로 현재 파일 CHECK 호환성을 검사하고 연결을 닫은 후 db:deploy를 실행한다. lock transaction에 FileVersion 읽기 잠금을 보유한 채 다른 연결에서 ALTER TABLE을 실행하지 않는다. 조건은 실제 migration에서 재사용한다. 비호환 행은 개수/UUID 표본만 진단하고 데이터·이력을 자동 변경하지 않는다.
-- 새 사전 검사 실 DB 시나리오는 TOWNBASE_FILE_PREFLIGHT_TEST=1과 정확한 postgres/townbase_d01_pr41_preflight_test의 빈 DB에서만 명시 실행한다. 일반 test:deployment는 단위4개만 포함한다. [PR #41 기록](docs/implementation/v0.2-d01-pr41-review-response.md)을 따른다.
+- 새 사전 검사 실 DB 시나리오는 TOWNBASE_FILE_PREFLIGHT_TEST=1과 정확한 postgres/townbase_d01_pr41_preflight_test의 빈 DB에서만 명시 실행한다. 일반 test:deployment에는 사전 검사·격리 DB guard 단위6개가 포함되며 이 실 DB 시나리오는 포함하지 않는다. [PR #41 기록](docs/implementation/v0.2-d01-pr41-review-response.md)을 따른다.
