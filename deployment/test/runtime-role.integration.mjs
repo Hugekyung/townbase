@@ -443,9 +443,13 @@ test("D01 file foundation allows SELECT/INSERT and denies every mutation column"
     assert.equal(access.insertable, true);
     assert.equal(access.forbidden, false);
     const columns =
-      await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname=${table} AND a.attnum>0 AND NOT a.attisdropped`;
+      await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable, has_column_privilege('townbase_runtime',c.oid,a.attnum,'REFERENCES') AS referenceable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname=${table} AND a.attnum>0 AND NOT a.attisdropped`;
     assert.ok(columns.length > 0);
-    assert.ok(columns.every((column) => column.writable === false));
+    assert.ok(
+      columns.every(
+        (column) => column.writable === false && column.referenceable === false,
+      ),
+    );
     await db.$executeRawUnsafe(
       `GRANT UPDATE ("installationId") ON "${table}" TO PUBLIC`,
     );
@@ -456,6 +460,24 @@ test("D01 file foundation allows SELECT/INSERT and denies every mutation column"
     } finally {
       await db.$executeRawUnsafe(
         `REVOKE UPDATE ("installationId") ON "${table}" FROM PUBLIC`,
+      );
+      await configure();
+    }
+  }
+});
+
+test("D01 refuses PUBLIC column REFERENCES on every file table", async () => {
+  for (const table of ["FileOriginal", "FileVersion", "FileExtractionRun"]) {
+    await db.$executeRawUnsafe(
+      `GRANT REFERENCES ("id") ON "${table}" TO PUBLIC`,
+    );
+    try {
+      await assert.rejects(configure, {
+        code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
+      });
+    } finally {
+      await db.$executeRawUnsafe(
+        `REVOKE REFERENCES ("id") ON "${table}" FROM PUBLIC`,
       );
       await configure();
     }

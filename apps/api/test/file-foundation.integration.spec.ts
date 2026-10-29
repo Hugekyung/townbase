@@ -34,6 +34,44 @@ integration("D01 scoped file foundation, actual PostgreSQL and parser", () => {
     extractor: ExtractorType,
     storage: FileStorage;
   const originalEnv = { ...process.env };
+  async function cleanupFixture(): Promise<void> {
+    // Called only after the exact host/database guard and before disconnect.
+    const existing = await owner.installation.findUnique({
+      where: { id: "primary" },
+      include: { workspace: true },
+    });
+    if (
+      existing &&
+      (existing.name !== "D01 synthetic" ||
+        existing.workspace.name !== "D01 synthetic fixture")
+    )
+      throw new Error("Unexpected D01 installation; refuse fixture cleanup");
+    if ((await owner.modelCall.count()) !== 0)
+      throw new Error("Model call records present; refuse fixture cleanup");
+    await owner.$executeRaw`ALTER TABLE "FileExtractionRun" DROP CONSTRAINT IF EXISTS "D01_reject_run"`;
+    await owner.$transaction(async (tx) => {
+      await tx.fileExtractionRun.deleteMany({
+        where: { installationId: "primary" },
+      });
+      await tx.fileVersion.deleteMany({ where: { installationId: "primary" } });
+      await tx.fileOriginal.deleteMany({
+        where: { installationId: "primary" },
+      });
+      await tx.administratorSession.deleteMany({
+        where: { installationId: "primary" },
+      });
+      await tx.installationAuditEvent.deleteMany({
+        where: { installationId: "primary" },
+      });
+      await tx.administrator.deleteMany({
+        where: { installationId: "primary" },
+      });
+      await tx.installation.deleteMany({ where: { id: "primary" } });
+      await tx.workspace.deleteMany({
+        where: { name: "D01 synthetic fixture" },
+      });
+    });
+  }
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL!);
     if (url.hostname !== "postgres" || url.pathname !== "/townbase_d01_test")
@@ -44,6 +82,7 @@ integration("D01 scoped file foundation, actual PostgreSQL and parser", () => {
       await readFile(process.env.TOWNBASE_RUNTIME_PASSWORD_FILE!, "utf8")
     ).trim();
     process.env.DATABASE_URL = url.toString();
+    await cleanupFixture();
     runtime = new DeploymentDatabase();
     auth = new AuthService(runtime);
     const workspace = await owner.workspace.create({
@@ -77,6 +116,9 @@ integration("D01 scoped file foundation, actual PostgreSQL and parser", () => {
     await owner.fileExtractionRun.deleteMany();
     await owner.fileVersion.deleteMany();
     await owner.fileOriginal.deleteMany();
+    await owner.administratorSession.deleteMany({
+      where: { installationId: "primary" },
+    });
     token = randomBytes(32).toString("base64url");
     const createdAt = new Date();
     await owner.administratorSession.create({
@@ -100,9 +142,13 @@ integration("D01 scoped file foundation, actual PostgreSQL and parser", () => {
     if (directory) await rm(directory, { recursive: true, force: true });
   });
   afterAll(async () => {
-    await runtime?.prisma.$disconnect();
-    await owner?.$disconnect();
-    process.env = originalEnv;
+    try {
+      if (owner) await cleanupFixture();
+    } finally {
+      await runtime?.prisma.$disconnect();
+      await owner?.$disconnect();
+      process.env = originalEnv;
+    }
   });
   test.each([
     ["a.txt", Buffer.from("한국어 😀\n둘째 줄")],
@@ -264,5 +310,81 @@ integration("D01 scoped file foundation, actual PostgreSQL and parser", () => {
         data: { status: "failed", errorCode: null },
       }),
     ).rejects.toThrow();
+  });
+  test.each([
+    {
+      format: "txt",
+      segments: [
+        { text: "x", headingPath: [], location: { lineStart: 1, lineEnd: 1 } },
+      ],
+      codePoints: "1",
+    },
+    {
+      format: "txt",
+      segments: [
+        { text: "x", headingPath: [], location: { lineStart: 1, lineEnd: 1 } },
+      ],
+      codePoints: 1.5,
+    },
+    { format: "txt", segments: [], codePoints: 1 },
+    { format: "txt", segments: {}, codePoints: 1 },
+  ])("DB rejects invalid persisted envelope %#", async (extraction) => {
+    const ids = await foundation.create(
+      token,
+      context,
+      "a.txt",
+      Buffer.from("private"),
+    );
+    await expect(
+      owner.fileVersion.update({
+        where: { id: ids.versionId },
+        data: { extraction },
+      }),
+    ).rejects.toThrow();
+  });
+  test("readback refuses malformed segment members accepted by the SQL envelope", async () => {
+    const ids = await foundation.create(
+      token,
+      context,
+      "a.txt",
+      Buffer.from("private"),
+    );
+    await owner.fileVersion.update({
+      where: { id: ids.versionId },
+      data: { extraction: { format: "txt", codePoints: 1, segments: [{}] } },
+    });
+    await expect(
+      foundation.read(token, context, ids.originalId),
+    ).rejects.toMatchObject({ code: "parser_failed" });
+  });
+  test("readback refuses text/count mismatch and invalid source locations", async () => {
+    const ids = await foundation.create(
+      token,
+      context,
+      "a.txt",
+      Buffer.from("private"),
+    );
+    for (const segment of [
+      { text: "xx", headingPath: [], location: { lineStart: 1, lineEnd: 1 } },
+      { text: "x", headingPath: [], location: { lineStart: 2, lineEnd: 1 } },
+    ]) {
+      await owner.fileVersion.update({
+        where: { id: ids.versionId },
+        data: {
+          extraction: { format: "txt", codePoints: 1, segments: [segment] },
+        },
+      });
+      await expect(
+        foundation.read(token, context, ids.originalId),
+      ).rejects.toMatchObject({ code: "parser_failed" });
+    }
+  });
+  test("per-version history lookup has a matching index", async () => {
+    const rows = await owner.$queryRaw<
+      Array<{ indexdef: string }>
+    >`SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='FileExtractionRun' AND indexname='FileExtractionRun_installationId_versionId_completedAt_idx'`;
+    expect(rows[0]?.indexdef).toContain(
+      '("installationId", "versionId", "completedAt")',
+    );
   });
 });

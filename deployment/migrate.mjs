@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { promisify } from "node:util";
 import { databaseEnvironment } from "./database-env.mjs";
+import { checkFileExtractionUpgrade } from "./file-extraction-preflight.mjs";
 import { configureRuntimeRole } from "./runtime-role.mjs";
 
 let prisma;
@@ -23,6 +24,14 @@ try {
         await tx.$queryRaw`SELECT pg_try_advisory_xact_lock(741126, 2) AS acquired`;
       if (!lock?.acquired)
         throw new Error("Migration runner is already active");
+      // A separate short-lived connection releases FileVersion's read lock
+      // before the migration CLI tries ALTER TABLE on its own connection.
+      const inspection = new PrismaClient();
+      try {
+        await checkFileExtractionUpgrade(inspection);
+      } finally {
+        await inspection.$disconnect();
+      }
       await promisify(execFile)("pnpm", ["db:deploy"], {
         timeout: 240000,
         maxBuffer: 1048576,
@@ -39,6 +48,11 @@ try {
   );
   console.log("Database migrations and workspace seed completed.");
 } catch (error) {
+  if (error?.code === "TOWNBASE_FILE_EXTRACTION_PREFLIGHT_FAILED") {
+    console.error(
+      `TOWNBASE_FILE_EXTRACTION_PREFLIGHT_FAILED: incompatible_count=${error.incompatibleCount} version_ids=${error.versionIds.join(",")}. Migration was not started. Back up originals and DB, inspect these versions, and follow docs/self-hosted-deployment.md before retrying.`,
+    );
+  }
   if (error?.code === "TOWNBASE_UNSAFE_RUNTIME_GRANTS") {
     console.error(
       "TOWNBASE_UNSAFE_RUNTIME_GRANTS: inspect user-schema access, table/column/sequence grants, routine EXECUTE and default grants before retrying. No runtime permission changes were committed.",

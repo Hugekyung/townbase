@@ -1,4 +1,7 @@
-import { parseMarkdownSections } from "../src/markdown";
+import {
+  parseMarkdownSections,
+  parseMarkdownSectionsWithLocations,
+} from "../src/markdown";
 
 describe("parseMarkdownSections", () => {
   it("preserves section formatting instead of normalizing it away", () => {
@@ -52,5 +55,65 @@ describe("parseMarkdownSections", () => {
         content: "body text",
       },
     ]);
+  });
+});
+
+describe("Markdown matching fence boundaries and source positions", () => {
+  it.each([
+    ["```", "~~~", "```"],
+    ["~~~~", "~~~", "~~~~~"],
+    ["````", "```", "`````"],
+    ["```ts", "```not-a-close", "```"],
+    ["~~~ts", "~~~not-a-close", "~~~"],
+  ])(
+    "keeps inner headings inside %s until a valid close",
+    (opening, inner, closing) => {
+      const text = [
+        "# Intro",
+        opening,
+        inner,
+        "# Inside code",
+        closing,
+        "## Visible",
+        "body",
+      ].join("\n");
+      const sections = parseMarkdownSectionsWithLocations(text);
+      expect(sections).toHaveLength(2);
+      expect(sections[0]).toMatchObject({
+        headingPath: ["Intro"],
+        lineStart: 2,
+        lineEnd: 5,
+      });
+      expect(sections[0]?.content).toContain("# Inside code");
+      expect(sections[1]).toMatchObject({
+        headingPath: ["Intro", "Visible"],
+        lineStart: 7,
+        lineEnd: 7,
+      });
+    },
+  );
+  it("accepts a longer matching close with trailing spaces/tabs", () => {
+    const sections = parseMarkdownSectionsWithLocations(
+      "# Intro\n```\n# Code\n```` \t\n## Visible\nbody",
+    );
+    expect(sections[1]?.headingPath).toEqual(["Intro", "Visible"]);
+  });
+  it("unclosed fence keeps all later headings as code", () => {
+    const sections = parseMarkdownSectionsWithLocations(
+      "# Intro\n````\n```\n# Inside\n~~~\n## Still inside",
+    );
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.headingPath).toEqual(["Intro"]);
+    expect(sections[0]?.lineEnd).toBe(6);
+  });
+  it("a backtick in the opening info string does not start a fence", () => {
+    const sections = parseMarkdownSectionsWithLocations(
+      "# Intro\n```bad`info\n## Visible\nbody",
+    );
+    expect(sections[1]).toMatchObject({
+      headingPath: ["Intro", "Visible"],
+      lineStart: 4,
+      lineEnd: 4,
+    });
   });
 });

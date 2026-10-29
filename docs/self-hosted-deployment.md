@@ -264,3 +264,29 @@ self-hosted가 공급자 미전송을 뜻하지는 않는다. 연결 검사도 �
 D01은 파일 업로드 웹/API를 공개하지 않는다. API 이미지에 고정 PDF.js/Mammoth/ZIP 검사를 포함하고 별도 로컬 프로세스로 본문과 위치를 추출하는 기반이다. FileOriginal/FileVersion/FileExtractionRun의 SELECT/INSERT만 runtime 계정에 추가했으며 UPDATE/DELETE는 없다. sourceType의 uploaded_file enum migration을 먼저 commit한 뒤 파일 테이블 migration을 적용한다. 기존 문서/벡터는 유지한다.
 
 Linux 파서에는 DATA512 MiB·V8 heap128 MiB·RSS512 MiB 감시/30초 종료가 적용된다. RSS 감시의 짧은 간격과 전체 메모리의 cgroup 보장은 다르다. 실제 runtime 이미지의 read-only root·비특권·network none에서 4형식을 검증했지만 HTTP 업로드/색인/검색은 아직 없다. 후속 D02에서 지정된 documents volume에 연결하고 미완료 파일 정리를 포함한 관리 API를 제공한다. [D01 구현·시험 범위](implementation/v0.2-d01-file-extraction.md)를 따른다.
+
+### D01 파일 제약 업그레이드의 사전 검사
+
+migration 컨테이너는 `db:deploy`를 시작하기 전에 기존 FileVersion의 JSON을 검사한다. 새 설치처럼 테이블이 없으면 통과한다. 기존 설치에서는 `20261028010000_file_extraction_contract`의 실제 CHECK 식을 재사용한다. 검사 연결은 advisory lock을 가진 transaction과 분리하고 바로 닫아, 읽기 잠금이 다른 연결의 ALTER TABLE을 막지 않게 한다. 검사 자체는 읽기 전용이지만 전체 migration 명령은 schema·seed·runtime 권한을 변경하는 작업이다.
+
+호환되지 않는 행이 있으면 CLI migration을 시작하지 않고 `TOWNBASE_FILE_EXTRACTION_PREFLIGHT_FAILED`로 종료한다. 진단에는 전체 개수와 최대20개 FileVersion UUID만 표시한다. 파일명·추출 본문·Key·DB URL은 표시하지 않는다. 원래 제약과 데이터·Prisma migration 이력을 변경하지 않는다. 검사 뒤 외부 DB 관리자가 데이터를 바꾸는 경우까지 원자적으로 막는 기능은 아니며 최종 SQL CHECK도 그대로 유지한다.
+
+조치 순서:
+
+1. 기존 업그레이드 절차대로 API 쓰기와 외부 노출을 중단하고 DB·원본 documents volume·별도 암호화 키를 보호된 위치에 백업한다. 자동 백업/복구 도구는 아직 없다.
+2. 표시된 version UUID를 기준으로 해당 버전·원본 관계와 보관 원본을 서버 로컬에서 확인한다. 숫자 문자열, 빈 segments, 형식/글자 수 불일치 등을 조사한다. 진단은 최대20개 표본이므로 수정 후 다시 검사해 남은 개수를 확인한다.
+3. 정상 백업으로 복구하거나, 보존된 실제 원문에서 파서를 통해 본문·위치를 다시 확인한 결과로 운영자가 명시적으로 정정한다. 원본 ID/버전/hash 관계와 삭제·보관 정책을 유지한다. 호환시키기 위한 가짜 segments·임의 숫자 변환·자동 삭제는 하지 않는다. 공개 업로드/재추출 API가 아직 없으므로 이 문서는 존재하지 않는 웹/CLI 재추출 기능을 안내하지 않는다. 확인 가능한 원문·정상 백업이 없으면 배포를 중단하고 유지보수 담당자와 복구 방안을 결정한다.
+4. 같은 설치 설정으로 migration을 다시 실행한다. 새 제약·기존 자료 재조회와 준비 상태를 확인한 후에만 API/외부 노출을 재개한다. 사전 검사 실패 자체는 CLI를 시작하지 않으므로 실패한 migration 행을 만들지 않는다. 이미 다른 원인으로 migration이 실패했다면 별도 이력/복구 확인이 필요하다.
+
+### 파서 종료 실패 복구
+
+추출 제한은30초이며 종료 정리를 최대1초 더 기다린다. SIGKILL은 최대3회(최초/250ms/500ms) 시도한다. 신호 전송 성공도 실제 종료로 간주하지 않는다. 이 시간 안에 close가 없으면 요청은 `parser_unavailable`로 끝내고 `TOWNBASE_PARSER_TERMINATION_FAILED` 코드만 기록한다. 해당 FileExtractor는 자식 참조를 유지하고 새 추출을 차단한다. 종료 지연 중에는 파일 본문/결과를 계속 쌓지 않으며 close가 확인되지 않아 1초 대기 후 격리할 때 부모 쪽 입출력 파이프를 닫는다.
+
+늦게라도 close가 오면 차단을 해제한다. 종료 확인이 계속 불가능하면 설치 운영자가 API 컨테이너를 재시작하고 로그·준비 상태를 확인한다. 아래 `my-townbase`는 최초 설치에서 정한 프로젝트 이름으로 맞춘다.
+
+```sh
+docker compose --env-file .townbase/compose.env -p my-townbase restart api
+docker compose --env-file .townbase/compose.env -p my-townbase logs --tail=60 api
+```
+
+요청이 오류로 반환됐다는 사실은 OS 자식 프로세스가 반드시 종료됐다는 뜻이 아니다. 종료를 확인하지 않고 새 프로세스를 계속 생성하는 대체 동작은 하지 않는다. D02에서 FileExtractor를 설치별 단일 서비스로 연결하는 경계는 유지한다.

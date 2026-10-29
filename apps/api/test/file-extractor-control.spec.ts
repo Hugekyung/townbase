@@ -15,6 +15,7 @@ describe("D01 child termination boundary", () => {
   let channel: PassThrough;
   beforeEach(() => {
     jest.useFakeTimers();
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
     channel = new PassThrough();
     child = Object.assign(new EventEmitter(), {
       stdin: new PassThrough(),
@@ -90,6 +91,106 @@ describe("D01 child termination boundary", () => {
     child.emit("close", -2);
     await rejected;
     expect(jest.getTimerCount()).toBe(0);
+  });
+  test("error before close keeps the slot and watchdog until actual close", async () => {
+    const extractor = new FileExtractor();
+    const pending = extractor.extract("a.txt", Buffer.from("text"));
+    let settled = false;
+    const outcome = pending.then(
+      () => {
+        settled = true;
+        return "success";
+      },
+      (error) => {
+        settled = true;
+        return error.code;
+      },
+    );
+    child.emit("error", new Error("synthetic live-child error"));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    await expect(
+      extractor.extract("b.txt", Buffer.from("text")),
+    ).rejects.toMatchObject({ code: "parser_busy" });
+    jest.advanceTimersByTime(FILE_LIMITS.timeoutMs);
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+    child.emit("error", new Error("synthetic kill race"));
+    child.emit("close", 1);
+    expect(await outcome).toBe("parser_unavailable");
+    expect(jest.getTimerCount()).toBe(0);
+    const retry = extractor.extract("b.txt", Buffer.from("text"));
+    const rejected = expect(retry).rejects.toMatchObject({
+      code: "parser_failed",
+    });
+    child.emit("close", 1);
+    await rejected;
+  });
+  test.each(["false", "true_without_close", "throw", "error_event"])(
+    "bounded termination handles %s without admitting a second live parser",
+    async (failure) => {
+      const extractor = new FileExtractor();
+      if (failure === "false") child.kill.mockReturnValue(false);
+      if (failure === "throw")
+        child.kill.mockImplementation(() => {
+          throw new Error("private kill failure");
+        });
+      if (failure === "error_event")
+        child.kill.mockImplementation(() => {
+          child.emit("error", new Error("private kill failure"));
+          return false;
+        });
+      const pending = extractor.extract("a.txt", Buffer.from("text"));
+      const rejected = expect(pending).rejects.toMatchObject({
+        code: "parser_unavailable",
+      });
+      jest.advanceTimersByTime(FILE_LIMITS.timeoutMs + 1000);
+      await rejected;
+      expect(child.kill).toHaveBeenCalledTimes(3);
+      expect(jest.getTimerCount()).toBe(0);
+      expect(console.error).toHaveBeenCalledWith(
+        "TOWNBASE_PARSER_TERMINATION_FAILED",
+      );
+      expect(console.error).toHaveBeenCalledTimes(1);
+      expect(child.stdin.destroyed).toBe(true);
+      expect(channel.destroyed).toBe(true);
+      await expect(
+        extractor.extract("b.txt", Buffer.from("other")),
+      ).rejects.toMatchObject({ code: "parser_unavailable" });
+      expect(processes.spawn).toHaveBeenCalledTimes(1);
+      channel.emit("data", Buffer.from('{"ok":true}')); // Late output cannot resurrect this request.
+      child.emit("close", null, "SIGKILL");
+      const next = extractor.extract("b.txt", Buffer.from("other"));
+      const nextRejected = expect(next).rejects.toMatchObject({
+        code: "parser_failed",
+      });
+      expect(processes.spawn).toHaveBeenCalledTimes(2);
+      child.emit("close", 1);
+      await nextRejected;
+    },
+  );
+  test("an early child error also has a bounded recovery deadline", async () => {
+    const pending = new FileExtractor().extract("a.txt", Buffer.from("text"));
+    const rejected = expect(pending).rejects.toMatchObject({
+      code: "parser_unavailable",
+    });
+    child.emit("error", new Error("synthetic early failure"));
+    jest.advanceTimersByTime(1000);
+    await rejected;
+    expect(child.kill).toHaveBeenCalledTimes(3);
+    expect(jest.getTimerCount()).toBe(0);
+    child.emit("close", 1);
+  });
+  test("close during retry preserves timeout reason and cancels the recovery deadline", async () => {
+    const pending = new FileExtractor().extract("a.txt", Buffer.from("text"));
+    const rejected = expect(pending).rejects.toMatchObject({
+      code: "extraction_timeout",
+    });
+    jest.advanceTimersByTime(FILE_LIMITS.timeoutMs + 250);
+    child.emit("close", null, "SIGKILL");
+    await rejected;
+    expect(child.kill).toHaveBeenCalledTimes(2);
+    expect(jest.getTimerCount()).toBe(0);
+    expect(console.error).not.toHaveBeenCalled();
   });
   test("child gets no account secrets, NODE_OPTIONS, writable filesystem or subprocess permission", async () => {
     const pending = new FileExtractor().extract("a.txt", Buffer.from("text"));

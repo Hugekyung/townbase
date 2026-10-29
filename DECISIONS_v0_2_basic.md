@@ -130,4 +130,4 @@ PR #39 리뷰 보완은 모델·가격·예산 정책을 바꾸지 않는다. �
 
 ## D01 파일 처리 구현 세부 (2026-10-27)
 
-S05의 형식/한도를 유지한다. PDF.js 6.4.299(Apache-2.0), Mammoth 1.13.0(BSD-2-Clause), ZIP 사전 검사 yauzl 3.4.0(MIT)을 현재 Node24에 고정했다. 기존 Markdown parser와 UTF-8 TXT를 사용한다. Linux 로컬 자식 프로세스의 DATA512 MiB·V8 heap128 MiB 및 RSS512 MiB 감시/30초 종료를 적용하며 순간 전체 RSS의 cgroup 보장은 아니다. 코드 의존성/폰트 읽기와 필요한 native addon만 허용하는 Node permission은 악성 코드 격리 보장이 아니다. 공개 업로드 API·분할/임베딩·실행 큐는 후속 단계다. 현재 저장·재조회와 적용 환경의 증거는 [D01 기록](docs/implementation/v0.2-d01-file-extraction.md)을 따른다.
+S05의 형식/한도를 유지한다. PDF.js 6.4.299(Apache-2.0), Mammoth 1.13.0(BSD-2-Clause), ZIP 사전 검사 yauzl 3.4.0(MIT)을 현재 Node24에 고정했다. 기존 Markdown parser와 UTF-8 TXT를 사용한다. Linux 로컬 자식 프로세스의 DATA512 MiB·V8 heap128 MiB 및 RSS512 MiB 감시/30초 종료를 적용하며 순간 전체 RSS의 cgroup 보장은 아니다. Node permission은 허용 경로의 코드/폰트를 읽게 하지만 실제 읽기 범위에는 API node_modules와 pnpm 의존성 트리가 포함된다. --allow-addons는 특정 addon 선별이 아니라 native addon 로딩의 전역 허용이다. 악성 코드용 OS sandbox를 보장하지 않는다. 공개 업로드 API·분할/임베딩·실행 큐는 후속 단계다. 현재 저장·재조회와 적용 환경의 증거는 [D01 기록](docs/implementation/v0.2-d01-file-extraction.md)을 따른다.

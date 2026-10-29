@@ -129,7 +129,9 @@ describe("D01 bounded real parser process", () => {
     const bytes = docx();
     const index = bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
     bytes.writeUInt32LE(100000000, index + 24);
-    await expect(extractor.extract("a.docx", bytes)).rejects.toThrow();
+    await expect(extractor.extract("a.docx", bytes)).rejects.toMatchObject({
+      code: "invalid_format",
+    });
   });
   test("size checked before child creation", async () => {
     await expect(
@@ -177,6 +179,33 @@ describe("D01 bounded real parser process", () => {
       ),
     ).rejects.toMatchObject({ code: "archive_limit" });
   });
+  test("oversized declared deflated entry is archive_limit independently of malformed stored-entry sizes", async () => {
+    const bytes = docx([
+      {
+        name: "word/large.xml",
+        text: "synthetic deflated content",
+        deflate: true,
+      },
+    ]);
+    let offset = 0;
+    for (;;) {
+      offset = bytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]), offset);
+      if (offset < 0) throw new Error("Missing deflated fixture");
+      if (bytes.readUInt16LE(offset + 10) === 8) {
+        bytes.writeUInt32LE(110000000, offset + 24);
+        break;
+      }
+      offset++;
+    }
+    await expect(extractor.extract("a.docx", bytes)).rejects.toMatchObject({
+      code: "archive_limit",
+    });
+  });
+  test("PDF literal punctuation and backslashes survive fixture generation", async () => {
+    const text = "value (with) slash \\ end";
+    const result = await extractor.extract("a.pdf", pdf(text));
+    expect(result.segments[0]?.text).toBe(text);
+  }, 15000);
   test("ZIP entries cap independent of compression", async () => {
     await expect(
       extractor.extract(
@@ -246,7 +275,9 @@ describe("D01 generated-key raw storage", () => {
     const target = path.join(root, "private");
     await writeFile(target, "secret", { mode: 0o600 });
     await symlink(target, path.join(root, key));
-    await expect(storage.read(key)).rejects.toThrow();
+    await expect(storage.read(key)).rejects.toMatchObject({
+      code: "storage_unavailable",
+    });
     await chmod(root, 0o755);
     await expect(storage.write(Buffer.from("body"))).rejects.toMatchObject({
       code: "storage_unavailable",

@@ -82,7 +82,13 @@ export function docx(
   ]);
 }
 export function pdf(text: string | null = "Townbase source text"): Buffer {
-  const content = text == null ? "" : `BT /F1 12 Tf 72 720 Td (${text}) Tj ET`;
+  const content =
+    text == null
+      ? ""
+      : `BT /F1 12 Tf 72 720 Td (${text
+          .replace(/[\\()]/g, "\\$&")
+          .replace(/\r/g, "\\r")
+          .replace(/\n/g, "\\n")}) Tj ET`;
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
