@@ -90,8 +90,13 @@ test("fresh test DB guard permits only an explicitly empty public schema", async
   await assertFreshPreflightDatabase({
     async $queryRaw(strings) {
       queries++;
-      assert.match(strings.join(""), /pg_class/);
-      assert.match(strings.join(""), /relkind IN/);
+      const sql = strings.join("");
+      assert.match(sql, /pg_class/);
+      assert.match(sql, /relkind IN/);
+      assert.doesNotMatch(
+        sql,
+        /\b(?:ALTER|CREATE|DELETE|DROP|INSERT|TRUNCATE|UPDATE)\b/i,
+      );
       return [{ empty: true }];
     },
   });
