@@ -290,3 +290,12 @@ docker compose --env-file .townbase/compose.env -p my-townbase logs --tail=60 ap
 ```
 
 요청이 오류로 반환됐다는 사실은 OS 자식 프로세스가 반드시 종료됐다는 뜻이 아니다. 종료를 확인하지 않고 새 프로세스를 계속 생성하는 대체 동작은 하지 않는다. D02에서 FileExtractor를 설치별 단일 서비스로 연결하는 경계는 유지한다.
+
+
+## 지속 파일 관리 API (D02, 사용자 승인 후 전달)
+
+관리자 세션과 기존 Host/Origin·X-Townbase-Auth 보호 아래 `/files`를 제공한다. POST 등록·GET 목록/현재 원본·PUT 교체·DELETE 삭제·GET `/:id/reference` 다운로드를 사용한다. 등록/교체 본문은 표준 base64의 `{name,contentBase64}` 한 파일이며 파일20MiB/JSON28MiB를 넘길 수 없다. 다른 API의8KB 제한은 유지한다. DELETE도 JSON Content-Type과 `{}`를 사용한다. 업로드는 복사본이며 자동 갱신을 뜻하지 않는다.
+
+`TOWNBASE_DOCUMENTS_PATH/originals`는 지속 raw 전용0700 디렉터리이며 다른 자료/첨부/백업을 넣지 않는다. 시작 시 DB에 없는 UUID 파일과 삭제된 원본의 남은 파일을 정리한다. 알 수 없는 파일/하위 디렉터리/symlink 또는 DB/파일 오류면 시작을 거절하므로 경로와 로그 코드부터 확인한다. 동작 중 삭제 정리는1분마다 재시도하며 실패하면 cleanup=pending이다. API 삭제는 접근을 먼저 차단하고 추출문을 제거한다. 실패한 물리 삭제를 완료로 표시하지 않는다. 원본 다운로드는 현재 버전만 제공하며 HTML을 직접 렌더하지 않는다.
+
+새 migration은 tombstone/물리 정리 상태·감사 enum과 최소 열 권한을 추가한다. 배포 전 DB/원본 백업 절차를 유지한다. 파일 웹·비동기 실행 ID/재시도·벡터·과거 파생 참조·백업 복구 시 삭제 기록 반영은 후속 단계다. 지금은 extracted를 검색 가능으로 오인하지 않게 searchable=false로 반환한다. 실제 실행 조건·현재 한계는 [D02 기록](implementation/v0.2-d02-file-management.md)을 따른다.

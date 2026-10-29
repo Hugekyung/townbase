@@ -45,6 +45,8 @@ export async function configureRuntimeRole(tx, env = process.env) {
   await tx.$executeRaw`GRANT UPDATE ("documentEmbedding", "rag", "attachment", "updatedAt") ON "ModelTransferPolicy" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("answerModel", "reasoning", "inputTokenLimit", "outputTokenLimit", "monthlyBudgetNanoUsd", "priceVersion", "updatedAt") ON "ModelExecutionSettings" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("status", "chargedNanoUsd", "errorCode", "usage", "providerId", "completedAt") ON "ModelCall" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ("deletedAt") ON "FileOriginal" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT UPDATE ("extraction", "rawDeletedAt") ON "FileVersion" TO townbase_runtime`;
   // The PUBLIC schema/database DDL revokes above are intentional. Object and
   // default ACLs belonging to other consumers are inspected, not auto-rewritten.
   // Only the explicit public table/column allowlist and invoker routines from the
@@ -69,7 +71,7 @@ export async function configureRuntimeRole(tx, env = process.env) {
         OR EXISTS (
           SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
           AND has_column_privilege('townbase_runtime', c.oid, a.attnum, 'UPDATE')
-          AND NOT (n.nspname = 'public' AND (c.relname IN ('BootstrapState', 'AuthenticationState') OR (c.relname = 'Administrator' AND a.attname IN ('passwordHash', 'updatedAt')) OR (c.relname = 'AdministratorSession' AND a.attname IN ('lastSeenAt', 'revokedAt')) OR (c.relname = 'Installation' AND a.attname IN ('initializedAt', 'updatedAt')) OR (c.relname = 'ModelCredential' AND a.attname IN ('enabled', 'formatVersion', 'keyId', 'nonce', 'ciphertext', 'tag', 'updatedAt')) OR (c.relname = 'ModelTransferPolicy' AND a.attname IN ('documentEmbedding', 'rag', 'attachment', 'updatedAt')) OR (c.relname = 'ModelExecutionSettings' AND a.attname IN ('answerModel', 'reasoning', 'inputTokenLimit', 'outputTokenLimit', 'monthlyBudgetNanoUsd', 'priceVersion', 'updatedAt')) OR (c.relname = 'ModelCall' AND a.attname IN ('status', 'chargedNanoUsd', 'errorCode', 'usage', 'providerId', 'completedAt'))))
+          AND NOT (n.nspname = 'public' AND (c.relname IN ('BootstrapState', 'AuthenticationState') OR (c.relname = 'Administrator' AND a.attname IN ('passwordHash', 'updatedAt')) OR (c.relname = 'AdministratorSession' AND a.attname IN ('lastSeenAt', 'revokedAt')) OR (c.relname = 'Installation' AND a.attname IN ('initializedAt', 'updatedAt')) OR (c.relname = 'ModelCredential' AND a.attname IN ('enabled', 'formatVersion', 'keyId', 'nonce', 'ciphertext', 'tag', 'updatedAt')) OR (c.relname = 'ModelTransferPolicy' AND a.attname IN ('documentEmbedding', 'rag', 'attachment', 'updatedAt')) OR (c.relname = 'ModelExecutionSettings' AND a.attname IN ('answerModel', 'reasoning', 'inputTokenLimit', 'outputTokenLimit', 'monthlyBudgetNanoUsd', 'priceVersion', 'updatedAt')) OR (c.relname = 'FileOriginal' AND a.attname = 'deletedAt') OR (c.relname = 'FileVersion' AND a.attname IN ('extraction', 'rawDeletedAt')) OR (c.relname = 'ModelCall' AND a.attname IN ('status', 'chargedNanoUsd', 'errorCode', 'usage', 'providerId', 'completedAt'))))
         )
         OR has_table_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION,DELETE WITH GRANT OPTION')
         OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION')

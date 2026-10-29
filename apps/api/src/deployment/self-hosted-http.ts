@@ -1,3 +1,6 @@
+import { HttpException } from "@nestjs/common";
+import { AccessService, type AccessRequest } from "../access/access.service";
+import { isFileUpload } from "../files/file-upload";
 import path from "node:path";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 
@@ -20,6 +23,69 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
       next();
     },
   );
+  // Large JSON is confined to the two upload routes, authenticated before allocation.
+  // The global guard repeats authentication after parsing, including body scope claims.
+  let uploading = false;
+  app.use(
+    (
+      req: AccessRequest & {
+        originalUrl?: string;
+        url?: string;
+        destroyed?: boolean;
+        destroy(): void;
+        once(event: string, listener: () => void): void;
+      },
+      res: {
+        destroyed?: boolean;
+        once(event: string, listener: () => void): void;
+        status(code: number): { json(body: unknown): void };
+      },
+      next: () => void,
+    ) => {
+      if (!isFileUpload(req)) return next();
+      void app
+        .get(AccessService)
+        .authenticate(req)
+        .then(() => {
+          if (
+            req.headers["content-encoding"] != null &&
+            req.headers["content-encoding"] !== "identity"
+          )
+            res.status(415).json({ code: "unsupported_content_encoding" });
+          else {
+            if (req.destroyed || res.destroyed) return;
+            if (uploading) {
+              res.status(409).json({ code: "file_operation_busy" });
+              return;
+            }
+            uploading = true;
+            // At most one large upload body per API process. Stop incomplete bodies.
+            const deadline = setTimeout(() => req.destroy(), 30_000);
+            let released = false;
+            const release = () => {
+              if (released) return;
+              released = true;
+              uploading = false;
+              clearTimeout(deadline);
+            };
+            res.once("finish", release);
+            res.once("close", release);
+            req.once("end", () => clearTimeout(deadline));
+            next();
+          }
+        })
+        .catch((error: unknown) => {
+          if (error instanceof HttpException)
+            res.status(error.getStatus()).json(error.getResponse());
+          else res.status(503).json({ code: "auth_unavailable" });
+        });
+    },
+  );
+  app.useBodyParser("json", {
+    limit: "28mb",
+    strict: true,
+    type: isFileUpload,
+  });
   app.useBodyParser("json", { limit: "8kb", strict: true });
   app.use(
     (

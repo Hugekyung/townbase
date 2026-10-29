@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import request from "supertest";
 
+import { FileManagementService } from "../src/files/file-management.service";
 import { DeploymentDatabase } from "../src/deployment/deployment-database";
 import { DeploymentModule } from "../src/deployment/deployment.module";
 import { resolveRuntimeProfile } from "../src/runtime-profile";
@@ -54,6 +55,8 @@ describe("self-hosted deployment surface", () => {
     const module = await Test.createTestingModule({
       imports: [DeploymentModule],
     })
+      .overrideProvider(FileManagementService)
+      .useValue({})
       .overrideProvider(DeploymentDatabase)
       .useValue({ check })
       .overrideProvider(AuthService)

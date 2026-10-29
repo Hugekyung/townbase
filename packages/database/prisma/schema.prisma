@@ -111,6 +111,9 @@ enum InstallationAuditAction {
   embedding_key_deleted
   model_transfer_policy_changed
   model_execution_settings_changed
+  file_registered
+  file_replaced
+  file_deleted
 }
 
 // Seeded singleton, even before the operator explicitly links the installation.
@@ -477,6 +480,7 @@ model FileOriginal {
   installationId       String
   ownerAdministratorId String
   title                String @db.VarChar(255)
+  deletedAt            DateTime?
   createdAt            DateTime @default(now())
   installation         Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
   owner                Administrator @relation(fields: [installationId, ownerAdministratorId], references: [installationId, id], onDelete: Restrict)
@@ -495,6 +499,7 @@ model FileVersion {
   byteSize       Int
   contentHash    String @db.VarChar(64)
   storageKey     String @unique @db.VarChar(80)
+  rawDeletedAt   DateTime?
   sourceType     SourceType @default(uploaded_file)
   knowledgeTypes KnowledgeType[]
   domainTags     String[]

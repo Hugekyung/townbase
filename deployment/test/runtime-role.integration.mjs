@@ -435,7 +435,7 @@ test("C01 refuses PUBLIC deletion of execution settings or calls", async () => {
   await configure();
 });
 
-test("D01 file foundation allows SELECT/INSERT and denies every mutation column", async () => {
+test("D02 file lifecycle allows only cleanup columns and denies every other mutation column", async () => {
   for (const table of ["FileOriginal", "FileVersion", "FileExtractionRun"]) {
     const [access] =
       await db.$queryRaw`SELECT has_table_privilege('townbase_runtime',format('public.%I',${table}),'SELECT') AS readable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'INSERT') AS insertable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS forbidden`;
@@ -447,7 +447,13 @@ test("D01 file foundation allows SELECT/INSERT and denies every mutation column"
     assert.ok(columns.length > 0);
     assert.ok(
       columns.every(
-        (column) => column.writable === false && column.referenceable === false,
+        (column) =>
+          column.writable ===
+            {
+              FileOriginal: ["deletedAt"],
+              FileVersion: ["extraction", "rawDeletedAt"],
+              FileExtractionRun: [],
+            }[table].includes(column.attname) && column.referenceable === false,
       ),
     );
     await db.$executeRawUnsafe(
