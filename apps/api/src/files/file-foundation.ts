@@ -13,8 +13,7 @@ import {
   type FileExtraction,
 } from "./file-contract";
 
-// D01 internal foundation only: no controller, public upload route, embedding or queue.
-// D02 will call this after validating its upload/body/Content-Type contract.
+// D01 persistence and parser boundary, shared by D02. No embedding or queue here.
 export class FileFoundation {
   constructor(
     private readonly auth: AuthService,
@@ -27,11 +26,30 @@ export class FileFoundation {
     expected: AdministratorContext,
     name: string,
     input: Buffer,
+    options: {
+      replaceId?: string;
+      preserveOnFailure?: boolean;
+      audit?: boolean;
+      inspect?: (value: FileExtraction) => void;
+    } = {},
   ) {
     const admitted = await this.auth.authorizedOperation(
       token,
       expected,
-      async () => ({}),
+      async (tx, context) => {
+        if (options.replaceId) {
+          const target = await tx.fileOriginal.findFirst({
+            where: {
+              id: options.replaceId,
+              installationId: context.installationId,
+              ownerAdministratorId: context.administratorId,
+              deletedAt: null,
+            },
+          });
+          if (!target) throw new NotFoundException();
+        }
+        return {};
+      },
     );
     if (!admitted.ok) throw new UnauthorizedException();
     const format = fileFormat(name);
@@ -54,6 +72,10 @@ export class FileFoundation {
         throw error;
       errorCode = error.code;
     }
+    if (extraction) {
+      assertExtraction(extraction, format);
+      options.inspect?.(extraction);
+    }
     const completedAt = new Date();
     const storageKey = await this.storage.write(bytes);
     let committed = false;
@@ -62,20 +84,41 @@ export class FileFoundation {
         token,
         expected,
         async (tx, context) => {
-          const original = await tx.fileOriginal.create({
-            data: {
-              id: randomUUID(),
+          let original;
+          if (options.replaceId) {
+            original = await tx.fileOriginal.findFirst({
+              where: {
+                id: options.replaceId,
+                installationId: context.installationId,
+                ownerAdministratorId: context.administratorId,
+                deletedAt: null,
+              },
+            });
+            if (!original) throw new NotFoundException();
+          } else {
+            original = await tx.fileOriginal.create({
+              data: {
+                id: randomUUID(),
+                installationId: context.installationId,
+                ownerAdministratorId: context.administratorId,
+                title: name,
+              },
+            });
+          }
+          const previous = await tx.fileVersion.findFirst({
+            where: {
               installationId: context.installationId,
-              ownerAdministratorId: context.administratorId,
-              title: name,
+              originalId: original.id,
             },
+            orderBy: { version: "desc" },
+            select: { version: true },
           });
           const version = await tx.fileVersion.create({
             data: {
               id: storageKey.slice(0, -4),
               installationId: context.installationId,
               originalId: original.id,
-              version: 1,
+              version: (previous?.version ?? 0) + 1,
               fileName: name,
               format,
               byteSize: bytes.length,
@@ -99,6 +142,17 @@ export class FileFoundation {
               completedAt,
             },
           });
+          if (options.audit)
+            await tx.installationAuditEvent.create({
+              data: {
+                installationId: context.installationId,
+                actorType: "administrator",
+                actorAdministratorId: context.administratorId,
+                action: options.replaceId ? "file_replaced" : "file_registered",
+                outcome: "succeeded",
+                requestId: version.id,
+              },
+            });
           return {
             originalId: original.id,
             versionId: version.id,
@@ -115,7 +169,8 @@ export class FileFoundation {
       };
     } finally {
       // Never do filesystem work under the authentication/DB transaction lock.
-      if (!committed) await this.storage.remove(storageKey);
+      if (!committed && !options.preserveOnFailure)
+        await this.storage.remove(storageKey);
     }
   }
 
@@ -139,6 +194,7 @@ export class FileFoundation {
             id: originalId,
             installationId: context.installationId,
             ownerAdministratorId: context.administratorId,
+            deletedAt: null,
           },
           include: {
             versions: {

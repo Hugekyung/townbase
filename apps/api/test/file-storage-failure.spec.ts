@@ -93,6 +93,28 @@ describe("D01 filesystem failure cleanup and safe codes", () => {
       );
     },
   );
+  test.each(["mkdir", "lstat", "realpath"] as const)(
+    "removeIfPresent does not treat %s ENOENT as an absent file",
+    async (stage) => {
+      jest
+        .spyOn(io, stage)
+        .mockRejectedValue(Object.assign(failure(), { code: "ENOENT" }));
+      const unlink = jest.spyOn(io, "unlink");
+      await safeError(storage.removeIfPresent(key));
+      expect(unlink).not.toHaveBeenCalled();
+    },
+  );
+  test("removeIfPresent ignores only unlink ENOENT and is idempotent", async () => {
+    await io.writeFile(path.join(root, key), "synthetic", { mode: 0o600 });
+    await storage.removeIfPresent(key);
+    await expect(storage.removeIfPresent(key)).resolves.toBeUndefined();
+  });
+  test("removeIfPresent reports unlink failure and preserves the file", async () => {
+    await io.writeFile(path.join(root, key), "synthetic", { mode: 0o600 });
+    jest.spyOn(io, "unlink").mockRejectedValue(failure());
+    await safeError(storage.removeIfPresent(key));
+    expect(await io.readFile(path.join(root, key), "utf8")).toBe("synthetic");
+  });
   test("missing read/remove and symlink are classified consistently", async () => {
     await safeError(storage.read(key));
     await safeError(storage.remove(key));

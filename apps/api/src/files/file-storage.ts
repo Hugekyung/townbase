@@ -1,5 +1,12 @@
 import { constants } from "node:fs";
-import { lstat, mkdir, open, realpath, unlink } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  open,
+  realpath,
+  unlink,
+  opendir,
+} from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { FILE_LIMITS, FileError } from "./file-contract";
@@ -67,6 +74,30 @@ export class FileStorage {
       this.validKey(key);
       await unlink(path.join(await this.directory(), key));
     });
+  }
+  // Used only under D02's cross-process file lock. Missing means already cleaned.
+  async removeIfPresent(key: string): Promise<void> {
+    return this.safe(async () => {
+      this.validKey(key);
+      const root = await this.directory();
+      try {
+        await unlink(path.join(root, key));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    });
+  }
+  async *keys(): AsyncGenerator<string> {
+    try {
+      const directory = await opendir(await this.directory());
+      for await (const entry of directory) {
+        if (!entry.isFile()) throw new FileError("storage_unavailable");
+        this.validKey(entry.name);
+        yield entry.name;
+      }
+    } catch {
+      throw new FileError("storage_unavailable");
+    }
   }
   async read(key: string): Promise<Buffer> {
     return this.safe(async () => {
