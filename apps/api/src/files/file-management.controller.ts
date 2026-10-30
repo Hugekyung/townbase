@@ -4,6 +4,8 @@ import {
   Delete,
   Get,
   Header,
+  Headers,
+  HttpCode,
   HttpException,
   Param,
   Post,
@@ -16,6 +18,7 @@ import {
 import { AccessService, type AccessRequest } from "../access/access.service";
 import { readSessionCookie } from "../auth/auth-transport";
 import { TransferDenied } from "../model-integration/transfer-policy";
+import { FileRunService } from "./file-run.service";
 import { FileError } from "./file-contract";
 import { FileManagementService } from "./file-management.service";
 import { fileInput } from "./file-upload";
@@ -25,6 +28,7 @@ export class FileManagementController {
   constructor(
     private readonly files: FileManagementService,
     private readonly access: AccessService,
+    private readonly runs: FileRunService,
   ) {}
   private async run<T>(work: () => Promise<T>): Promise<T> {
     try {
@@ -90,32 +94,66 @@ export class FileManagementController {
     });
   }
   @Post()
+  @HttpCode(202)
   @Header("Cache-Control", "no-store")
-  register(@Req() req: AccessRequest, @Body() body: unknown) {
+  register(
+    @Req() req: AccessRequest,
+    @Body() body: unknown,
+    @Headers("x-townbase-request-id") requestId: unknown,
+  ) {
     return this.run(() => {
       const { name, bytes } = fileInput(body);
-      return this.files.register(
+      return this.runs.upload(
         readSessionCookie(req),
         this.access.requester(req),
+        requestId,
         name,
         bytes,
       );
     });
   }
   @Put(":id")
+  @HttpCode(202)
   @Header("Cache-Control", "no-store")
   replace(
     @Req() req: AccessRequest,
     @Param("id") id: string,
     @Body() body: unknown,
+    @Headers("x-townbase-request-id") requestId: unknown,
   ) {
     return this.run(() => {
       const { name, bytes } = fileInput(body);
-      return this.files.register(
+      return this.runs.upload(
         readSessionCookie(req),
         this.access.requester(req),
+        requestId,
         name,
         bytes,
+        id,
+      );
+    });
+  }
+  @Post(":id/reprocess")
+  @HttpCode(202)
+  @Header("Cache-Control", "no-store")
+  reprocess(
+    @Req() req: AccessRequest,
+    @Param("id") id: string,
+    @Headers("x-townbase-request-id") requestId: unknown,
+    @Body() body: unknown,
+  ) {
+    return this.run(() => {
+      if (
+        body == null ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).length !== 0
+      )
+        throw new HttpException({ code: "invalid_request" }, 400);
+      return this.runs.reprocess(
+        readSessionCookie(req),
+        this.access.requester(req),
+        requestId,
         id,
       );
     });

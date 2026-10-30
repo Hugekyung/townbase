@@ -47,6 +47,21 @@ describe("D01 child termination boundary", () => {
     await rejected;
     expect(jest.getTimerCount()).toBe(0);
   });
+  test("manual cancellation kills the active child and cannot cancel a later extraction", async () => {
+    const extractor = new FileExtractor();
+    const first = extractor.extract("a.txt", Buffer.from("text"));
+    const rejected = expect(first).rejects.toMatchObject({
+      code: "extraction_cancelled",
+    });
+    extractor.cancel();
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+    child.emit("close", null, "SIGKILL");
+    await rejected;
+    expect(jest.getTimerCount()).toBe(0);
+    child.kill.mockClear();
+    extractor.cancel();
+    expect(child.kill).not.toHaveBeenCalled();
+  });
   test("abrupt OOM/crash is not successful empty extraction", async () => {
     const pending = new FileExtractor().extract("a.txt", Buffer.from("text"));
     const rejected = expect(pending).rejects.toMatchObject({

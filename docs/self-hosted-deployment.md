@@ -299,3 +299,12 @@ docker compose --env-file .townbase/compose.env -p my-townbase logs --tail=60 ap
 `TOWNBASE_DOCUMENTS_PATH/originals`는 지속 raw 전용0700 디렉터리이며 다른 자료/첨부/백업을 넣지 않는다. 시작 시 DB에 없는 UUID 파일과 삭제된 원본의 남은 파일을 정리한다. 알 수 없는 파일/하위 디렉터리/symlink 또는 DB/파일 오류면 시작을 거절하므로 경로와 로그 코드부터 확인한다. 동작 중 삭제 정리는1분마다 재시도하며 실패하면 cleanup=pending이다. API 삭제는 접근을 먼저 차단하고 추출문을 제거한다. 실패한 물리 삭제를 완료로 표시하지 않는다. 원본 다운로드는 현재 버전만 제공하며 HTML을 직접 렌더하지 않는다.
 
 새 migration은 tombstone/물리 정리 상태·감사 enum과 최소 열 권한을 추가한다. 배포 전 DB/원본 백업 절차를 유지한다. 파일 웹·비동기 실행 ID/재시도·벡터·과거 파생 참조·백업 복구 시 삭제 기록 반영은 후속 단계다. 지금은 extracted를 검색 가능으로 오인하지 않게 searchable=false로 반환한다. 실제 실행 조건·현재 한계는 [D02 기록](implementation/v0.2-d02-file-management.md)을 따른다.
+
+
+## 파일 실행 관리 (D03, 로컬 전달 전)
+
+현재 등록/교체는 `X-Townbase-Request-Id` UUID v4를 보내202 실행 ID를 받는다. 위 D02의 동기 결과 설명보다 이 계약을 우선한다. UUID는 클라이언트가 먼저 보관하고, 응답 유실 시 GET `/file-runs/requests/:requestId`로 조회한다. 실행 목록/상세는 `/file-runs`, `{}` POST로 `/:id/retry` 또는 `/:id/stop`을 요청한다. 현재 버전의 새 추출은 `/files/:id/reprocess`에 새 요청 ID와 `{}`를 보낸다. 모든 경로는 기존 Origin/Host·인증 헤더·세션·JSON 보호를 유지한다.
+
+`documents/pending`도 지속 접수 raw 저장소다. 첨부와 섞거나 원본 저장소의 orphan 정리 대상으로 취급하지 않는다. 실행 소유권을 먼저 확보한 단일 API만 정리/처리한다. 기존 API가 실행 중인 중복 기동은 거절한다. queued+running20·실행1개이며 다른 작업은 DB 대기한다. 재시작은 이전 대기/실행을 interrupted로 표시하며 자동 재실행하지 않는다. 남은 입력/원본과 이력을 확인하고 운영자가 retry한다. 이미 파일 버전이 저장됐으면 그 버전을 사용하므로 임시 복사본이 지워졌다는 이유로 재시도를 실패시키지 않는다.
+
+Run/요청 별칭의90일 보관 만료 후 UUID 재전송 보장은 종료한다. 중단/실패 접수 입력은 수동 재시도/보관 범위 안에서 유지하고, 성공/내용 실패로 버전이 생긴 중복 복사본·비밀 패턴 입력·orphan·삭제 자료 입력을 정리한다. 분산 failover·자동 백업/재시도 또는 D04 임베딩 완료로 설명하지 않는다. [상세 계약·검증](implementation/v0.2-d03-file-runs.md)을 따른다.

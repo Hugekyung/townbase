@@ -1,5 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { UnauthorizedException, NotFoundException } from "@nestjs/common";
+import {
+  UnauthorizedException,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
 import type { Prisma } from "@townbase/database";
 import { AuthService, type AdministratorContext } from "../auth/auth.service";
 import { FileExtractor } from "./file-extractor";
@@ -12,6 +16,17 @@ import {
   fileFormat,
   type FileExtraction,
 } from "./file-contract";
+
+export type FileCheckpoint = (
+  tx: Prisma.TransactionClient,
+  value: {
+    originalId: string;
+    versionId: string;
+    runId: string;
+    status: "extracted" | "failed";
+    errorCode: string | null;
+  },
+) => Promise<void>;
 
 // D01 persistence and parser boundary, shared by D02. No embedding or queue here.
 export class FileFoundation {
@@ -30,6 +45,8 @@ export class FileFoundation {
       replaceId?: string;
       preserveOnFailure?: boolean;
       audit?: boolean;
+      checkpoint?: FileCheckpoint;
+      expectedVersionId?: string;
       inspect?: (value: FileExtraction) => void;
     } = {},
   ) {
@@ -111,8 +128,13 @@ export class FileFoundation {
               originalId: original.id,
             },
             orderBy: { version: "desc" },
-            select: { version: true },
+            select: { version: true, id: true },
           });
+          if (
+            options.expectedVersionId &&
+            previous?.id !== options.expectedVersionId
+          )
+            throw new ConflictException({ code: "source_changed" });
           const version = await tx.fileVersion.create({
             data: {
               id: storageKey.slice(0, -4),
@@ -141,6 +163,13 @@ export class FileFoundation {
               startedAt,
               completedAt,
             },
+          });
+          await options.checkpoint?.(tx, {
+            originalId: original.id,
+            versionId: version.id,
+            runId: run.id,
+            status: extraction ? "extracted" : "failed",
+            errorCode: errorCode ?? null,
           });
           if (options.audit)
             await tx.installationAuditEvent.create({

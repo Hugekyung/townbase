@@ -489,3 +489,62 @@ test("D01 refuses PUBLIC column REFERENCES on every file table", async () => {
     }
   }
 });
+
+test("D03 run storage grants only status/result/cleanup columns and request aliases are immutable", async () => {
+  const allowed = [
+    "status",
+    "errorCode",
+    "inputKey",
+    "resultOriginalId",
+    "resultVersionId",
+    "resultExtractionRunId",
+    "createdCount",
+    "updatedCount",
+    "excludedCount",
+    "unchangedCount",
+    "failedCount",
+    "startedAt",
+    "completedAt",
+  ];
+  for (const table of ["FileRun", "FileRunRequest"]) {
+    const [rights] =
+      await db.$queryRaw`SELECT has_table_privilege('townbase_runtime',format('public.%I',${table}),'SELECT') AS readable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'INSERT') AS insertable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'DELETE') AS deletable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'UPDATE,TRUNCATE,REFERENCES,TRIGGER') AS forbidden`;
+    assert.deepEqual(rights, {
+      readable: true,
+      insertable: true,
+      deletable: true,
+      forbidden: false,
+    });
+    const columns =
+      await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable, has_column_privilege('townbase_runtime',c.oid,a.attnum,'REFERENCES') AS referenceable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname=${table} AND a.attnum>0 AND NOT a.attisdropped`;
+    assert.ok(columns.length > 0);
+    assert.ok(
+      columns.every(
+        (column) =>
+          column.writable ===
+            (table === "FileRun" && allowed.includes(column.attname)) &&
+          column.referenceable === false,
+      ),
+    );
+  }
+});
+test("D03 refuses PUBLIC write access to run identity or alias fingerprint", async () => {
+  for (const [table, column] of [
+    ["FileRun", "ownerAdministratorId"],
+    ["FileRunRequest", "fingerprint"],
+  ]) {
+    await db.$executeRawUnsafe(
+      `GRANT UPDATE ("${column}") ON "${table}" TO PUBLIC`,
+    );
+    try {
+      await assert.rejects(configure, {
+        code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
+      });
+    } finally {
+      await db.$executeRawUnsafe(
+        `REVOKE UPDATE ("${column}") ON "${table}" FROM PUBLIC`,
+      );
+      await configure();
+    }
+  }
+});

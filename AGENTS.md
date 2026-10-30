@@ -163,3 +163,14 @@
 - 삭제의 missing-file 예외 처리는 unlink에만 적용한다. 디렉터리 생성/검사/realpath 실패를 정리 완료로 처리하지 않는다. 참조 I/O가 실패해도 최신 신원·현재 버전·삭제 상태를 재검사하며 실제 저장 장애503과 삭제404/인증401을 구분한다.
 - 업로드 본문 판별은 실제 라우터의 대소문자/끝 슬래시 별칭과 맞춘다. DELETE는 빈 JSON 객체만 서비스에 전달한다. 공통 strict JSON parser의 거절은 유지한다.
 - D02 실 DB fixture는 Installation/FileOriginal/ModelCall/Document/DocumentChunk가 모두 비었는지 쓰기 전에 확인한다. 기존 자료를 자동 정리하지 않는다. [리뷰 대응 기록](docs/implementation/v0.2-d02-review-response.md)을 따른다.
+
+
+## D03 영속 실행 적용 상태 (2026-10-31, 로컬 전달 전)
+
+- `/files` POST/PUT는 `X-Townbase-Request-Id` UUID v4와202 실행 ID 계약으로 전환했다. `/file-runs` 목록/상세/requests/:requestId·retry/stop 및 `/files/:id/reprocess`를 관리자 보호 경로로 제공한다. D02의 동기 응답 설명보다 이 현재 계약을 우선한다. 파일당1요청이며 현재 성공은 로컬 추출/저장이지 검색 가능이 아니다.
+- FileRun/FileRunRequest에 신원·대상/설정 버전·시각·상태·카운트·재시도 부모·정확한 원본/버전/추출 이력 ID를 저장한다. 결과와 실행 완료를 같은 인증 transaction에서 확정한다. 요청 재전송·동일 active 대상/버전·같은 실패 등록의 반복 복구는 기존 실행으로 연결하고 원본을 중복 생성하지 않는다.
+- 단일 API 소유권(741126,4)을 먼저 얻은 뒤 시작 정리/dispatch를 허용한다. 설치당 running1·queued+running20, 초과429다. 파일 잠금3을 얻기 전에는 running으로 선점하지 않고 idle 확인은 파일 잠금을 잡지 않는다. pending 입출력5·짧은 DB 전이6을 분리하며 인증 transaction에 파서/파일 I/O를 넣지 않는다. Redis/별도 worker/분산 lease/자동 재시도를 추가하지 않는다.
+- raw 접수는 documents/pending 전용0700/0600이며 originals/첨부와 분리한다. 세션은 API 메모리에만 연결하고 재시작 뒤 queued/running은 interrupted다. 같은 API에서 수동 retry하며 늦은 완료는 running CAS로 차단한다. 파서 취소는 D01 bounded 종료 경계를 유지한다.
+- 성공한 버전이 있으면 재시도는 정리 가능한 pending 복사본 대신 저장 원본을 사용한다. 비밀 패턴 실패는 raw 정리 후 동일 입력 재시도를 거절한다. 현재 FileRun/요청 별칭 terminal 이력은90일 후 정리하며, 기존 추출 이력/전체 자료·백업 보관 정책은 I 후속과 구분한다.
+- runtime 추가 권한은 FileRun/FileRunRequest SELECT/INSERT/보관 정리 DELETE 및 FileRun의 상태·결과·정리·시각/카운트 열 UPDATE다. 식별/소유·입력 metadata·별칭 fingerprint UPDATE는 거절한다. 실행 이력에 원문/세션/Key를 저장하지 않는다.
+- D03 실제 DB 시험은 TOWNBASE_FILE_RUN_TEST=1·정확한 postgres/townbase_d03_test의 새 합성 DB·owner URL/runtime secret을 사용한다. 기존 D02 suite는202 계약 회귀를 포함한다. 두 suite 모두 build 산출물 전체를 소비하며 일반 API 시험은 건너뛴다. [D03 검증·한계](docs/implementation/v0.2-d03-file-runs.md)를 따른다.

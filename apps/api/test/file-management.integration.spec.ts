@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { assertFreshFileManagementDatabase } from "./file-management-fixture";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import {
   mkdtemp,
@@ -57,23 +57,62 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
     Host: "127.0.0.1:3000",
     Origin: "http://127.0.0.1:3000",
     "X-Townbase-Auth": "1",
+    "X-Townbase-Request-Id": randomUUID(),
     Cookie: `townbase_session=${token}`,
   });
   const payload = (name: string, bytes: Buffer) => ({
     name,
     contentBase64: bytes.toString("base64"),
   });
+  async function settled(ack: { runId: string }) {
+    for (let i = 0; i < 400; i++) {
+      const row = await owner.fileRun.findUniqueOrThrow({
+        where: { id: ack.runId },
+      });
+      if (!["queued", "running"].includes(row.status)) {
+        for (let j = 0; j < 200; j++) {
+          const free = await owner.$transaction(
+            async (tx) =>
+              (
+                await tx.$queryRaw<
+                  Array<{ free: boolean }>
+                >`SELECT pg_try_advisory_xact_lock(741126,3) AS free`
+              )[0]!.free,
+          );
+          if (free) return row;
+          await new Promise((r) => setTimeout(r, 10));
+        }
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error("Run did not settle");
+  }
+  async function accepted(
+    method: "post" | "put",
+    url: string,
+    name: string,
+    bytes: Buffer,
+  ) {
+    const response = await request(app.getHttpServer())
+      [method](url)
+      .set(headers())
+      .send(payload(name, bytes))
+      .expect(202);
+    const row = await settled(response.body);
+    if (!row.resultOriginalId)
+      throw new Error("No persisted file result: " + row.errorCode);
+    return (
+      await request(app.getHttpServer())
+        .get(`/files/${row.resultOriginalId}`)
+        .set(headers())
+        .expect(200)
+    ).body;
+  }
   async function register(
     name = "a.txt",
     bytes: Buffer = Buffer.from("한국어 original"),
   ) {
-    return (
-      await request(app.getHttpServer())
-        .post("/files")
-        .set(headers())
-        .send(payload(name, bytes))
-        .expect(201)
-    ).body;
+    return accepted("post", "/files", name, bytes);
   }
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL!);
@@ -204,13 +243,12 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
   );
   test("replacement retains original identity and switches references; failed replacement never falls back", async () => {
     const initial = await register();
-    const replacement = (
-      await request(app.getHttpServer())
-        .put(`/files/${initial.id}`)
-        .set(headers())
-        .send(payload("new.txt", Buffer.from("new")))
-        .expect(200)
-    ).body;
+    const replacement = await accepted(
+      "put",
+      `/files/${initial.id}`,
+      "new.txt",
+      Buffer.from("new"),
+    );
     expect(replacement.id).toBe(initial.id);
     expect(replacement.version.version).toBe(2);
     expect(replacement.version.id).not.toBe(initial.version.id);
@@ -222,13 +260,12 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
           .expect(200)
       ).body,
     ).toEqual(Buffer.from("new"));
-    const failed = (
-      await request(app.getHttpServer())
-        .put(`/files/${initial.id}`)
-        .set(headers())
-        .send(payload("broken.pdf", Buffer.from("broken")))
-        .expect(200)
-    ).body;
+    const failed = await accepted(
+      "put",
+      `/files/${initial.id}`,
+      "broken.pdf",
+      Buffer.from("broken"),
+    );
     expect(failed.version.version).toBe(3);
     expect(failed.version.runs[0].status).toBe("failed");
     expect(failed.version.extraction).toBeNull();
@@ -320,7 +357,7 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
       .set(headers())
       .expect(404);
     service.onApplicationShutdown();
-    await service.onModuleInit();
+    await service.startMaintenance();
     const row = await owner.fileVersion.findUniqueOrThrow({
       where: { id: item.version.id },
     });
@@ -388,7 +425,7 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
       .set(headers())
       .expect(404);
     service.onApplicationShutdown();
-    await service.onModuleInit();
+    await service.startMaintenance();
     const after = await owner.fileVersion.findUniqueOrThrow({
       where: { id: item.version.id },
     });
@@ -398,7 +435,7 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
   test("startup removes an interrupted raw write with no committed DB row", async () => {
     const orphan = await storage.write(Buffer.from("interrupted synthetic"));
     service.onApplicationShutdown();
-    await service.onModuleInit();
+    await service.startMaintenance();
     expect((await readdir(root)).includes(orphan)).toBe(false);
   });
   test("unexpected storage entry blocks startup without traversing or deleting it", async () => {
@@ -406,17 +443,19 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
       mode: 0o600,
     });
     service.onApplicationShutdown();
-    await expect(service.onModuleInit()).rejects.toThrow("storage_unavailable");
+    await expect(service.startMaintenance()).rejects.toThrow(
+      "storage_unavailable",
+    );
     expect(await readFile(path.join(root, "unknown-file"), "utf8")).toBe(
       "preserve",
     );
     await rm(path.join(root, "unknown-file"));
-    await service.onModuleInit();
+    await service.startMaintenance();
   });
   test("sensitive extracted content is rejected without registration/raw persistence", async () => {
     const before = await owner.fileOriginal.count(),
       files = await readdir(root);
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .post("/files")
       .set(headers())
       .send(
@@ -425,21 +464,30 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
           Buffer.from("OPENAI_API_KEY=sk-" + "x".repeat(24)),
         ),
       )
-      .expect(422);
+      .expect(202);
+    expect((await settled(response.body)).errorCode).toBe("sensitive_file");
     expect(await owner.fileOriginal.count()).toBe(before);
     expect(await readdir(root)).toEqual(files);
   });
-  test("cross-process file lock rejects intake without side effects", async () => {
+  test("cross-process file lock keeps intake queued without executing", async () => {
     const before = await owner.fileOriginal.count();
+    let ack: { runId: string };
     await owner.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(741126, 3)::text`;
-      await request(app.getHttpServer())
-        .post("/files")
-        .set(headers())
-        .send(payload("a.txt", Buffer.from("busy")))
-        .expect(409);
+      ack = (
+        await request(app.getHttpServer())
+          .post("/files")
+          .set(headers())
+          .send(payload("a.txt", Buffer.from("busy")))
+          .expect(202)
+      ).body;
+      expect(
+        (await owner.fileRun.findUniqueOrThrow({ where: { id: ack.runId } }))
+          .status,
+      ).toBe("queued");
+      expect(await owner.fileOriginal.count()).toBe(before);
     });
-    expect(await owner.fileOriginal.count()).toBe(before);
+    expect((await settled(ack!)).status).toBe("succeeded");
   });
   test("listing is bounded and cursor is validated", async () => {
     const page = await service.list(token, context);
@@ -466,11 +514,12 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
       'ALTER TABLE "FileExtractionRun" ADD CONSTRAINT "D02_synthetic_reject" CHECK (false) NOT VALID',
     );
     try {
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .post("/files")
         .set(headers())
         .send(payload("rollback.txt", Buffer.from("rollback")))
-        .expect(503);
+        .expect(202);
+      expect((await settled(response.body)).status).toBe("failed");
     } finally {
       await owner.$executeRawUnsafe(
         'ALTER TABLE "FileExtractionRun" DROP CONSTRAINT "D02_synthetic_reject"',
@@ -490,11 +539,12 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
         return result;
       });
     try {
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .post("/files")
         .set(headers())
         .send(payload("uncertain.txt", Buffer.from("committed")))
-        .expect(503);
+        .expect(202);
+      expect((await settled(response.body)).status).toBe("succeeded");
     } finally {
       spy.mockRestore();
     }
@@ -522,11 +572,14 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
         await auth.logout(token);
         return value;
       });
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .post("/files")
       .set(headers())
       .send(payload("a.txt", Buffer.from("revoked")))
-      .expect(401);
+      .expect(202);
+    expect((await settled(response.body)).errorCode).toBe(
+      "authorization_expired",
+    );
     spy.mockRestore();
     expect(await owner.fileOriginal.count()).toBe(before);
     expect(await owner.document.count()).toBe(0);

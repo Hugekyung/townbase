@@ -14,6 +14,10 @@ import {
 // One local parser at a time. D03 adds the persisted indexing queue, not a worker server.
 export class FileExtractor {
   private busy = false;
+  private cancelActive: (() => void) | undefined;
+  cancel(): void {
+    this.cancelActive?.();
+  }
   // A request may finish before the OS can reap its child. Never admit another
   // parser until that child closes (or the operator restarts this process).
   private strandedChild: ChildProcess | null = null;
@@ -136,6 +140,7 @@ export class FileExtractor {
           terminationDeadline = setTimeout(quarantine, 1000);
           signal();
         };
+        this.cancelActive = () => stop("extraction_cancelled");
         timer = setTimeout(
           () => stop("extraction_timeout"),
           FILE_LIMITS.timeoutMs,
@@ -187,6 +192,7 @@ export class FileExtractor {
         else child.stdin.end(bytes);
       });
     } finally {
+      this.cancelActive = undefined;
       this.busy = false;
     }
   }

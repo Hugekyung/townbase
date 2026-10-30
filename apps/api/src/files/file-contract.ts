@@ -19,6 +19,7 @@ export const FILE_ERRORS = [
   "archive_limit",
   "unsafe_archive",
   "extraction_timeout",
+  "extraction_cancelled",
   "parser_unavailable",
   "parser_failed",
   "parser_busy",
