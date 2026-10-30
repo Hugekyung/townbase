@@ -88,6 +88,57 @@ describe("D02 real HTTP body/guard boundary", () => {
     expect(files.register.mock.calls[0]?.[3]).toHaveLength(9000);
   });
   test.each([
+    ["post", "/files/", 201],
+    ["post", "/FILES/?from=test", 201],
+    ["put", "/files/11111111-1111-4111-8111-111111111111/", 200],
+    ["put", "/FILES/11111111-1111-4111-8111-111111111111/?from=test", 200],
+  ] as const)(
+    "%s %s uses the authenticated large upload boundary",
+    async (method, path, status) => {
+      await request(app.getHttpServer())
+        [method](path)
+        .set(headers)
+        .send({
+          name: "a.txt",
+          contentBase64: Buffer.alloc(9000, 120).toString("base64"),
+        })
+        .expect(status);
+      expect(auth.requester).toHaveBeenCalledTimes(2);
+      expect(files.register).toHaveBeenCalledTimes(1);
+      expect(files.register.mock.calls[0]?.[3]).toHaveLength(9000);
+    },
+  );
+  test("trailing slash upload is authenticated before its malformed large body", async () => {
+    await request(app.getHttpServer())
+      .post("/files/")
+      .set({ ...headers, Cookie: "" })
+      .set("Content-Type", "application/json")
+      .send("{".repeat(9000))
+      .expect(401);
+    expect(files.register).not.toHaveBeenCalled();
+  });
+  test.each([{ unexpected: true }, [], null, "value", 1])(
+    "DELETE rejects non-empty/non-object JSON %j before removal",
+    async (body) => {
+      await request(app.getHttpServer())
+        .delete("/files/11111111-1111-4111-8111-111111111111")
+        .set(headers)
+        .set("Content-Type", "application/json")
+        .send(JSON.stringify(body))
+        .expect(400);
+      expect(files.remove).not.toHaveBeenCalled();
+    },
+  );
+  test("DELETE permits exactly an empty JSON object", async () => {
+    files.remove.mockResolvedValue({ deleted: true });
+    await request(app.getHttpServer())
+      .delete("/files/11111111-1111-4111-8111-111111111111")
+      .set(headers)
+      .send({})
+      .expect(200);
+    expect(files.remove).toHaveBeenCalledTimes(1);
+  });
+  test.each([
     "text/plain",
     "application/octet-stream",
     "multipart/form-data; boundary=a",

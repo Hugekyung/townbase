@@ -226,3 +226,6 @@ PR #40의 기존 HEAD184f2aa는 main `4f4b26b`에 이미 병합됐다. 2026-10-2
 
 
 2026-10-29 PR #41 병합 후 main `29eea00`을 동기화하고 `codex/v02-d02-file-management`에서 D02 보호된 파일 등록/목록/교체/삭제·제품 내 참조 API를 구현했다. 시작/주기 정리·불확실 커밋 원본 보존·tombstone/열 권한도 연결했다. D03의 비동기 실행 예약·요청 ID·수동 재시도와 D04의 벡터/검색 가능 상태는 아직 미구현이다. 현재 API는 한 요청에1파일이며 일괄 UI는 D03/G에서 연결한다. [D02 기록](docs/implementation/v0.2-d02-file-management.md)을 따른다. 2026-10-29 사용자가 커밋·푸시·main 대상 PR 생성을 승인했다. 전달 결과는 저장소 PR 기록을 따른다.
+
+
+2026-10-31 PR #42 리뷰5건은 fixture 전제 검사·원본 참조 경합·업로드 별칭·DELETE 본문·디렉터리 ENOENT 처리로 보완했다. 이번 자동 검증은 API410·배포24·D02 실제 DB26=460개이며 최초495개와 합산하지 않는다. [대응 기록](docs/implementation/v0.2-d02-review-response.md)을 따른다. 사용자는 수정 완료 후 commit/push·PR 댓글 등록을 승인했다.

@@ -79,8 +79,9 @@ export class FileStorage {
   async removeIfPresent(key: string): Promise<void> {
     return this.safe(async () => {
       this.validKey(key);
+      const root = await this.directory();
       try {
-        await unlink(path.join(await this.directory(), key));
+        await unlink(path.join(root, key));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }

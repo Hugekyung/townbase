@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { assertFreshFileManagementDatabase } from "./file-management-fixture";
 import { randomBytes, createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import {
@@ -79,12 +80,7 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
     if (url.hostname !== "postgres" || url.pathname !== "/townbase_d02_test")
       throw new Error("Dedicated D02 DB required");
     owner = new PrismaClient({ datasources: { db: { url: url.toString() } } });
-    if (
-      (await owner.installation.count()) !== 0 ||
-      (await owner.fileOriginal.count()) !== 0 ||
-      (await owner.modelCall.count()) !== 0
-    )
-      throw new Error("Fresh D02 synthetic DB required; refuse reset");
+    await assertFreshFileManagementDatabase(owner);
     const workspace = await owner.workspace.create({
       data: { name: "D02 synthetic fixture" },
     });
@@ -334,6 +330,70 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
       .get(retained.reference)
       .set(headers())
       .expect(200);
+  });
+  test("concurrent deletion before source read returns404 rather than503", async () => {
+    const item = await register();
+    const read = storage.read.bind(storage);
+    const spy = jest
+      .spyOn(storage, "read")
+      .mockImplementationOnce(async (key) => {
+        await service.remove(token, context, item.id);
+        return read(key);
+      });
+    try {
+      await request(app.getHttpServer())
+        .get(item.reference)
+        .set(headers())
+        .expect(404);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(
+      (
+        await owner.fileVersion.findUniqueOrThrow({
+          where: { id: item.version.id },
+        })
+      ).rawDeletedAt,
+    ).not.toBeNull();
+  });
+  test("directory ENOENT keeps physical cleanup pending without stamping rawDeletedAt", async () => {
+    const item = await register();
+    const spy = jest
+      .spyOn(
+        storage as unknown as { directory(): Promise<string> },
+        "directory",
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error("synthetic directory check failure"), {
+          code: "ENOENT",
+        }),
+      );
+    try {
+      await request(app.getHttpServer())
+        .delete(`/files/${item.id}`)
+        .set(headers())
+        .send({})
+        .expect(200, { deleted: true, cleanup: "pending" });
+    } finally {
+      spy.mockRestore();
+    }
+    const before = await owner.fileVersion.findUniqueOrThrow({
+      where: { id: item.version.id },
+    });
+    expect(before.rawDeletedAt).toBeNull();
+    expect(before.extraction).toBeNull();
+    expect((await readdir(root)).includes(before.storageKey)).toBe(true);
+    await request(app.getHttpServer())
+      .get(item.reference)
+      .set(headers())
+      .expect(404);
+    service.onApplicationShutdown();
+    await service.onModuleInit();
+    const after = await owner.fileVersion.findUniqueOrThrow({
+      where: { id: item.version.id },
+    });
+    expect(after.rawDeletedAt).not.toBeNull();
+    expect((await readdir(root)).includes(before.storageKey)).toBe(false);
   });
   test("startup removes an interrupted raw write with no committed DB row", async () => {
     const orphan = await storage.write(Buffer.from("interrupted synthetic"));

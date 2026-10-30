@@ -197,16 +197,26 @@ export class FileManagementService
       );
     const version = await load();
     if (version.rawDeletedAt != null) throw new NotFoundException();
-    const bytes = await this.storage.read(version.storageKey);
-    if (
-      bytes.length !== version.byteSize ||
-      createHash("sha256").update(bytes).digest("hex") !== version.contentHash
-    )
-      throw new FileError("storage_unavailable");
-    // Recheck the latest session, tombstone and current version after disk I/O.
-    const latest = await load();
-    if (latest.id !== version.id || latest.rawDeletedAt != null)
-      throw new NotFoundException();
+    const recheck = async () => {
+      const latest = await load();
+      if (latest.id !== version.id || latest.rawDeletedAt != null)
+        throw new NotFoundException();
+    };
+    let bytes: Buffer;
+    try {
+      bytes = await this.storage.read(version.storageKey);
+      if (
+        bytes.length !== version.byteSize ||
+        createHash("sha256").update(bytes).digest("hex") !== version.contentHash
+      )
+        throw new FileError("storage_unavailable");
+    } catch (error) {
+      // A concurrent delete may unlink before the read. Recheck identity/scope
+      // even on failure; only an unavailable still-current resource stays 503.
+      await recheck();
+      throw error;
+    }
+    await recheck();
     return { bytes, name: version.fileName };
   }
   async register(

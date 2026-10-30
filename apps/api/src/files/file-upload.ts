@@ -6,7 +6,11 @@ export function isFileUpload(request: {
   originalUrl?: string;
   url?: string;
 }): boolean {
-  const path = (request.originalUrl ?? request.url ?? "").split("?", 1)[0];
+  // Express routes accept case variants and one optional trailing slash.
+  const path = (request.originalUrl ?? request.url ?? "")
+    .split("?", 1)[0]
+    ?.replace(/\/$/, "")
+    .toLowerCase();
   return (
     (request.method === "POST" && path === "/files") ||
     (request.method === "PUT" && /^\/files\/[0-9a-f-]{36}$/i.test(path ?? ""))

@@ -122,9 +122,24 @@ export class FileManagementController {
   }
   @Delete(":id")
   @Header("Cache-Control", "no-store")
-  remove(@Req() req: AccessRequest, @Param("id") id: string) {
-    return this.run(() =>
-      this.files.remove(readSessionCookie(req), this.access.requester(req), id),
-    );
+  remove(
+    @Req() req: AccessRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return this.run(() => {
+      if (
+        body == null ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).length !== 0
+      )
+        throw new HttpException({ code: "invalid_request" }, 400);
+      return this.files.remove(
+        readSessionCookie(req),
+        this.access.requester(req),
+        id,
+      );
+    });
   }
 }

@@ -156,3 +156,10 @@
 - 삭제는 deletedAt·추출문 제거로 먼저 차단하고 raw 정리는 시작/1분 주기로 재시도한다. 실패는 pending이며 unlink 성공/이미 없음 확인 뒤 rawDeletedAt을 기록한다. 현재 원본 참조는 I/O 후 최신 세션·현재 버전·삭제를 재검사하고 octet-stream attachment로만 제공한다. D05/I의 파생 참조·백업 삭제 반영 완료로 간주하지 않는다.
 - runtime 추가 UPDATE 열은 FileOriginal.deletedAt, FileVersion.extraction/rawDeletedAt뿐이다. 기존 식별 열·테이블 DELETE·REFERENCES 등을 거절한다. file_registered/file_replaced/file_deleted 감사는 실제 변경 transaction과 함께 기록한다.
 - 새 DB 통합 suite는 TOWNBASE_FILE_MANAGEMENT_TEST=1·정확한 postgres/townbase_d02_test의 새 합성 DB·owner URL/runtime secret을 요구한다. suite는 기존 DB를 자동 reset하지 않는다. API 전체·실제 parser를 compiled dist로 소비하므로 db:generate/build 후 실행한다. [D02 검증 기록](docs/implementation/v0.2-d02-file-management.md)을 따른다.
+
+
+## PR #42 파일 관리 보완 (2026-10-31)
+
+- 삭제의 missing-file 예외 처리는 unlink에만 적용한다. 디렉터리 생성/검사/realpath 실패를 정리 완료로 처리하지 않는다. 참조 I/O가 실패해도 최신 신원·현재 버전·삭제 상태를 재검사하며 실제 저장 장애503과 삭제404/인증401을 구분한다.
+- 업로드 본문 판별은 실제 라우터의 대소문자/끝 슬래시 별칭과 맞춘다. DELETE는 빈 JSON 객체만 서비스에 전달한다. 공통 strict JSON parser의 거절은 유지한다.
+- D02 실 DB fixture는 Installation/FileOriginal/ModelCall/Document/DocumentChunk가 모두 비었는지 쓰기 전에 확인한다. 기존 자료를 자동 정리하지 않는다. [리뷰 대응 기록](docs/implementation/v0.2-d02-review-response.md)을 따른다.
