@@ -242,7 +242,7 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
     },
     20000,
   );
-  test("replacement retains original identity and switches references; failed replacement never falls back", async () => {
+  test("replacement retains identity but invalidates saved version references; failed replacement never falls back", async () => {
     const initial = await register();
     const replacement = await accepted(
       "put",
@@ -253,10 +253,14 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
     expect(replacement.id).toBe(initial.id);
     expect(replacement.version.version).toBe(2);
     expect(replacement.version.id).not.toBe(initial.version.id);
+    await request(app.getHttpServer())
+      .get(initial.reference)
+      .set(headers())
+      .expect(404);
     expect(
       (
         await request(app.getHttpServer())
-          .get(initial.reference)
+          .get(replacement.reference)
           .set(headers())
           .expect(200)
       ).body,
@@ -270,10 +274,14 @@ integration("D02 actual DB/HTTP/storage lifecycle", () => {
     expect(failed.version.version).toBe(3);
     expect(failed.version.runs[0].status).toBe("failed");
     expect(failed.version.extraction).toBeNull();
+    await request(app.getHttpServer())
+      .get(replacement.reference)
+      .set(headers())
+      .expect(404);
     expect(
       (
         await request(app.getHttpServer())
-          .get(initial.reference)
+          .get(failed.reference)
           .set(headers())
           .expect(200)
       ).body,

@@ -450,7 +450,7 @@ test("D02 file lifecycle allows only cleanup columns and denies every other muta
         (column) =>
           column.writable ===
             {
-              FileOriginal: ["deletedAt"],
+              FileOriginal: ["deletedAt", "excludedAt", "scopeRevision"],
               FileVersion: ["extraction", "rawDeletedAt"],
               FileExtractionRun: [],
             }[table].includes(column.attname) && column.referenceable === false,
@@ -498,6 +498,7 @@ test("D03 run storage grants only status/result/cleanup columns and request alia
     "resultOriginalId",
     "resultVersionId",
     "resultExtractionRunId",
+    "sourceScopeRevision",
     "createdCount",
     "updatedCount",
     "excludedCount",
