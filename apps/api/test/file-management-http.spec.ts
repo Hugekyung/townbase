@@ -6,6 +6,7 @@ import request from "supertest";
 import { AuthModule } from "../src/auth/auth.module";
 import { AuthService } from "../src/auth/auth.service";
 import { FileManagementController } from "../src/files/file-management.controller";
+import { FileRunService } from "../src/files/file-run.service";
 import { FileManagementService } from "../src/files/file-management.service";
 import { configureSelfHostedHttp } from "../src/deployment/self-hosted-http";
 
@@ -34,7 +35,22 @@ describe("D02 real HTTP body/guard boundary", () => {
     const module = await Test.createTestingModule({
       imports: [AuthModule],
       controllers: [FileManagementController],
-      providers: [{ provide: FileManagementService, useValue: files }],
+      providers: [
+        { provide: FileManagementService, useValue: files },
+        {
+          provide: FileRunService,
+          useValue: {
+            upload: (
+              token: unknown,
+              context: unknown,
+              _id: unknown,
+              name: unknown,
+              bytes: unknown,
+              target: unknown,
+            ) => files.register(token, context, name, bytes, target),
+          },
+        },
+      ],
     })
       .overrideProvider(AuthService)
       .useValue(auth)
@@ -52,7 +68,11 @@ describe("D02 real HTTP body/guard boundary", () => {
         ? { ok: true, requester: principal }
         : { ok: false },
     );
-    files.register.mockResolvedValue({ stored: true });
+    files.register.mockResolvedValue({
+      runId: "11111111-1111-4111-8111-111111111111",
+      status: "queued",
+      existing: false,
+    });
     files.list.mockResolvedValue({ items: [] });
   });
   afterAll(async () => {
@@ -64,6 +84,7 @@ describe("D02 real HTTP body/guard boundary", () => {
     Host: "127.0.0.1:3000",
     Origin: "http://127.0.0.1:3000",
     "X-Townbase-Auth": "1",
+    "X-Townbase-Request-Id": "22222222-2222-4222-8222-222222222222",
     Cookie: `townbase_session=${"a".repeat(43)}`,
   };
   test("unauthenticated large/malformed body is rejected before file work", async () => {
@@ -83,15 +104,20 @@ describe("D02 real HTTP body/guard boundary", () => {
         name: "a.txt",
         contentBase64: Buffer.alloc(9000, 120).toString("base64"),
       })
-      .expect(201);
+      .expect(202)
+      .expect({
+        runId: "11111111-1111-4111-8111-111111111111",
+        status: "queued",
+        existing: false,
+      });
     expect(auth.requester).toHaveBeenCalledTimes(2);
     expect(files.register.mock.calls[0]?.[3]).toHaveLength(9000);
   });
   test.each([
-    ["post", "/files/", 201],
-    ["post", "/FILES/?from=test", 201],
-    ["put", "/files/11111111-1111-4111-8111-111111111111/", 200],
-    ["put", "/FILES/11111111-1111-4111-8111-111111111111/?from=test", 200],
+    ["post", "/files/", 202],
+    ["post", "/FILES/?from=test", 202],
+    ["put", "/files/11111111-1111-4111-8111-111111111111/", 202],
+    ["put", "/FILES/11111111-1111-4111-8111-111111111111/?from=test", 202],
   ] as const)(
     "%s %s uses the authenticated large upload boundary",
     async (method, path, status) => {
@@ -102,7 +128,12 @@ describe("D02 real HTTP body/guard boundary", () => {
           name: "a.txt",
           contentBase64: Buffer.alloc(9000, 120).toString("base64"),
         })
-        .expect(status);
+        .expect(status)
+        .expect({
+          runId: "11111111-1111-4111-8111-111111111111",
+          status: "queued",
+          existing: false,
+        });
       expect(auth.requester).toHaveBeenCalledTimes(2);
       expect(files.register).toHaveBeenCalledTimes(1);
       expect(files.register.mock.calls[0]?.[3]).toHaveLength(9000);
@@ -214,13 +245,18 @@ describe("D02 real HTTP body/guard boundary", () => {
     } finally {
       release();
     }
-    expect((await first).status).toBe(201);
+    expect((await first).status).toBe(202);
     // Completion must free the slot exactly once, even when close follows finish.
     await request(app.getHttpServer())
       .post("/files")
       .set(headers)
       .send({ name: "c.txt", contentBase64: "eA==" })
-      .expect(201);
+      .expect(202)
+      .expect({
+        runId: "11111111-1111-4111-8111-111111111111",
+        status: "queued",
+        existing: false,
+      });
   });
   test("downloads only as no-store attachment", async () => {
     files.reference.mockResolvedValue({

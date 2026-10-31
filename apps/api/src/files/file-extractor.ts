@@ -14,10 +14,19 @@ import {
 // One local parser at a time. D03 adds the persisted indexing queue, not a worker server.
 export class FileExtractor {
   private busy = false;
+  private cancelActive: (() => void) | undefined;
+  cancel(): void {
+    this.cancelActive?.();
+  }
   // A request may finish before the OS can reap its child. Never admit another
   // parser until that child closes (or the operator restarts this process).
   private strandedChild: ChildProcess | null = null;
-  async extract(fileName: string, input: Buffer): Promise<FileExtraction> {
+  async extract(
+    fileName: string,
+    input: Buffer,
+    abortSignal?: AbortSignal,
+  ): Promise<FileExtraction> {
+    if (abortSignal?.aborted) throw new FileError("extraction_cancelled");
     if (process.env.NODE_ENV === "production" && process.platform !== "linux")
       throw new FileError("parser_unavailable");
     if (this.strandedChild !== null) throw new FileError("parser_unavailable");
@@ -29,6 +38,7 @@ export class FileExtractor {
     const worker = path.join(__dirname, "parser-worker.js");
     if (!existsSync(worker)) throw new FileError("parser_unavailable");
     this.busy = true;
+    const cancel = () => this.cancel();
     try {
       const dependencyRoot = realpathSync(
         path.join(__dirname, "../../node_modules"),
@@ -136,6 +146,8 @@ export class FileExtractor {
           terminationDeadline = setTimeout(quarantine, 1000);
           signal();
         };
+        this.cancelActive = () => stop("extraction_cancelled");
+        abortSignal?.addEventListener("abort", cancel, { once: true });
         timer = setTimeout(
           () => stop("extraction_timeout"),
           FILE_LIMITS.timeoutMs,
@@ -187,6 +199,8 @@ export class FileExtractor {
         else child.stdin.end(bytes);
       });
     } finally {
+      abortSignal?.removeEventListener("abort", cancel);
+      this.cancelActive = undefined;
       this.busy = false;
     }
   }

@@ -4,7 +4,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  OnModuleInit,
   OnApplicationShutdown,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -15,7 +14,7 @@ import {
   inspectTransfer,
   OPENAI_ENDPOINTS,
 } from "../model-integration/transfer-policy";
-import { FileFoundation } from "./file-foundation";
+import { FileFoundation, type FileCheckpoint } from "./file-foundation";
 import { FileExtractor } from "./file-extractor";
 import { FileStorage } from "./file-storage";
 import { assertExtraction, FileError, type FileFormat } from "./file-contract";
@@ -29,9 +28,7 @@ export function originalId(id: string): string {
 // No generic queue or future plugin system. A cross-process lock serializes disk/DB
 // reconciliation with intake and deletion; it is independent of authentication locks.
 @Injectable()
-export class FileManagementService
-  implements OnModuleInit, OnApplicationShutdown
-{
+export class FileManagementService implements OnApplicationShutdown {
   private readonly foundation: FileFoundation;
   private maintenance?: ReturnType<typeof setInterval>;
   private busy = false;
@@ -43,7 +40,8 @@ export class FileManagementService
   ) {
     this.foundation = new FileFoundation(auth, extractor, storage);
   }
-  async onModuleInit() {
+  async startMaintenance() {
+    clearInterval(this.maintenance);
     await this.locked(() => this.reconcile());
     this.maintenance = setInterval(() => {
       void this.locked(() => this.reconcile()).catch((error: unknown) => {
@@ -55,6 +53,9 @@ export class FileManagementService
   }
   onApplicationShutdown() {
     clearInterval(this.maintenance);
+  }
+  async withFileOperation<T>(work: () => Promise<T>): Promise<T> {
+    return this.locked(work);
   }
   private async locked<T>(work: () => Promise<T>): Promise<T> {
     if (this.busy) throw new ConflictException({ code: "file_operation_busy" });
@@ -225,32 +226,60 @@ export class FileManagementService
     name: string,
     bytes: Buffer,
     replaceId?: string,
+    checkpoint?: FileCheckpoint,
+    expectedVersionId?: string,
   ) {
     if (replaceId) replaceId = originalId(replaceId);
-    return this.locked(async () => {
-      // Reconcile first. Do not expose intake if prior orphan/deletion cleanup failed.
+    return this.locked(() =>
+      this.persistUpload(
+        token,
+        context,
+        name,
+        bytes,
+        replaceId,
+        checkpoint,
+        expectedVersionId,
+      ),
+    );
+  }
+  // Internal worker entrypoint. Caller holds withFileOperation for claim + parse + persist.
+  async persistUpload(
+    token: string | undefined,
+    context: AdministratorContext,
+    name: string,
+    bytes: Buffer,
+    replaceId?: string,
+    checkpoint?: FileCheckpoint,
+    expectedVersionId?: string,
+    signal?: AbortSignal,
+  ) {
+    if (replaceId) replaceId = originalId(replaceId);
+
+    // Reconcile first. Do not expose intake if prior orphan/deletion cleanup failed.
+    await this.reconcile();
+    try {
+      const ids = await this.foundation.create(token, context, name, bytes, {
+        ...(replaceId ? { replaceId } : {}),
+        ...(checkpoint ? { checkpoint } : {}),
+        ...(expectedVersionId ? { expectedVersionId } : {}),
+        ...(signal ? { signal } : {}),
+        preserveOnFailure: true,
+        audit: true,
+        inspect: (value) =>
+          inspectTransfer(
+            { documentEmbedding: true, rag: false, attachment: false },
+            "document_embedding",
+            OPENAI_ENDPOINTS.embedding,
+            value.segments.map((s) => s.text).join("\n"),
+            [name],
+          ),
+      });
+      return this.read(token, context, ids.originalId);
+    } finally {
+      // Query authoritative committed rows before removing an uncertain write.
+      // A lost DB connection leaves files for a future retry, never deletes blindly.
       await this.reconcile();
-      try {
-        const ids = await this.foundation.create(token, context, name, bytes, {
-          ...(replaceId ? { replaceId } : {}),
-          preserveOnFailure: true,
-          audit: true,
-          inspect: (value) =>
-            inspectTransfer(
-              { documentEmbedding: true, rag: false, attachment: false },
-              "document_embedding",
-              OPENAI_ENDPOINTS.embedding,
-              value.segments.map((s) => s.text).join("\n"),
-              [name],
-            ),
-        });
-        return this.read(token, context, ids.originalId);
-      } finally {
-        // Query authoritative committed rows before removing an uncertain write.
-        // A lost DB connection leaves files for a future retry, never deletes blindly.
-        await this.reconcile();
-      }
-    });
+    }
   }
   async remove(
     token: string | undefined,

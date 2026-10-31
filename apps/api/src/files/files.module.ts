@@ -1,5 +1,7 @@
 import path from "node:path";
 import { Module } from "@nestjs/common";
+import { FileRunService } from "./file-run.service";
+import { FileRunController } from "./file-run.controller";
 import { AuthModule } from "../auth/auth.module";
 import { AuthService } from "../auth/auth.service";
 import { DeploymentDatabase } from "../deployment/deployment-database";
@@ -10,7 +12,7 @@ import { FileManagementController } from "./file-management.controller";
 
 @Module({
   imports: [AuthModule],
-  controllers: [FileManagementController],
+  controllers: [FileManagementController, FileRunController],
   providers: [
     {
       provide: FileStorage,
@@ -24,6 +26,7 @@ import { FileManagementController } from "./file-management.controller";
         ),
     },
     FileExtractor,
+    FileRunService,
     {
       provide: FileManagementService,
       useFactory: (

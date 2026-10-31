@@ -154,6 +154,7 @@ model Installation {
   fileOriginals FileOriginal[]
   fileVersions FileVersion[]
   fileExtractionRuns FileExtractionRun[]
+  fileRuns FileRun[]
 }
 
 model Administrator {
@@ -169,6 +170,7 @@ model Administrator {
 
   sessions            AdministratorSession[]
   fileOriginals       FileOriginal[]
+  fileRuns            FileRun[]
 
   @@unique([installationId, id])
 }
@@ -485,6 +487,8 @@ model FileOriginal {
   installation         Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
   owner                Administrator @relation(fields: [installationId, ownerAdministratorId], references: [installationId, id], onDelete: Restrict)
   versions             FileVersion[]
+  targetRuns FileRun[] @relation("FileRunTarget")
+  resultRuns FileRun[] @relation("FileRunResult")
 
   @@unique([installationId, id])
 }
@@ -509,9 +513,12 @@ model FileVersion {
   installation   Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
   original       FileOriginal @relation(fields: [installationId, originalId], references: [installationId, id], onDelete: Restrict)
   runs           FileExtractionRun[]
+  baseRuns FileRun[] @relation("FileRunBase")
+  resultRuns FileRun[] @relation("FileRunVersion")
 
   @@unique([installationId, id])
   @@unique([installationId, originalId, version])
+  @@unique([installationId, originalId, id])
 }
 
 model FileExtractionRun {
@@ -525,6 +532,66 @@ model FileExtractionRun {
   installation   Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
   fileVersion    FileVersion @relation(fields: [installationId, versionId], references: [installationId, id], onDelete: Restrict)
 
+  executionResults FileRun[]
+  @@unique([installationId,id])
+  @@unique([installationId,versionId,id])
   @@index([installationId, completedAt])
   @@index([installationId, versionId, completedAt])
+}
+
+
+// Single-API persistent file jobs, not a generic queue. No body, token or Key.
+model FileRun {
+  id String @id @db.Uuid
+  installationId String
+  ownerAdministratorId String
+  operation String @db.VarChar(16)
+  trigger String @db.VarChar(16)
+  targetKey String @db.VarChar(80)
+  targetOriginalId String? @db.Uuid
+  baseVersionId String? @db.Uuid
+  // Opaque historical ID remains after the parent expires; admission verifies ownership.
+  retryOfId String? @db.Uuid
+  fileName String @db.VarChar(255)
+  format String @db.VarChar(8)
+  byteSize Int
+  contentHash String @db.VarChar(64)
+  inputKey String? @unique @db.VarChar(80)
+  configurationVersion String @db.VarChar(64)
+  status String @db.VarChar(16)
+  errorCode String? @db.VarChar(64)
+  resultOriginalId String? @db.Uuid
+  resultVersionId String? @db.Uuid
+  resultExtractionRunId String? @db.Uuid
+  createdCount Int @default(0)
+  updatedCount Int @default(0)
+  excludedCount Int @default(0)
+  unchangedCount Int @default(0)
+  failedCount Int @default(0)
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  completedAt DateTime?
+  installation Installation @relation(fields:[installationId], references:[id], onDelete:Restrict)
+  owner Administrator @relation(fields:[installationId,ownerAdministratorId], references:[installationId,id], onDelete:Restrict)
+  targetOriginal FileOriginal? @relation("FileRunTarget", fields:[installationId,targetOriginalId], references:[installationId,id], onDelete:Restrict)
+  baseVersion FileVersion? @relation("FileRunBase", fields:[installationId,targetOriginalId,baseVersionId], references:[installationId,originalId,id], onDelete:Restrict)
+  resultOriginal FileOriginal? @relation("FileRunResult", fields:[installationId,resultOriginalId], references:[installationId,id], onDelete:Restrict)
+  resultVersion FileVersion? @relation("FileRunVersion", fields:[installationId,resultOriginalId,resultVersionId], references:[installationId,originalId,id], onDelete:Restrict)
+  resultExtractionRun FileExtractionRun? @relation(fields:[installationId,resultVersionId,resultExtractionRunId],references:[installationId,versionId,id],onDelete:Restrict)
+  requests FileRunRequest[]
+  @@unique([installationId,id])
+  @@index([installationId,status,createdAt,id])
+  @@index([installationId,ownerAdministratorId,createdAt,id])
+  @@index([completedAt])
+}
+
+model FileRunRequest {
+  installationId String
+  requestId String @db.Uuid
+  runId String @db.Uuid
+  fingerprint String @db.VarChar(64)
+  createdAt DateTime @default(now())
+  run FileRun @relation(fields:[installationId,runId],references:[installationId,id],onDelete:Restrict)
+  @@id([installationId,requestId])
+  @@index([installationId,runId])
 }

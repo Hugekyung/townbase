@@ -1,5 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { UnauthorizedException, NotFoundException } from "@nestjs/common";
+import {
+  UnauthorizedException,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
 import type { Prisma } from "@townbase/database";
 import { AuthService, type AdministratorContext } from "../auth/auth.service";
 import { FileExtractor } from "./file-extractor";
@@ -12,6 +16,17 @@ import {
   fileFormat,
   type FileExtraction,
 } from "./file-contract";
+
+export type FileCheckpoint = (
+  tx: Prisma.TransactionClient,
+  value: {
+    originalId: string;
+    versionId: string;
+    runId: string;
+    status: "extracted" | "failed";
+    errorCode: string | null;
+  },
+) => Promise<void>;
 
 // D01 persistence and parser boundary, shared by D02. No embedding or queue here.
 export class FileFoundation {
@@ -30,7 +45,10 @@ export class FileFoundation {
       replaceId?: string;
       preserveOnFailure?: boolean;
       audit?: boolean;
+      checkpoint?: FileCheckpoint;
+      expectedVersionId?: string;
       inspect?: (value: FileExtraction) => void;
+      signal?: AbortSignal;
     } = {},
   ) {
     const admitted = await this.auth.authorizedOperation(
@@ -60,14 +78,17 @@ export class FileFoundation {
     let extraction: FileExtraction | undefined,
       errorCode: FileError["code"] | undefined;
     try {
-      extraction = await this.extractor.extract(name, bytes);
+      extraction = await this.extractor.extract(name, bytes, options.signal);
     } catch (error) {
       // Capacity/unavailable failures do not register a document as a content failure.
       if (
         !(error instanceof FileError) ||
-        ["parser_busy", "parser_unavailable", "storage_unavailable"].includes(
-          error.code,
-        )
+        [
+          "parser_busy",
+          "parser_unavailable",
+          "storage_unavailable",
+          "extraction_cancelled",
+        ].includes(error.code)
       )
         throw error;
       errorCode = error.code;
@@ -111,8 +132,13 @@ export class FileFoundation {
               originalId: original.id,
             },
             orderBy: { version: "desc" },
-            select: { version: true },
+            select: { version: true, id: true },
           });
+          if (
+            options.expectedVersionId &&
+            previous?.id !== options.expectedVersionId
+          )
+            throw new ConflictException({ code: "source_changed" });
           const version = await tx.fileVersion.create({
             data: {
               id: storageKey.slice(0, -4),
@@ -141,6 +167,13 @@ export class FileFoundation {
               startedAt,
               completedAt,
             },
+          });
+          await options.checkpoint?.(tx, {
+            originalId: original.id,
+            versionId: version.id,
+            runId: run.id,
+            status: extraction ? "extracted" : "failed",
+            errorCode: errorCode ?? null,
           });
           if (options.audit)
             await tx.installationAuditEvent.create({
