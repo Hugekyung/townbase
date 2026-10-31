@@ -60,7 +60,7 @@ export class FileIndexService {
         original: { ownerAdministratorId: c.administratorId, deletedAt: null },
       },
       include: {
-        runs: { orderBy: [{ completedAt: "desc" }, { id: "desc" }], take: 1 },
+        runs: { orderBy: { ordinal: "desc" }, take: 1 },
         original: true,
       },
     });
@@ -148,6 +148,7 @@ export class FileIndexService {
       if (
         old?.extractionDigest === source.digest &&
         old.configurationVersion === FILE_INDEX_CONFIGURATION &&
+        old.chunkBytes === source.chunkBytes &&
         old.chunkCount ===
           (await tx.fileIndexChunk.count({
             where: { installationId: c.installationId, indexId: old.id },
@@ -179,6 +180,7 @@ export class FileIndexService {
           versionId: { not: source.version.id },
           extractionDigest: source.digest,
           configurationVersion: FILE_INDEX_CONFIGURATION,
+          chunkBytes: source.chunkBytes,
           embeddingModel: "text-embedding-3-small",
           version: {
             contentHash: source.version.contentHash,
@@ -212,6 +214,7 @@ export class FileIndexService {
           originRunId: run.id,
           extractionDigest: source.digest,
           configurationVersion: FILE_INDEX_CONFIGURATION,
+          chunkBytes: source.chunkBytes,
           embeddingModel: "text-embedding-3-small",
           chunkCount: prior.chunkCount,
         },
@@ -290,6 +293,7 @@ export class FileIndexService {
           originRunId: run.id,
           extractionDigest: source.digest,
           configurationVersion: FILE_INDEX_CONFIGURATION,
+          chunkBytes: source.chunkBytes,
           embeddingModel: "text-embedding-3-small",
           chunkCount: chunks.length,
         },

@@ -526,6 +526,7 @@ model FileVersion {
 }
 
 model FileExtractionRun {
+  ordinal        Int @default(1)
   id             String @id @db.Uuid
   installationId String
   versionId      String @db.Uuid
@@ -541,6 +542,7 @@ model FileExtractionRun {
   @@unique([installationId,versionId,id])
   @@index([installationId, completedAt])
   @@index([installationId, versionId, completedAt])
+  @@unique([installationId, versionId, ordinal])
 }
 
 
@@ -602,6 +604,7 @@ model FileRunRequest {
 
 // Persistent uploaded-file retrieval only; attachments never enter these tables.
 model FileIndex {
+ chunkBytes Int @default(4096)
  id String @id @db.Uuid
  installationId String
  ownerAdministratorId String

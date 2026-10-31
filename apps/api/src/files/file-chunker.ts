@@ -5,10 +5,11 @@ import {
   type FileSegment,
 } from "./file-contract";
 
-export const FILE_INDEX_CONFIGURATION = "file-index-d04-v1";
+export const FILE_INDEX_CONFIGURATION = "file-index-d04-v2";
 export const CHUNK_BYTES = 4096;
 const MAX_PARTS = 128;
-// Fixed UTF-8 bound, not an exact tokenizer. Keep original text and per-segment offsets.
+// Fixed UTF-8 bound, not an exact tokenizer. Normalize whitespace explicitly;
+// offsets still address the original segment (Unicode code points).
 export type FileChunk = {
   content: string;
   contentHash: string;
@@ -55,7 +56,18 @@ export function fileChunks(
     }
     let offset = 0;
     let part: FileChunk["parts"][number] | undefined;
-    for (const char of segment.text) {
+    for (const match of segment.text.matchAll(/\s+|\S/gu)) {
+      const raw = match[0];
+      const width = Array.from(raw).length;
+      const whitespace = /\s/u.test(raw);
+      if (
+        whitespace &&
+        (match.index === 0 || match.index + raw.length === segment.text.length)
+      ) {
+        offset += width;
+        continue;
+      }
+      const char = whitespace ? " " : raw;
       const size = Buffer.byteLength(char);
       if (bytes + size > maxBytes) {
         flush();
@@ -73,7 +85,7 @@ export function fileChunks(
       }
       content += char;
       bytes += size;
-      offset++;
+      offset += width;
       part.end = offset;
     }
   });

@@ -314,7 +314,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase logs --tail=60 ap
 | 현재 버전 색인 | POST `/files/:id/index` | 원본 ID·새 `X-Townbase-Request-Id` UUID v4 헤더와 JSON `{}` |
 | 현재 버전 재처리 | POST `/files/:id/reprocess` | 원본 ID·새 `X-Townbase-Request-Id` UUID v4 헤더와 JSON `{}` |
 
-재시도/재처리/색인은202 접수 결과, 중단은200 결과를 반환한다. 새 작업은 새 UUID를 사용하고, 같은 재시도 요청의 응답이 유실됐으면 보관한 동일 UUID로 조회하거나 같은 요청을 재전송한다.
+등록/교체/재시도/재처리/색인은202 접수 결과, 중단은200 결과를 반환한다. 새 작업은 새 UUID를 사용한다.202 응답이 유실되면 **처음 보관한 동일 UUID**로 GET `/file-runs/requests/:requestId`를 조회하거나 같은 경로·본문·UUID로 재전송한다. 응답 유실만으로 새 UUID를 만들면 중복 작업·추가 임베딩 비용이 생길 수 있다. 중단 응답이 유실되면 GET `/file-runs/:id`로 상태를 확인한다.
 
 `documents/pending`도 지속 접수 raw 저장소다. 첨부와 섞거나 원본 저장소의 orphan 정리 대상으로 취급하지 않는다. 실행 소유권을 먼저 확보한 단일 API만 정리/처리한다. 기존 API가 실행 중인 중복 기동은 거절한다. queued+running20·실행1개이며 다른 작업은 DB 대기한다. 재시작은 이전 대기/실행을 interrupted로 표시하며 자동 재실행하지 않는다. 남은 입력/원본과 이력을 확인하고 운영자가 retry한다. 이미 파일 버전이 저장됐으면 그 버전을 사용하므로 임시 복사본이 지워졌다는 이유로 재시도를 실패시키지 않는다.
 

@@ -9,7 +9,7 @@ export type IndexState = {
 export const currentFileWhere = Prisma.sql`
   o."deletedAt" IS NULL AND v."rawDeletedAt" IS NULL AND v."documentStatus"='active'
   AND NOT EXISTS (SELECT 1 FROM "FileVersion" newer WHERE newer."installationId"=v."installationId" AND newer."originalId"=v."originalId" AND newer.version>v.version)
-  AND (SELECT r.status FROM "FileExtractionRun" r WHERE r."installationId"=v."installationId" AND r."versionId"=v.id ORDER BY r."completedAt" DESC, r.id DESC LIMIT 1)='extracted'`;
+  AND (SELECT r.status FROM "FileExtractionRun" r WHERE r."installationId"=v."installationId" AND r."versionId"=v.id ORDER BY r.ordinal DESC LIMIT 1)='extracted'`;
 export const currentIndexWhere = Prisma.sql`${currentFileWhere}
   AND i."extractionDigest"=encode(sha256(convert_to(v.extraction::text,'UTF8')),'hex')
   AND i."configurationVersion"=${FILE_INDEX_CONFIGURATION} AND i."embeddingModel"='text-embedding-3-small'`;

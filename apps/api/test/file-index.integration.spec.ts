@@ -29,6 +29,9 @@ const { configureSelfHostedHttp } = built(
   "../dist/deployment/self-hosted-http",
 ) as typeof import("../src/deployment/self-hosted-http");
 
+const { chunkRequestId } = built(
+  "../dist/files/file-chunker",
+) as typeof import("../src/files/file-chunker");
 const { FileIndexService } = built(
   "../dist/files/file-index.service",
 ) as typeof import("../src/files/file-index.service");
@@ -74,6 +77,9 @@ integration("D04 actual persistent run queue", () => {
         where: { id: ack.runId },
       });
       if (!["queued", "running"].includes(row.status)) {
+        // A terminal DB result precedes pending-input cleanup. Wait for the
+        // current local pump too, rather than racing its separate lock 5.
+        await (runs as unknown as { task?: Promise<void> }).task;
         for (let j = 0; j < 200; j++) {
           const free = await owner.$transaction(
             async (tx) =>
@@ -307,7 +313,7 @@ integration("D04 actual persistent run queue", () => {
       expect(run).toMatchObject({
         status: "succeeded",
         operation: "index",
-        configurationVersion: "file-index-d04-v1",
+        configurationVersion: "file-index-d04-v2",
         resultVersionId: item.version.id,
       });
       const file = await read(item.id);
@@ -358,6 +364,146 @@ integration("D04 actual persistent run queue", () => {
     expect(
       await owner.fileIndex.count({ where: { originalId: item.id } }),
     ).toBe(1);
+  });
+  test.each([false, true])(
+    "a lower chunk bound rebuilds rather than reusing vectors (replacement=%s)",
+    async (replacement) => {
+      const bytes = Buffer.from("alpha ".repeat(500));
+      const item = await register("bound-change.txt", bytes);
+      await settled(await index(item.id));
+      const before = provider.call.mock.calls.length;
+      let versionId = item.version.id;
+      if (replacement)
+        versionId = (
+          await accepted("put", `/files/${item.id}`, "bound-change.txt", bytes)
+        ).version.id;
+      await owner.modelExecutionSettings.update({
+        where: { installationId: "primary" },
+        data: { inputTokenLimit: 512 },
+      });
+      expect(await settled(await index(item.id))).toMatchObject({
+        status: "succeeded",
+        unchangedCount: 0,
+      });
+      expect(provider.call.mock.calls.length).toBeGreaterThan(before);
+      const saved = await owner.fileIndex.findUniqueOrThrow({
+        where: {
+          installationId_versionId: { installationId: "primary", versionId },
+        },
+      });
+      expect(saved.chunkBytes).toBe(256);
+      const chunks = await owner.fileIndexChunk.findMany({
+        where: { indexId: saved.id },
+      });
+      expect(chunks.every((c) => Buffer.byteLength(c.content) <= 256)).toBe(
+        true,
+      );
+      const count = provider.call.mock.calls.length;
+      expect(await settled(await index(item.id))).toMatchObject({
+        status: "succeeded",
+        unchangedCount: 1,
+      });
+      expect(provider.call).toHaveBeenCalledTimes(count);
+      // Large fixture produces many equally ranked chunks. Delete this test's
+      // original through the product API so it cannot crowd later topK checks.
+      await request(app.getHttpServer())
+        .delete(`/files/${item.id}`)
+        .set(headers())
+        .send({})
+        .expect(200);
+    },
+  );
+  test("extraction order survives identical completion timestamps and opposite UUID order", async () => {
+    const item = await register("ordinal.txt");
+    const initial = await owner.fileExtractionRun.findFirstOrThrow({
+      where: { versionId: item.version.id },
+    });
+    // Same millisecond, but the failed UUID sorts higher than the later success.
+    await owner.fileExtractionRun.create({
+      data: {
+        id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        installationId: "primary",
+        versionId: item.version.id,
+        ordinal: 2,
+        status: "failed",
+        errorCode: "parser_failed",
+        startedAt: initial.startedAt,
+        completedAt: initial.completedAt,
+      },
+    });
+    expect((await read(item.id)).version.runs[0].status).toBe("failed");
+    expect((await settled(await index(item.id))).errorCode).toBe(
+      "source_not_extracted",
+    );
+    await owner.fileExtractionRun.create({
+      data: {
+        id: "00000000-0000-4000-8000-000000000001",
+        installationId: "primary",
+        versionId: item.version.id,
+        ordinal: 3,
+        status: "extracted",
+        startedAt: initial.startedAt,
+        completedAt: initial.completedAt,
+      },
+    });
+    expect((await read(item.id)).version.runs[0].ordinal).toBe(3);
+    expect((await settled(await index(item.id))).status).toBe("succeeded");
+    expect((await search()).some((r) => r.originalId === item.id)).toBe(true);
+    // A later failure must hide the index even when completion timestamps still tie.
+    await owner.fileExtractionRun.create({
+      data: {
+        id: randomUUID(),
+        installationId: "primary",
+        versionId: item.version.id,
+        ordinal: 4,
+        status: "failed",
+        errorCode: "parser_failed",
+        startedAt: initial.startedAt,
+        completedAt: initial.completedAt,
+      },
+    });
+    expect((await read(item.id)).version.searchable).toBe(false);
+    expect((await search()).some((r) => r.originalId === item.id)).toBe(false);
+  });
+  test("aborting a dispatched provider records cancellation with its reservation held", async () => {
+    const item = await register("abort-error.txt");
+    let enter!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    provider.call.mockImplementationOnce(
+      async (_key, _input, signal: AbortSignal) => {
+        enter();
+        await new Promise<void>((_resolve, reject) => {
+          const abort = () => reject(new DOMException("Aborted", "AbortError"));
+          if (signal.aborted) abort();
+          else signal.addEventListener("abort", abort, { once: true });
+        });
+      },
+    );
+    const ack = await index(item.id);
+    await entered;
+    await request(app.getHttpServer())
+      .post(`/file-runs/${ack.runId}/stop`)
+      .set(headers())
+      .send({})
+      .expect(200);
+    expect((await settled(ack)).status).toBe("interrupted");
+    const call = await owner.modelCall.findUniqueOrThrow({
+      where: {
+        installationId_requestId: {
+          installationId: "primary",
+          requestId: chunkRequestId(ack.runId, 0),
+        },
+      },
+    });
+    expect(call).toMatchObject({
+      status: "unknown",
+      chargedNanoUsd: null,
+      errorCode: "call_cancelled",
+    });
+    expect(call.reservedNanoUsd).toBeGreaterThan(0n);
+    expect((await read(item.id)).version.searchable).toBe(false);
   });
   test("same-content replacement rebinds vectors without merging distinct originals", async () => {
     const bytes = Buffer.from("alpha exact same version"),
@@ -447,12 +593,30 @@ integration("D04 actual persistent run queue", () => {
       await owner.fileIndex.count({ where: { versionId: item.version.id } }),
     ).toBe(0);
     expect((await read(item.id)).version.searchable).toBe(false);
-    const unknown = await owner.modelCall.findMany({
-      where: { status: "unknown" },
+    const unknown = await owner.modelCall.findUniqueOrThrow({
+      where: {
+        installationId_requestId: {
+          installationId: context.installationId,
+          requestId: chunkRequestId(first.runId, 1),
+        },
+      },
     });
-    expect(
-      unknown.some((r) => r.chargedNanoUsd === null && r.reservedNanoUsd > 0n),
-    ).toBe(true);
+    expect(unknown).toMatchObject({
+      status: "unknown",
+      chargedNanoUsd: null,
+      errorCode: "provider_unavailable",
+    });
+    expect(unknown.reservedNanoUsd).toBeGreaterThan(0n);
+    const charged = await owner.modelCall.findUniqueOrThrow({
+      where: {
+        installationId_requestId: {
+          installationId: context.installationId,
+          requestId: chunkRequestId(first.runId, 0),
+        },
+      },
+    });
+    expect(charged.status).toBe("succeeded");
+    expect(charged.chargedNanoUsd).toBeGreaterThan(0n);
     const replay = await request(app.getHttpServer())
       .get(`/file-runs/${first.runId}`)
       .set(headers())
@@ -820,6 +984,12 @@ integration("D04 actual persistent run queue", () => {
         .send({})
         .expect(202);
       expect((await settled(ack.body)).status).toBe("succeeded");
+      expect((await read(item.id)).version.runs[0].ordinal).toBe(2);
+      const history = await owner.fileExtractionRun.findMany({
+        where: { versionId: item.version.id },
+        orderBy: { ordinal: "asc" },
+      });
+      expect(history.map((r) => r.ordinal)).toEqual([1, 2]);
     } finally {
       spy.mockRestore();
     }

@@ -993,11 +993,22 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
                 },
               });
 
+            // scoped() holds the installation authentication lock; all writers
+            // use that same lock, so the version-local sequence cannot race.
+            const previousExtraction = await tx.fileExtractionRun.findFirst({
+              where: {
+                installationId: c.installationId,
+                versionId: latest.version.id,
+              },
+              orderBy: { ordinal: "desc" },
+              select: { ordinal: true },
+            });
             const extractionRun = await tx.fileExtractionRun.create({
               data: {
                 id: randomUUID(),
                 installationId: c.installationId,
                 versionId: latest.version.id,
+                ordinal: (previousExtraction?.ordinal ?? 0) + 1,
                 status: extraction ? "extracted" : "failed",
                 errorCode: code,
                 startedAt: (

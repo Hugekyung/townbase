@@ -590,12 +590,14 @@ export class ModelExecutionService {
       const code =
         error instanceof ModelCallError
           ? error.code
-          : error != null &&
-              typeof error === "object" &&
-              "name" in error &&
-              ["AbortError", "TimeoutError"].includes(String(error.name))
-            ? "provider_timeout"
-            : "provider_transport_failed";
+          : boundary?.signal.aborted
+            ? "call_cancelled"
+            : error != null &&
+                typeof error === "object" &&
+                "name" in error &&
+                ["AbortError", "TimeoutError"].includes(String(error.name))
+              ? "provider_timeout"
+              : "provider_transport_failed";
       await this.database.prisma.modelCall.updateMany({
         where: {
           installationId: context.installationId,

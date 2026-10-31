@@ -119,7 +119,7 @@ export class FileManagementService implements OnApplicationShutdown {
         versions: {
           orderBy: { version: "desc" },
           take: 1,
-          include: { runs: { orderBy: { completedAt: "desc" }, take: 1 } },
+          include: { runs: { orderBy: { ordinal: "desc" }, take: 1 } },
         },
       },
     });
@@ -163,7 +163,7 @@ export class FileManagementService implements OnApplicationShutdown {
           versions: {
             orderBy: { version: "desc" },
             take: 1,
-            include: { runs: { orderBy: { completedAt: "desc" }, take: 1 } },
+            include: { runs: { orderBy: { ordinal: "desc" }, take: 1 } },
           },
         },
       });

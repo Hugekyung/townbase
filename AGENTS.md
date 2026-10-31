@@ -195,3 +195,13 @@
 - 새 통합 suite는 TOWNBASE_FILE_INDEX_TEST=1·정확한 postgres/townbase_d04_test의 새 합성 DB·owner URL/runtime secret을 요구한다. 전체 compiled API·Linux 파서·제한 DB 계정을 사용하고 공급자만 합성으로 대체한다. 일반 API 시험은 opt-in을 건너뛰며 기존/live DB와 유료 모델 호출을 사용하지 않는다. [D04 검증·한계](docs/implementation/v0.2-d04-file-indexing.md)를 따른다.
 
 - D04 최종 로컬 검증은681개(API435·배포24·DB 단위20·D04 DB31·D03 DB34·D02 DB26·C01 DB41·권한70)와 별도 production 미설정 차단/원본 재조회·D03 데이터 업그레이드 보존이다. 합성 공급자·linux/arm64 실행 증거이며 실계정 호출·x86_64 기준 성능/품질 수락과 구분한다. 사용자는 D04 커밋·푸시·main PR 생성을 승인했으며 전달 결과는 PR 기록을 따른다.
+
+
+## PR #44 D04 리뷰 보완 (2026-11-01, 로컬 수정)
+
+- 분할 v2는 segment 앞뒤 공백 제거·연속 공백/탭/줄바꿈 한 칸 정규화를 명시하고 위치는 정규화 전 code point 범위로 보존한다. 원본/추출 JSON은 변경하지 않는다. 기존 v1 색인은 보존·stale, 명시 index로만 갱신한다.
+- FileIndex.chunkBytes는 현재 입력 한도-256과4096 중 작은 값이다. 동일 버전/동일 bytes 교체 재사용 모두 이를 대조한다. 한도 변경 자체로 기존 벡터를 숨기지 않으며 새 명시 색인에서 새 분할/비용을 적용한다.
+- FileExtractionRun.ordinal은 버전별 저장 순서이며 공통 인증 잠금 아래 증가한다. API·기반 read·색인·검색 모두 ordinal DESC로 최신을 판정한다. 과거 동률은 후속 migration에서 실패 우선 차단 순서로 이관한다. runtime 추가 권한/DB sequence는 없다. 기존 migration은 수정하지 않는다.
+- 전송 후 취소는 call_cancelled·unknown/예약 유지, 전송 전은 not_sent/0원이다. 공급자 시간 초과와 구분한다. 검증 증거·제한은 D04 기록의 PR #44 절을 따른다.
+- 새 업그레이드 opt-in 시험은 TOWNBASE_FILE_INDEX_UPGRADE_TEST=1·정확한 postgres/townbase_d04_pr44_upgrade_test의 빈 DB에서만 실행한다. deployment/test/file-index-review.integration.mjs는 최소 구버전 테이블의 후속 SQL/이력 보존 시험이며 일반 test:deployment에는 포함되지 않는다.
+- PR #44 로컬 수정 검증689개(API438·배포24·DB 단위20·D04 DB35·D03 DB34·D02 DB26·C01 DB41·권한70·업그레이드1) 통과. 이전 검증과 중복 합산하지 않는다. 사용자는 수정 요약 확인 후 커밋/푸시/PR 댓글 등록을 승인했다. 전달 결과는 PR 기록을 따른다.

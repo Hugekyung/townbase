@@ -23,7 +23,9 @@ describe("D04 structured file splitting", () => {
       expect(
         chunks.every((c) => Buffer.byteLength(c.content) <= CHUNK_BYTES),
       ).toBe(true);
-      expect(chunks.map((c) => c.content).join("")).toBe(text);
+      expect(chunks.map((c) => c.content).join("")).toBe(
+        text.trim().replace(/\s+/gu, " "),
+      );
       let end = 0;
       for (const c of chunks) {
         expect(c.parts[0]!.start).toBe(end);
@@ -48,14 +50,45 @@ describe("D04 structured file splitting", () => {
     expect(chunks.flatMap((c) => c.parts).map((p) => p.location.page)).toEqual(
       Array.from({ length: 300 }, (_, i) => i + 1),
     );
-    expect(chunks[0]!.headingPath).toEqual(["자료"]);
+    for (const chunk of chunks) {
+      expect(chunk.headingPath).toEqual(["자료"]);
+      expect(chunk.parts.every((p) => p.headingPath.join() === "자료")).toBe(
+        true,
+      );
+    }
   });
   test("a smaller admitted byte bound preserves the complete text", () => {
     const text = "한국어 ".repeat(300),
       chunks = fileChunks(extraction(text), 256);
     expect(chunks.every((c) => Buffer.byteLength(c.content) <= 256)).toBe(true);
-    expect(chunks.map((c) => c.content).join("")).toBe(text);
+    expect(chunks.map((c) => c.content).join("")).toBe(
+      text.trim().replace(/\s+/gu, " "),
+    );
   });
+  test.each([
+    " ".repeat(5000) + "visible",
+    "first" + " \t\n".repeat(3000) + "last",
+    "😀" + "\n".repeat(5000) + "한" + " ".repeat(5000),
+  ])(
+    "normalizes whitespace deliberately and retains original code point offsets",
+    (text) => {
+      const chunks = fileChunks(extraction(text), 256);
+      expect(chunks.map((c) => c.content).join("")).toBe(
+        text.trim().replace(/\s+/gu, " "),
+      );
+      expect(
+        chunks.every(
+          (c) => c.content.trim() && Buffer.byteLength(c.content) <= 256,
+        ),
+      ).toBe(true);
+      const points = Array.from(text);
+      expect(chunks[0]!.parts[0]!.start).toBe(
+        points.findIndex((c) => /\S/u.test(c)),
+      );
+      const last = chunks.at(-1)!.parts.at(-1)!;
+      expect(last.end).toBe(Array.from(text.trimEnd()).length);
+    },
+  );
   test("digest and call IDs are stable, distinct per run/chunk, and valid UUIDv4", () => {
     expect(fileChunks(extraction("same"))).toEqual(
       fileChunks(extraction("same")),
