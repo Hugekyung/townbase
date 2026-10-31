@@ -68,7 +68,11 @@ describe("D02 real HTTP body/guard boundary", () => {
         ? { ok: true, requester: principal }
         : { ok: false },
     );
-    files.register.mockResolvedValue({ stored: true });
+    files.register.mockResolvedValue({
+      runId: "11111111-1111-4111-8111-111111111111",
+      status: "queued",
+      existing: false,
+    });
     files.list.mockResolvedValue({ items: [] });
   });
   afterAll(async () => {
@@ -80,6 +84,7 @@ describe("D02 real HTTP body/guard boundary", () => {
     Host: "127.0.0.1:3000",
     Origin: "http://127.0.0.1:3000",
     "X-Townbase-Auth": "1",
+    "X-Townbase-Request-Id": "22222222-2222-4222-8222-222222222222",
     Cookie: `townbase_session=${"a".repeat(43)}`,
   };
   test("unauthenticated large/malformed body is rejected before file work", async () => {
@@ -99,7 +104,12 @@ describe("D02 real HTTP body/guard boundary", () => {
         name: "a.txt",
         contentBase64: Buffer.alloc(9000, 120).toString("base64"),
       })
-      .expect(202);
+      .expect(202)
+      .expect({
+        runId: "11111111-1111-4111-8111-111111111111",
+        status: "queued",
+        existing: false,
+      });
     expect(auth.requester).toHaveBeenCalledTimes(2);
     expect(files.register.mock.calls[0]?.[3]).toHaveLength(9000);
   });
@@ -118,7 +128,12 @@ describe("D02 real HTTP body/guard boundary", () => {
           name: "a.txt",
           contentBase64: Buffer.alloc(9000, 120).toString("base64"),
         })
-        .expect(status);
+        .expect(status)
+        .expect({
+          runId: "11111111-1111-4111-8111-111111111111",
+          status: "queued",
+          existing: false,
+        });
       expect(auth.requester).toHaveBeenCalledTimes(2);
       expect(files.register).toHaveBeenCalledTimes(1);
       expect(files.register.mock.calls[0]?.[3]).toHaveLength(9000);
@@ -236,7 +251,12 @@ describe("D02 real HTTP body/guard boundary", () => {
       .post("/files")
       .set(headers)
       .send({ name: "c.txt", contentBase64: "eA==" })
-      .expect(202);
+      .expect(202)
+      .expect({
+        runId: "11111111-1111-4111-8111-111111111111",
+        status: "queued",
+        existing: false,
+      });
   });
   test("downloads only as no-store attachment", async () => {
     files.reference.mockResolvedValue({

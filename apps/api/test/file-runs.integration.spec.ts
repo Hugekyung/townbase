@@ -47,6 +47,7 @@ const { configureSelfHostedHttp } = built(
 const integration =
   process.env.TOWNBASE_FILE_RUN_TEST === "1" ? describe : describe.skip;
 integration("D03 actual persistent run queue", () => {
+  jest.setTimeout(60000);
   let owner: PrismaClient,
     app: NestExpressApplication,
     directory: string,
@@ -506,6 +507,247 @@ integration("D03 actual persistent run queue", () => {
     });
     expect((await storage.read(version.storageKey)).length).toBeGreaterThan(0);
   });
+  test("failed reprocessing preserves the last successful extraction and retries the same version", async () => {
+    const item = await register(
+      "preserve.txt",
+      Buffer.from("last successful extraction"),
+    );
+    const before = await owner.fileVersion.findUniqueOrThrow({
+      where: { id: item.version.id },
+    });
+    const spy = jest
+      .spyOn(app.get(FileExtractor), "extract")
+      .mockRejectedValueOnce(new FileError("parser_failed"));
+    let failed!: Awaited<ReturnType<typeof settled>>;
+    try {
+      const ack = await request(app.getHttpServer())
+        .post(`/files/${item.id}/reprocess`)
+        .set(headers())
+        .send({})
+        .expect(202);
+      failed = await settled(ack.body);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(failed).toMatchObject({
+      status: "failed",
+      errorCode: "parser_failed",
+      resultVersionId: before.id,
+    });
+    expect(
+      (await owner.fileVersion.findUniqueOrThrow({ where: { id: before.id } }))
+        .extraction,
+    ).toEqual(before.extraction);
+    expect(
+      await owner.fileExtractionRun.findUniqueOrThrow({
+        where: { id: failed.resultExtractionRunId! },
+      }),
+    ).toMatchObject({ status: "failed", errorCode: "parser_failed" });
+    const retry = await request(app.getHttpServer())
+      .post(`/file-runs/${failed.id}/retry`)
+      .set(headers())
+      .send({})
+      .expect(202);
+    expect(await settled(retry.body)).toMatchObject({
+      status: "succeeded",
+      retryOfId: failed.id,
+      resultVersionId: before.id,
+      unchangedCount: 1,
+    });
+  });
+  test.each(["failed", "interrupted"] as const)(
+    "retries %s reprocessing with no pending input or result",
+    async (status) => {
+      const item = await register(`retry-${status}.txt`);
+      let ack!: { runId: string };
+      if (status === "failed") {
+        const spy = jest
+          .spyOn(storage, "read")
+          .mockRejectedValueOnce(new FileError("storage_unavailable"));
+        try {
+          ack = (
+            await request(app.getHttpServer())
+              .post(`/files/${item.id}/reprocess`)
+              .set(headers())
+              .send({})
+              .expect(202)
+          ).body;
+          expect((await settled(ack)).status).toBe("failed");
+        } finally {
+          spy.mockRestore();
+        }
+      } else {
+        await owner.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT pg_advisory_xact_lock(741126,3)::text`;
+          ack = (
+            await request(app.getHttpServer())
+              .post(`/files/${item.id}/reprocess`)
+              .set(headers())
+              .send({})
+              .expect(202)
+          ).body;
+          await request(app.getHttpServer())
+            .post(`/file-runs/${ack.runId}/stop`)
+            .set(headers())
+            .send({})
+            .expect(200);
+        });
+      }
+      const parent = await settled(ack);
+      expect(parent).toMatchObject({
+        status,
+        inputKey: null,
+        resultVersionId: null,
+      });
+      const retry = await request(app.getHttpServer())
+        .post(`/file-runs/${parent.id}/retry`)
+        .set(headers())
+        .send({})
+        .expect(202);
+      expect(await settled(retry.body)).toMatchObject({
+        status: "succeeded",
+        retryOfId: parent.id,
+        resultVersionId: item.version.id,
+      });
+    },
+  );
+  test.each(["register", "reprocess"] as const)(
+    "stopping %s during input preparation prevents parser spawn and permits the next job",
+    async (operation) => {
+      const item =
+        operation === "reprocess"
+          ? await register("prepare-reprocess.txt")
+          : null;
+      const pending = (
+        runs as unknown as { pending: InstanceType<typeof FileStorage> }
+      ).pending;
+      const targetStorage = item ? storage : pending;
+      const originalRead = targetStorage.read.bind(targetStorage);
+      let entered!: () => void, release!: () => void;
+      const started = new Promise<void>((r) => {
+          entered = r;
+        }),
+        gate = new Promise<void>((r) => {
+          release = r;
+        });
+      const read = jest
+        .spyOn(targetStorage, "read")
+        .mockImplementationOnce(async (key) => {
+          entered();
+          await gate;
+          return originalRead(key);
+        });
+      const parse = jest.spyOn(app.get(FileExtractor), "extract");
+      let ack!: { runId: string };
+      try {
+        ack = item
+          ? (
+              await request(app.getHttpServer())
+                .post(`/files/${item.id}/reprocess`)
+                .set(headers())
+                .send({})
+                .expect(202)
+            ).body
+          : await enqueue("prepare-register.txt");
+        await started;
+        expect(parse).not.toHaveBeenCalled();
+        await request(app.getHttpServer())
+          .post(`/file-runs/${ack.runId}/stop`)
+          .set(headers())
+          .send({})
+          .expect(200);
+        release();
+        expect((await settled(ack)).status).toBe("interrupted");
+        expect(parse).toHaveBeenCalledTimes(1);
+        expect(parse.mock.calls[0]![2]?.aborted).toBe(true);
+        expect(
+          (await owner.fileRun.findUniqueOrThrow({ where: { id: ack.runId } }))
+            .resultVersionId,
+        ).toBeNull();
+      } finally {
+        release();
+        read.mockRestore();
+        parse.mockRestore();
+      }
+      expect(
+        (await settled(await enqueue("after-preparation-stop.txt"))).status,
+      ).toBe("succeeded");
+    },
+  );
+  test.each([
+    "resultOriginalId",
+    "resultExtractionRunId",
+    "baseVersionId",
+  ] as const)(
+    "DB rejects cross-resource %s within the same installation",
+    async (field) => {
+      const a = await settled(await enqueue("relation-a.txt")),
+        b = await settled(await enqueue("relation-b.txt"));
+      const data =
+        field === "baseVersionId"
+          ? {
+              operation: "reprocess",
+              trigger: "reprocess",
+              targetOriginalId: b.resultOriginalId,
+              baseVersionId: a.resultVersionId,
+            }
+          : { [field]: b[field] };
+      await expect(
+        owner.fileRun.update({ where: { id: a.id }, data }),
+      ).rejects.toMatchObject({ code: "P2003" });
+      expect(
+        await owner.fileRun.findUniqueOrThrow({ where: { id: a.id } }),
+      ).toMatchObject({
+        status: a.status,
+        operation: a.operation,
+        trigger: a.trigger,
+        targetOriginalId: a.targetOriginalId,
+        baseVersionId: a.baseVersionId,
+        resultOriginalId: a.resultOriginalId,
+        resultVersionId: a.resultVersionId,
+        resultExtractionRunId: a.resultExtractionRunId,
+      });
+    },
+  );
+  test("DB rejects impossible operation/trigger history", async () => {
+    const run = await settled(await enqueue("trigger.txt"));
+    await expect(
+      owner.fileRun.update({
+        where: { id: run.id },
+        data: { trigger: "reprocess" },
+      }),
+    ).rejects.toThrow();
+    expect(
+      (await owner.fileRun.findUniqueOrThrow({ where: { id: run.id } }))
+        .trigger,
+    ).toBe("register");
+  });
+  test.each(["queued", "running", "interrupted"] as const)(
+    "DB rejects result IDs on %s rows independently of other checks",
+    async (status) => {
+      const run = await settled(await enqueue("result-state.txt"));
+      await expect(
+        owner.fileRun.update({
+          where: { id: run.id },
+          data: {
+            operation: "reprocess",
+            trigger: "reprocess",
+            targetOriginalId: run.resultOriginalId,
+            baseVersionId: run.resultVersionId,
+            status,
+            createdCount: 0,
+            startedAt: status === "queued" ? null : run.startedAt,
+            completedAt: status === "interrupted" ? run.completedAt : null,
+            errorCode: status === "interrupted" ? "user_stopped" : null,
+          },
+        }),
+      ).rejects.toThrow();
+      expect(
+        (await owner.fileRun.findUniqueOrThrow({ where: { id: run.id } }))
+          .status,
+      ).toBe("succeeded");
+    },
+  );
   test("stopping queued work is idempotent and requires explicit retry", async () => {
     let ack!: { runId: string };
     await owner.$transaction(async (tx) => {
@@ -609,6 +851,102 @@ integration("D03 actual persistent run queue", () => {
       .send({})
       .expect(202);
     expect((await settled(retry.body)).status).toBe("succeeded");
+  });
+  test("shutdown waits for an admission already staging its input and interrupts it before releasing ownership", async () => {
+    const pending = (
+      runs as unknown as { pending: InstanceType<typeof FileStorage> }
+    ).pending;
+    const write = pending.write.bind(pending);
+    let entered!: () => void, release!: () => void;
+    const started = new Promise<void>((r) => {
+        entered = r;
+      }),
+      gate = new Promise<void>((r) => {
+        release = r;
+      });
+    const spy = jest
+      .spyOn(pending, "write")
+      .mockImplementationOnce(async (bytes) => {
+        entered();
+        await gate;
+        return write(bytes);
+      });
+    const admission = runs.upload(
+      token,
+      context,
+      randomUUID(),
+      "shutdown-staging.txt",
+      Buffer.from("synthetic input"),
+    );
+    await started;
+    let closed = false;
+    const shutdown = runs.onModuleDestroy().then(() => {
+      closed = true;
+    });
+    try {
+      // Longer than the normal 3-second DB socket timeout: shutdown must
+      // retain ownership until the already-admitted input finishes.
+      await new Promise((r) => setTimeout(r, 3200));
+      expect(closed).toBe(false);
+      release();
+      const ack = await admission;
+      await shutdown;
+      expect(
+        await owner.fileRun.findUniqueOrThrow({ where: { id: ack.runId } }),
+      ).toMatchObject({ status: "interrupted", errorCode: "api_stopped" });
+    } finally {
+      release();
+      spy.mockRestore();
+      await shutdown;
+      await runs.onModuleInit();
+    }
+  });
+  test("an admission delayed before staging cannot enqueue after shutdown releases ownership", async () => {
+    const lifecycle = runs as unknown as {
+      interval: ReturnType<typeof setInterval>;
+      task?: Promise<void>;
+    };
+    clearInterval(lifecycle.interval);
+    await lifecycle.task;
+    const internal = runs as unknown as { checkOwner: () => Promise<void> };
+    const check = internal.checkOwner.bind(runs);
+    let entered!: () => void, release!: () => void;
+    const started = new Promise<void>((r) => {
+        entered = r;
+      }),
+      gate = new Promise<void>((r) => {
+        release = r;
+      });
+    const spy = jest
+      .spyOn(internal, "checkOwner")
+      .mockImplementationOnce(async () => {
+        await check();
+        entered();
+        await gate;
+      });
+    const admission = runs.upload(
+      token,
+      context,
+      randomUUID(),
+      "shutdown-delayed.txt",
+      Buffer.from("synthetic input"),
+    );
+    const rejected = expect(admission).rejects.toMatchObject({ status: 503 });
+    try {
+      await started;
+      await runs.onModuleDestroy();
+      release();
+      await rejected;
+      expect(
+        await owner.fileRun.count({
+          where: { fileName: "shutdown-delayed.txt" },
+        }),
+      ).toBe(0);
+    } finally {
+      release();
+      spy.mockRestore();
+      await runs.onModuleInit();
+    }
   });
   test("deleted sources keep historical identity but cannot be retried or downloaded", async () => {
     const ack = await enqueue("deleted.pdf", "bad pdf"),

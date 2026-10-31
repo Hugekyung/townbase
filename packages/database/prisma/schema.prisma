@@ -518,6 +518,7 @@ model FileVersion {
 
   @@unique([installationId, id])
   @@unique([installationId, originalId, version])
+  @@unique([installationId, originalId, id])
 }
 
 model FileExtractionRun {
@@ -533,6 +534,7 @@ model FileExtractionRun {
 
   executionResults FileRun[]
   @@unique([installationId,id])
+  @@unique([installationId,versionId,id])
   @@index([installationId, completedAt])
   @@index([installationId, versionId, completedAt])
 }
@@ -572,10 +574,10 @@ model FileRun {
   installation Installation @relation(fields:[installationId], references:[id], onDelete:Restrict)
   owner Administrator @relation(fields:[installationId,ownerAdministratorId], references:[installationId,id], onDelete:Restrict)
   targetOriginal FileOriginal? @relation("FileRunTarget", fields:[installationId,targetOriginalId], references:[installationId,id], onDelete:Restrict)
-  baseVersion FileVersion? @relation("FileRunBase", fields:[installationId,baseVersionId], references:[installationId,id], onDelete:Restrict)
+  baseVersion FileVersion? @relation("FileRunBase", fields:[installationId,targetOriginalId,baseVersionId], references:[installationId,originalId,id], onDelete:Restrict)
   resultOriginal FileOriginal? @relation("FileRunResult", fields:[installationId,resultOriginalId], references:[installationId,id], onDelete:Restrict)
-  resultVersion FileVersion? @relation("FileRunVersion", fields:[installationId,resultVersionId], references:[installationId,id], onDelete:Restrict)
-  resultExtractionRun FileExtractionRun? @relation(fields:[installationId,resultExtractionRunId],references:[installationId,id],onDelete:Restrict)
+  resultVersion FileVersion? @relation("FileRunVersion", fields:[installationId,resultOriginalId,resultVersionId], references:[installationId,originalId,id], onDelete:Restrict)
+  resultExtractionRun FileExtractionRun? @relation(fields:[installationId,resultVersionId,resultExtractionRunId],references:[installationId,versionId,id],onDelete:Restrict)
   requests FileRunRequest[]
   @@unique([installationId,id])
   @@index([installationId,status,createdAt,id])

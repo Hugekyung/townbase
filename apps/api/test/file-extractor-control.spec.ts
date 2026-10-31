@@ -47,13 +47,18 @@ describe("D01 child termination boundary", () => {
     await rejected;
     expect(jest.getTimerCount()).toBe(0);
   });
-  test("manual cancellation kills the active child and cannot cancel a later extraction", async () => {
+  test("manual cancellation releases the active child and a later extraction succeeds", async () => {
     const extractor = new FileExtractor();
-    const first = extractor.extract("a.txt", Buffer.from("text"));
+    const signal = new AbortController();
+    const first = extractor.extract(
+      "a.txt",
+      Buffer.from("text"),
+      signal.signal,
+    );
     const rejected = expect(first).rejects.toMatchObject({
       code: "extraction_cancelled",
     });
-    extractor.cancel();
+    signal.abort();
     expect(child.kill).toHaveBeenCalledWith("SIGKILL");
     child.emit("close", null, "SIGKILL");
     await rejected;
@@ -61,6 +66,52 @@ describe("D01 child termination boundary", () => {
     child.kill.mockClear();
     extractor.cancel();
     expect(child.kill).not.toHaveBeenCalled();
+    const nextChannel = new PassThrough();
+    const next = Object.assign(new EventEmitter(), {
+      stdin: new PassThrough(),
+      stdio: [null, null, null, nextChannel],
+      kill: jest.fn(() => true),
+      pid: 999999,
+    });
+    jest
+      .mocked(processes.spawn)
+      .mockReturnValueOnce(next as unknown as processes.ChildProcess);
+    const second = extractor.extract(
+      "b.txt",
+      Buffer.from("x"),
+      new AbortController().signal,
+    );
+    signal.signal.dispatchEvent(new Event("abort")); // A stale signal must not cancel this child.
+    const result = {
+      format: "txt",
+      segments: [
+        { text: "x", headingPath: [], location: { lineStart: 1, lineEnd: 1 } },
+      ],
+      codePoints: 1,
+    };
+    nextChannel.write(JSON.stringify({ ok: true, result }));
+    next.emit("close", 0);
+    await expect(second).resolves.toEqual(result);
+    expect(next.kill).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+  test("a cancellation during preparation prevents spawning and does not poison the next job", async () => {
+    const extractor = new FileExtractor(),
+      controller = new AbortController();
+    controller.abort();
+    await expect(
+      extractor.extract("a.txt", Buffer.from("x"), controller.signal),
+    ).rejects.toMatchObject({ code: "extraction_cancelled" });
+    expect(processes.spawn).not.toHaveBeenCalled();
+    const later = extractor.extract("b.txt", Buffer.from("x"));
+    const rejected = expect(later).rejects.toMatchObject({
+      code: "extraction_cancelled",
+    });
+    expect(processes.spawn).toHaveBeenCalledTimes(1);
+    extractor.cancel();
+    child.emit("close", null, "SIGKILL");
+    await rejected;
+    expect(jest.getTimerCount()).toBe(0);
   });
   test("abrupt OOM/crash is not successful empty extraction", async () => {
     const pending = new FileExtractor().extract("a.txt", Buffer.from("text"));

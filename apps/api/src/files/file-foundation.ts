@@ -48,6 +48,7 @@ export class FileFoundation {
       checkpoint?: FileCheckpoint;
       expectedVersionId?: string;
       inspect?: (value: FileExtraction) => void;
+      signal?: AbortSignal;
     } = {},
   ) {
     const admitted = await this.auth.authorizedOperation(
@@ -77,14 +78,17 @@ export class FileFoundation {
     let extraction: FileExtraction | undefined,
       errorCode: FileError["code"] | undefined;
     try {
-      extraction = await this.extractor.extract(name, bytes);
+      extraction = await this.extractor.extract(name, bytes, options.signal);
     } catch (error) {
       // Capacity/unavailable failures do not register a document as a content failure.
       if (
         !(error instanceof FileError) ||
-        ["parser_busy", "parser_unavailable", "storage_unavailable"].includes(
-          error.code,
-        )
+        [
+          "parser_busy",
+          "parser_unavailable",
+          "storage_unavailable",
+          "extraction_cancelled",
+        ].includes(error.code)
       )
         throw error;
       errorCode = error.code;

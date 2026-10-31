@@ -1,6 +1,6 @@
 # v0.2 초기 배포 실행 안내
 
-현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·Key 암호화/전송 정책 설정 API·PostgreSQL/pgvector·migration·분리된 파일 volume. 모델/예산 설정과 합성 연결 검사 API도 제공한다. 실제 OpenAI 계정의 합성 연결 검사3회는 성공했다. 설정 웹·실제 RAG 품질 평가는 후속 범위다. Key·예산·가격표 확인·전송 허용을 모두 갖추면 연결 검사도 유료 호출을 수행한다. **문서 등록·채팅은 아직 사용할 수 없다.** 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
+현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·Key 암호화/전송 정책 설정 API·PostgreSQL/pgvector·migration·분리된 파일 volume. 모델/예산 설정과 합성 연결 검사 API도 제공한다. 실제 OpenAI 계정의 합성 연결 검사3회는 성공했다. 설정 웹·실제 RAG 품질 평가는 후속 범위다. Key·예산·가격표 확인·전송 허용을 모두 갖추면 연결 검사도 유료 호출을 수행한다. 보호된 문서 등록·관리·실행 API는 D02/D03으로 제공한다. 문서 웹·채팅·벡터 색인은 후속이다. 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
 
 ## 1. 첫 실행
 
@@ -207,7 +207,7 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 등록된 self-hosted HTTP 처리 경로는 기본적으로 관리자 세션을 요구한다. 공개 예외는 정적 웹·health/readyz·초기 상태/등록·로그인·로그아웃·복구 소비뿐이다. 공개 예외에도 기존 Origin·전송·JSON·비밀번호/토큰·시도 제한을 적용한다. 세션 조회·비밀번호 변경은 공통 검사 대상이다. 요청의 workspaceId/installationId/administratorId 또는 x-*-id 헤더는 신원 증명이 아니며, 저장된 세션의 설치/자료 범위와 다르면403이다. 검증 불가 상태는503으로 차단한다.
 
-기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서·채팅·실행 API는 아직 제공하지 않으며 Key/모델/예산·전송 설정과 합성 연결 검사를10~11절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
+기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서 관리·실행 API는 아래 D02/D03 경로로 제공하며 채팅은 아직 제공하지 않는다. Key/모델/예산·전송 설정과 합성 연결 검사를10~11절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
 
 운영 runtime에는 connectors 패키지와 평가/seed 개발 소스·도구가 포함되지 않는다. 빌드/migration 환경에는 있으므로 그 환경에서도 프로필 보호가 필요하다. 유지보수 migration/bootstrap/recovery는 기존 서버 로컬 secret/토큰 절차를 따른다. 일반 데이터 기능을 활성화하는 CLI는 아니다. 설치 운영자의 임의 코드 실행/DB 소유자 권한을 격리하는 sandbox로 설명하지 않는다.
 
@@ -263,7 +263,7 @@ self-hosted가 공급자 미전송을 뜻하지는 않는다. 연결 검사도 �
 
 D01은 파일 업로드 웹/API를 공개하지 않는다. API 이미지에 고정 PDF.js/Mammoth/ZIP 검사를 포함하고 별도 로컬 프로세스로 본문과 위치를 추출하는 기반이다. FileOriginal/FileVersion/FileExtractionRun의 SELECT/INSERT만 runtime 계정에 추가했으며 UPDATE/DELETE는 없다. sourceType의 uploaded_file enum migration을 먼저 commit한 뒤 파일 테이블 migration을 적용한다. 기존 문서/벡터는 유지한다.
 
-Linux 파서에는 DATA512 MiB·V8 heap128 MiB·RSS512 MiB 감시/30초 종료가 적용된다. RSS 감시의 짧은 간격과 전체 메모리의 cgroup 보장은 다르다. 실제 runtime 이미지의 read-only root·비특권·network none에서 4형식을 검증했지만 HTTP 업로드/색인/검색은 아직 없다. 후속 D02에서 지정된 documents volume에 연결하고 미완료 파일 정리를 포함한 관리 API를 제공한다. [D01 구현·시험 범위](implementation/v0.2-d01-file-extraction.md)를 따른다.
+Linux 파서에는 DATA512 MiB·V8 heap128 MiB·RSS512 MiB 감시/30초 종료가 적용된다. RSS 감시의 짧은 간격과 전체 메모리의 cgroup 보장은 다르다. 실제 runtime 이미지의 read-only root·비특권·network none에서 4형식을 검증했지만 HTTP 업로드/파일 관리는 아래 D02/D03에서 documents volume과 연결해 제공한다. 벡터 색인/검색은 후속이다. [D01 구현·시험 범위](implementation/v0.2-d01-file-extraction.md)를 따른다.
 
 ### D01 파일 제약 업그레이드의 사전 검사
 
@@ -275,7 +275,7 @@ migration 컨테이너는 `db:deploy`를 시작하기 전에 기존 FileVersion�
 
 1. 기존 업그레이드 절차대로 API 쓰기와 외부 노출을 중단하고 DB·원본 documents volume·별도 암호화 키를 보호된 위치에 백업한다. 자동 백업/복구 도구는 아직 없다.
 2. 표시된 version UUID를 기준으로 해당 버전·원본 관계와 보관 원본을 서버 로컬에서 확인한다. 숫자 문자열, 빈 segments, 형식/글자 수 불일치 등을 조사한다. 진단은 최대20개 표본이므로 수정 후 다시 검사해 남은 개수를 확인한다.
-3. 정상 백업으로 복구하거나, 보존된 실제 원문에서 파서를 통해 본문·위치를 다시 확인한 결과로 운영자가 명시적으로 정정한다. 원본 ID/버전/hash 관계와 삭제·보관 정책을 유지한다. 호환시키기 위한 가짜 segments·임의 숫자 변환·자동 삭제는 하지 않는다. 공개 업로드/재추출 API가 아직 없으므로 이 문서는 존재하지 않는 웹/CLI 재추출 기능을 안내하지 않는다. 확인 가능한 원문·정상 백업이 없으면 배포를 중단하고 유지보수 담당자와 복구 방안을 결정한다.
+3. 정상 백업으로 복구하거나, 보존된 실제 원문에서 파서를 통해 본문·위치를 다시 확인한 결과로 운영자가 명시적으로 정정한다. 원본 ID/버전/hash 관계와 삭제·보관 정책을 유지한다. 호환시키기 위한 가짜 segments·임의 숫자 변환·자동 삭제는 하지 않는다. 이 사전 검사는 새 API가 기동하기 전 수행되므로 업그레이드 후 제공되는 D03 재처리 API로 배포 차단을 우회하지 않는다. 확인 가능한 원문·정상 백업이 없으면 배포를 중단하고 유지보수 담당자와 복구 방안을 결정한다.
 4. 같은 설치 설정으로 migration을 다시 실행한다. 새 제약·기존 자료 재조회와 준비 상태를 확인한 후에만 API/외부 노출을 재개한다. 사전 검사 실패 자체는 CLI를 시작하지 않으므로 실패한 migration 행을 만들지 않는다. 이미 다른 원인으로 migration이 실패했다면 별도 이력/복구 확인이 필요하다.
 
 ### 파서 종료 실패 복구
@@ -298,12 +298,12 @@ docker compose --env-file .townbase/compose.env -p my-townbase logs --tail=60 ap
 
 `TOWNBASE_DOCUMENTS_PATH/originals`는 지속 raw 전용0700 디렉터리이며 다른 자료/첨부/백업을 넣지 않는다. 시작 시 DB에 없는 UUID 파일과 삭제된 원본의 남은 파일을 정리한다. 알 수 없는 파일/하위 디렉터리/symlink 또는 DB/파일 오류면 시작을 거절하므로 경로와 로그 코드부터 확인한다. 동작 중 삭제 정리는1분마다 재시도하며 실패하면 cleanup=pending이다. API 삭제는 접근을 먼저 차단하고 추출문을 제거한다. 실패한 물리 삭제를 완료로 표시하지 않는다. 원본 다운로드는 현재 버전만 제공하며 HTML을 직접 렌더하지 않는다.
 
-새 migration은 tombstone/물리 정리 상태·감사 enum과 최소 열 권한을 추가한다. 배포 전 DB/원본 백업 절차를 유지한다. 파일 웹·비동기 실행 ID/재시도·벡터·과거 파생 참조·백업 복구 시 삭제 기록 반영은 후속 단계다. 지금은 extracted를 검색 가능으로 오인하지 않게 searchable=false로 반환한다. 실제 실행 조건·현재 한계는 [D02 기록](implementation/v0.2-d02-file-management.md)을 따른다.
+새 migration은 tombstone/물리 정리 상태·감사 enum과 최소 열 권한을 추가한다. 배포 전 DB/원본 백업 절차를 유지한다. 비동기 실행 ID/재시도는 아래 D03으로 제공한다. 파일 웹·벡터·과거 파생 참조·백업 복구 시 삭제 기록 반영은 후속 단계다. 지금은 extracted를 검색 가능으로 오인하지 않게 searchable=false로 반환한다. 실제 실행 조건·현재 한계는 [D02 기록](implementation/v0.2-d02-file-management.md)을 따른다.
 
 
-## 파일 실행 관리 (D03, 로컬 전달 전)
+## 파일 실행 관리 (D03, PR #43 전달)
 
-현재 등록/교체는 `X-Townbase-Request-Id` UUID v4를 보내202 실행 ID를 받는다. 위 D02의 동기 결과 설명보다 이 계약을 우선한다. UUID는 클라이언트가 먼저 보관하고, 응답 유실 시 GET `/file-runs/requests/:requestId`로 조회한다. 실행 목록/상세는 `/file-runs`, `{}` POST로 `/:id/retry` 또는 `/:id/stop`을 요청한다. 현재 버전의 새 추출은 `/files/:id/reprocess`에 새 요청 ID와 `{}`를 보낸다. 모든 경로는 기존 Origin/Host·인증 헤더·세션·JSON 보호를 유지한다.
+현재 등록/교체는 `X-Townbase-Request-Id` UUID v4를 보내202 실행 ID를 받는다. 등록/교체 응답은 파일 추출 완료가 아니라 접수 결과다. UUID는 클라이언트가 먼저 보관하고, 응답 유실 시 GET `/file-runs/requests/:requestId`로 조회한다. 실행 목록/상세는 `/file-runs`, `{}` POST로 `/:id/retry` 또는 `/:id/stop`을 요청한다. 현재 버전의 새 추출은 `/files/:id/reprocess`에 새 요청 ID와 `{}`를 보낸다. 모든 경로는 기존 Origin/Host·인증 헤더·세션·JSON 보호를 유지한다.
 
 `documents/pending`도 지속 접수 raw 저장소다. 첨부와 섞거나 원본 저장소의 orphan 정리 대상으로 취급하지 않는다. 실행 소유권을 먼저 확보한 단일 API만 정리/처리한다. 기존 API가 실행 중인 중복 기동은 거절한다. queued+running20·실행1개이며 다른 작업은 DB 대기한다. 재시작은 이전 대기/실행을 interrupted로 표시하며 자동 재실행하지 않는다. 남은 입력/원본과 이력을 확인하고 운영자가 retry한다. 이미 파일 버전이 저장됐으면 그 버전을 사용하므로 임시 복사본이 지워졌다는 이유로 재시도를 실패시키지 않는다.
 

@@ -251,6 +251,7 @@ export class FileManagementService implements OnApplicationShutdown {
     replaceId?: string,
     checkpoint?: FileCheckpoint,
     expectedVersionId?: string,
+    signal?: AbortSignal,
   ) {
     if (replaceId) replaceId = originalId(replaceId);
 
@@ -261,6 +262,7 @@ export class FileManagementService implements OnApplicationShutdown {
         ...(replaceId ? { replaceId } : {}),
         ...(checkpoint ? { checkpoint } : {}),
         ...(expectedVersionId ? { expectedVersionId } : {}),
+        ...(signal ? { signal } : {}),
         preserveOnFailure: true,
         audit: true,
         inspect: (value) =>

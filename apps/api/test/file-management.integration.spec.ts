@@ -43,6 +43,7 @@ import { pdf, docx, encryptedPdf, zip } from "./file-fixtures";
 const integration =
   process.env.TOWNBASE_FILE_MANAGEMENT_TEST === "1" ? describe : describe.skip;
 integration("D02 actual DB/HTTP/storage lifecycle", () => {
+  jest.setTimeout(60000);
   let owner: PrismaClient,
     app: NestExpressApplication,
     directory: string,

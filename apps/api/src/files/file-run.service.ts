@@ -73,6 +73,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
   private task: Promise<void> | undefined;
   private interval?: ReturnType<typeof setInterval>;
   private active: string | undefined;
+  private activeCancellation: AbortController | undefined;
   private closing = false;
   private nextCleanupAt = 0;
   private readonly pending: FileStorage;
@@ -89,13 +90,19 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
       ),
     );
   }
-  private async lock(key: number) {
+  private async lock(key: number, wait = false) {
     const url = new URL(process.env.DATABASE_URL!);
     url.searchParams.set("connection_limit", "1");
+    // Shutdown must wait for admitted input I/O, not the readiness socket timeout.
+    if (wait) url.searchParams.delete("socket_timeout");
     const client = new PrismaClient({
       datasources: { db: { url: url.toString() } },
     });
     try {
+      if (wait) {
+        await client.$queryRaw`SELECT pg_advisory_lock(741126, ${key}::int)::text`;
+        return client;
+      }
       const [row] = await client.$queryRaw<
         Array<{ acquired: boolean }>
       >`SELECT pg_try_advisory_lock(741126, ${key}::int) AS acquired`;
@@ -115,13 +122,14 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     >`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='advisory' AND classid=741126::oid AND objid=4::oid AND objsubid=2 AND granted) AS owned`;
     if (!row?.owned) {
       this.closing = true;
+      this.activeCancellation?.abort();
       this.extractor.cancel();
       Logger.error("TOWNBASE_FILE_RUN_OWNER_LOST");
       throw new HttpException({ code: "file_run_unavailable" }, 503);
     }
   }
-  private async staging<T>(work: () => Promise<T>): Promise<T> {
-    const client = await this.lock(5);
+  private async staging<T>(work: () => Promise<T>, wait = false): Promise<T> {
+    const client = await this.lock(5, wait);
     try {
       return await work();
     } finally {
@@ -165,20 +173,25 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
         } catch {
           Logger.error("TOWNBASE_FILE_RUN_SHUTDOWN_UNCONFIRMED");
         } finally {
+          this.activeCancellation?.abort();
           this.extractor.cancel();
         }
       }
       await this.task;
-      await this.db.prisma.fileRun
-        .updateMany({
+      // Drain any admission already holding the input lock before releasing ownership.
+      // New admissions recheck closing under this same lock.
+      await this.staging(async () => {
+        await this.db.prisma.fileRun.updateMany({
           where: { status: "queued" },
           data: {
             status: "interrupted",
             errorCode: "api_stopped",
             completedAt: new Date(),
           },
-        })
-        .catch(() => Logger.error("TOWNBASE_FILE_RUN_SHUTDOWN_UNCONFIRMED"));
+        });
+      }, true).catch(() =>
+        Logger.error("TOWNBASE_FILE_RUN_SHUTDOWN_UNCONFIRMED"),
+      );
     } finally {
       this.identities.clear();
       await this.owner.$disconnect();
@@ -440,6 +453,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     if (this.closing) throw new HttpException({ code: "api_stopping" }, 503);
     await this.checkOwner();
     return this.staging(async () => {
+      await this.checkOwner();
       const old = await this.scoped(identity, (tx, c) =>
         this.request(tx, c, requestId, hash),
       );
@@ -679,7 +693,11 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
           return bytes;
         }
       : undefined;
-    if (!inputKey && !parent.resultVersionId)
+    if (
+      !inputKey &&
+      !parent.resultVersionId &&
+      parent.operation !== "reprocess"
+    )
       throw new ConflictException({ code: "retry_input_unavailable" });
     const operation = parent.resultVersionId
       ? "reprocess"
@@ -726,7 +744,10 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
         throw new ConflictException({ code: "run_already_completed" });
       return run;
     });
-    if (this.active === id) this.extractor.cancel();
+    if (this.active === id) {
+      this.activeCancellation?.abort();
+      this.extractor.cancel();
+    }
     this.identities.delete(id);
     return { runId: row.id, status: "interrupted" };
   }
@@ -758,6 +779,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
         await this.files.withFileOperation(async () => {
           const run = await this.db.prisma.$transaction(async (tx) => {
             await tx.$queryRaw`SELECT pg_advisory_xact_lock(741126, 6)::text`;
+            if (this.closing) return null;
             const queued = await tx.fileRun.findFirst({
               where: { status: "queued" },
               orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -773,22 +795,31 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
           claimed = true;
           claimedId = run.id;
           this.active = run.id;
+          const cancellation = new AbortController();
+          this.activeCancellation = cancellation;
+          if (this.closing) cancellation.abort();
           const monitor = setInterval(() => {
             void this.db.prisma.fileRun
               .findUnique({ where: { id: run.id }, select: { status: true } })
               .then((row) => {
-                if (this.active === run.id && row?.status !== "running")
+                if (this.active === run.id && row?.status !== "running") {
+                  cancellation.abort();
                   this.extractor.cancel();
+                }
               })
               .catch(() => {
-                if (this.active === run.id) this.extractor.cancel();
+                if (this.active === run.id) {
+                  cancellation.abort();
+                  this.extractor.cancel();
+                }
               });
           }, 250);
           try {
-            await this.execute(run);
+            await this.execute(run, cancellation.signal);
           } finally {
             clearInterval(monitor);
             this.active = undefined;
+            this.activeCancellation = undefined;
             this.identities.delete(run.id);
           }
         });
@@ -847,7 +878,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     if (count.count !== 1)
       throw new ConflictException({ code: "run_no_longer_active" });
   }
-  private async execute(run: Run) {
+  private async execute(run: Run, signal: AbortSignal) {
     const identity = this.identities.get(run.id);
     try {
       if (!identity) throw new UnauthorizedException();
@@ -879,7 +910,11 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
               | undefined,
             code: string | null = null;
           try {
-            extraction = await this.extractor.extract(run.fileName, bytes);
+            extraction = await this.extractor.extract(
+              run.fileName,
+              bytes,
+              signal,
+            );
           } catch (error) {
             if (
               !(error instanceof FileError) ||
@@ -905,8 +940,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
                   extraction: extraction as unknown as Prisma.InputJsonValue,
                 },
               });
-            else
-              await tx.$executeRaw`UPDATE "FileVersion" SET extraction=NULL WHERE id=${latest.version.id}::uuid`;
+
             const extractionRun = await tx.fileExtractionRun.create({
               data: {
                 id: randomUUID(),
@@ -956,6 +990,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
               extractionRunId: result.runId,
             }),
           run.baseVersionId ?? undefined,
+          signal,
         );
       }
     } catch (error) {

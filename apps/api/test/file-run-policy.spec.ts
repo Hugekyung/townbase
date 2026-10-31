@@ -43,6 +43,16 @@ describe("D03 shutdown with unavailable persistence", () => {
     internals.owner = { $disconnect: disconnect };
     internals.active = "11111111-1111-4111-8111-111111111111";
     internals.task = Promise.resolve();
+    // This unit isolates unavailable DB writes; staging synchronization is exercised
+    // with real advisory locks in the D03 integration suite.
+    jest
+      .spyOn(
+        service as unknown as {
+          staging: (work: () => Promise<void>) => Promise<void>;
+        },
+        "staging",
+      )
+      .mockImplementation((work) => work());
     const log = jest.spyOn(Logger, "error").mockImplementation(() => {});
     try {
       await expect(service.onModuleDestroy()).resolves.toBeUndefined();
