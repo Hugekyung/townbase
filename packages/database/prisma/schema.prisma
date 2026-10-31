@@ -114,6 +114,7 @@ enum InstallationAuditAction {
   file_registered
   file_replaced
   file_deleted
+  file_scope_changed
 }
 
 // Seeded singleton, even before the operator explicitly links the installation.
@@ -479,6 +480,8 @@ model ModelCall {
 
 // D01 persistence foundation. No public upload/indexing endpoint until D02/D03.
 model FileOriginal {
+  excludedAt           DateTime?
+  scopeRevision        Int @default(1)
   id                   String @id @db.Uuid
   installationId       String
   ownerAdministratorId String
@@ -604,6 +607,7 @@ model FileRunRequest {
 
 // Persistent uploaded-file retrieval only; attachments never enter these tables.
 model FileIndex {
+ scopeRevision Int @default(1)
  chunkBytes Int @default(4096)
  id String @id @db.Uuid
  installationId String

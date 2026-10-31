@@ -450,7 +450,7 @@ test("D02 file lifecycle allows only cleanup columns and denies every other muta
         (column) =>
           column.writable ===
             {
-              FileOriginal: ["deletedAt"],
+              FileOriginal: ["deletedAt", "excludedAt", "scopeRevision"],
               FileVersion: ["extraction", "rawDeletedAt"],
               FileExtractionRun: [],
             }[table].includes(column.attname) && column.referenceable === false,

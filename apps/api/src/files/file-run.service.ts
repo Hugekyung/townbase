@@ -22,6 +22,8 @@ import {
 import { FileManagementService, originalId } from "./file-management.service";
 import { FileStorage } from "./file-storage";
 import { FileExtractor } from "./file-extractor";
+import { fileSourceReference } from "./file-source";
+import { fileIndexStates } from "./file-index-state";
 import { FileIndexService } from "./file-index.service";
 import { FILE_INDEX_CONFIGURATION } from "./file-chunker";
 import { ModelCallError } from "../model-integration/model-policy";
@@ -247,19 +249,35 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
   private async view(tx: Tx, c: AdministratorContext, run: Run) {
     const id = run.resultOriginalId ?? run.targetOriginalId;
     const source = id
-      ? await tx.fileOriginal.findFirst({
-          where: { ...this.where(c), id, deletedAt: null },
-          select: { id: true },
-        })
+      ? await fileSourceReference(
+          tx,
+          c,
+          id,
+          run.resultVersionId ?? run.baseVersionId,
+        )
+      : {
+          state: "unavailable" as const,
+          resource: null,
+          reference: null,
+          sourceDeleted: false,
+        };
+    const versionId = run.resultVersionId ?? run.baseVersionId;
+    const states = versionId
+      ? await fileIndexStates(tx, c.installationId, [versionId])
       : null;
     const { inputKey: _input, targetKey: _target, ...safe } = run;
     void _input;
     void _target;
     return {
       ...safe,
-      sourceDeleted: id != null && source == null,
-      resource: source ? `/files/${source.id}` : null,
-      searchable: false,
+      sourceDeleted: source.sourceDeleted,
+      sourceState: source.state,
+      resource: source.resource,
+      reference: source.reference,
+      searchable:
+        source.state === "available" &&
+        versionId != null &&
+        states?.get(versionId)?.searchable === true,
     };
   }
   read(token: string | undefined, context: AdministratorContext, id: string) {

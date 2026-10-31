@@ -205,3 +205,14 @@
 - 전송 후 취소는 call_cancelled·unknown/예약 유지, 전송 전은 not_sent/0원이다. 공급자 시간 초과와 구분한다. 검증 증거·제한은 D04 기록의 PR #44 절을 따른다.
 - 새 업그레이드 opt-in 시험은 TOWNBASE_FILE_INDEX_UPGRADE_TEST=1·정확한 postgres/townbase_d04_pr44_upgrade_test의 빈 DB에서만 실행한다. deployment/test/file-index-review.integration.mjs는 최소 구버전 테이블의 후속 SQL/이력 보존 시험이며 일반 test:deployment에는 포함되지 않는다.
 - PR #44 로컬 수정 검증689개(API438·배포24·DB 단위20·D04 DB35·D03 DB34·D02 DB26·C01 DB41·권한70·업그레이드1) 통과. 이전 검증과 중복 합산하지 않는다. 사용자는 수정 요약 확인 후 커밋/푸시/PR 댓글 등록을 승인했다. 전달 결과는 PR 기록을 따른다.
+
+
+## D05 파일 생명주기 적용 상태 (2026-11-01, 로컬 구현)
+
+- PR #44는 main bb5dae6에 병합했다. codex/v02-d05-file-lifecycle에서 PUT /files/:id/scope의 included boolean·200 계약을 추가한다. FileOriginal.excludedAt/scopeRevision과 감사로 제외를 저장하고 동일 상태는 변경/감사를 늘리지 않는다. 재포함해도 수동 index 전 옛 벡터는 사용하지 않는다. 파일 작업 충돌409는 기존 stop 후 재요청 계약이다.
+- 검색의 FileSource 식별값은 chunk/index/original/version UUID와 scopeRevision이다. assertFileSourcesCurrent를 C CallBoundary.authorize에서 사용하며 소유/설치/버전/범위/삭제/추출/색인을 같은 인증 transaction에서 검사한다. E/F의 실제 저장·게시·과거 결과 비노출은 해당 단계에서 연결한다. 기존 파일 임베딩은 D04 guard/파일 잠금으로 보호한다.
+- 출처 링크는 versionId/scopeRevision 쿼리로 고정하고 I/O 전후 최신 상태를 확인한다. 실행 이력에는 현재 sourceState와 유효 링크만 제공한다. 실패한 최신 raw의 관리자 진단 다운로드와 답변용 출처 unavailable를 구분한다.
+- 삭제/제외/범위 변경/비active 색인은 정리 대상이며 삭제 실패는 pending이다. 교체 이전 raw/추출문/벡터는24시간 유예 뒤 시작/1분/관련 변경 정리에서 제거한다. 최신 raw·비용·식별/실행 이력은 보존한다. 물리 삭제 실패나 중단 중에 성공 시각을 보장한 것으로 기록하지 않는다. 백업/복구/별도 삭제 기록은 I 후속이다.
+- 후속 migration 20261101020000_file_lifecycle은 범위 열/감사 enum만 추가한다. runtime UPDATE는 FileOriginal.excludedAt/scopeRevision만 추가하고 색인/식별/소유 열 UPDATE·REFERENCES/DDL은 차단한다.
+- 실제 DB D05 검증은 기존 D04 suite에 추가하며 TOWNBASE_FILE_INDEX_TEST=1·정확한 postgres/townbase_d04_test의 새 합성 DB guard를 그대로 쓴다. 일반 API 시험은 건너뛴다. [D05 계약·검증·한계](docs/implementation/v0.2-d05-file-lifecycle.md)를 따른다.
+- D05 로컬 검증673개(API453·배포24·DB 단위20·D04/D05 DB46·D03 DB34·D02 DB26·권한70)와 별도 실제 D04→D05 업그레이드/운영 HTTP·재시작을 확인했다. 합성 공급자·Linux arm64 증거이며 유료/기존 DB·x86_64 성능·품질/백업 수락과 구분한다. 사용자는 구현·검증 요약 확인 후 커밋·푸시·main 대상 PR 생성을 승인했다. 전달 결과는 저장소 PR 기록을 따른다.

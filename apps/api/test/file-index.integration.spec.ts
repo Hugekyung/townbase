@@ -47,6 +47,25 @@ const { ModelCallError, PRICE_VERSION } = built(
 const { pdf, docx } = built(
   "./file-fixtures",
 ) as typeof import("./file-fixtures");
+const { FileManagementService } = built(
+  "../dist/files/file-management.service",
+) as typeof import("../src/files/file-management.service");
+const { FileStorage } = built(
+  "../dist/files/file-storage",
+) as typeof import("../src/files/file-storage");
+const { DeploymentDatabase } = built(
+  "../dist/deployment/deployment-database",
+) as typeof import("../src/deployment/deployment-database");
+const { AuthService } = built(
+  "../dist/auth/auth.service",
+) as typeof import("../src/auth/auth.service");
+const { ModelExecutionService } = built(
+  "../dist/model-integration/model-execution.service",
+) as typeof import("../src/model-integration/model-execution.service");
+const { assertFileSourcesCurrent, fileSourceReference } = built(
+  "../dist/files/file-source",
+) as typeof import("../src/files/file-source");
+import type { FileSource } from "../src/files/file-source";
 const unitVector = (axis = 0) =>
   Array.from({ length: 1536 }, (_, i) => (i === axis ? 1 : 0));
 const provider = { call: jest.fn() };
@@ -125,6 +144,7 @@ integration("D04 actual persistent run queue", () => {
     return accepted("post", "/files", name, bytes);
   }
   let runs: InstanceType<typeof FileRunService>;
+  let d05AnswerRequestId: string;
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL!);
     if (url.hostname !== "postgres" || url.pathname !== "/townbase_d04_test")
@@ -334,7 +354,7 @@ integration("D04 actual persistent run queue", () => {
       const match = (await search()).find((r) => r.originalId === item.id);
       expect(match).toMatchObject({
         sourceType: "uploaded_file",
-        reference: `/files/${item.id}/reference`,
+        reference: `/files/${item.id}/reference?versionId=${item.version.id}&scopeRevision=1`,
         knowledgeTypes: ["unknown"],
         domainTags: [],
         status: "active",
@@ -1145,14 +1165,576 @@ integration("D04 actual persistent run queue", () => {
       await owner.fileIndex.count({ where: { versionId: item.version.id } }),
     ).toBe(0);
   });
+  // D05 uses the same guarded isolated DB and compiled file/model services.
+  async function scope(id: string, included: boolean) {
+    return (
+      await request(app.getHttpServer())
+        .put(`/files/${id}/scope`)
+        .set(headers())
+        .send({ included })
+        .expect(200)
+    ).body;
+  }
+  async function currentSources(sources: FileSource[]) {
+    const result = await app
+      .get(AuthService)
+      .authorizedOperation(token, context, async (tx, c) => {
+        await assertFileSourcesCurrent(tx, c, sources);
+        return {};
+      });
+    expect(result.ok).toBe(true);
+  }
+  async function sourceFor(
+    item: { id: string; version: { id: string } },
+    text = "alpha source",
+  ) {
+    // Use a distinct axis so this fixture cannot be lost behind previous topK chunks.
+    const success = provider.call.getMockImplementation()!;
+    provider.call.mockImplementationOnce(async (...args) => ({
+      ...(await success(...args)),
+      embedding: unitVector(2),
+    }));
+    const ack = await index(item.id);
+    expect((await settled(ack)).status).toBe("succeeded");
+    const result = (await search(unitVector(2))).find(
+      (r) => r.originalId === item.id,
+    );
+    expect(result).toBeDefined();
+    return { source: result!, ack, text };
+  }
+  test("D05 scope persists, excludes search/reference/embedding, and changes audit only once", async () => {
+    const item = await register("scope.txt");
+    const { source } = await sourceFor(item);
+    await currentSources([source]);
+    const calls = provider.call.mock.calls.length;
+    expect(await scope(item.id, false)).toMatchObject({
+      excludedAt: expect.any(String),
+      scopeRevision: 2,
+      reference: null,
+      version: { searchable: false },
+    });
+    expect((await read(item.id)).scopeRevision).toBe(2);
+    expect(
+      (await search(unitVector(2))).some((r) => r.originalId === item.id),
+    ).toBe(false);
+    await expect(currentSources([source])).rejects.toMatchObject({
+      code: "source_changed",
+    });
+    await request(app.getHttpServer())
+      .get(source.reference)
+      .set(headers())
+      .expect(404);
+    expect(await settled(await index(item.id))).toMatchObject({
+      status: "failed",
+      errorCode: "source_excluded",
+    });
+    expect(provider.call).toHaveBeenCalledTimes(calls);
+    expect(
+      await owner.fileIndex.count({ where: { originalId: item.id } }),
+    ).toBe(0);
+    const audit = () =>
+      owner.installationAuditEvent.count({
+        where: { action: "file_scope_changed", requestId: item.id },
+      });
+    expect(await audit()).toBe(1);
+    expect((await scope(item.id, false)).scopeRevision).toBe(2);
+    expect(await audit()).toBe(1);
+  });
+  test("D05 re-inclusion never revives old vectors even when physical cleanup fails", async () => {
+    const item = await register("scope-failure.txt");
+    const { source } = await sourceFor(item);
+    const db = app.get(DeploymentDatabase).prisma;
+    const remove = jest
+      .spyOn(db.fileIndex, "deleteMany")
+      .mockRejectedValue(new Error("synthetic cleanup failure"));
+    try {
+      expect((await scope(item.id, false)).cleanup).toBe("pending");
+      expect(
+        await owner.fileIndex.count({ where: { originalId: item.id } }),
+      ).toBe(1);
+      expect(await scope(item.id, true)).toMatchObject({
+        scopeRevision: 3,
+        cleanup: "pending",
+        version: { searchable: false },
+      });
+      await expect(currentSources([source])).rejects.toMatchObject({
+        code: "source_changed",
+      });
+      const saved = await app
+        .get(AuthService)
+        .authorizedOperation(token, context, async (tx, c) => ({
+          source: await fileSourceReference(
+            tx,
+            c,
+            source.originalId,
+            source.versionId,
+            source.scopeRevision,
+          ),
+        }));
+      expect(saved).toMatchObject({
+        ok: true,
+        source: { state: "excluded", resource: null, reference: null },
+      });
+      await request(app.getHttpServer())
+        .get(source.reference)
+        .set(headers())
+        .expect(404);
+    } finally {
+      remove.mockRestore();
+    }
+    const before = provider.call.mock.calls.length;
+    const { source: fresh } = await sourceFor(item);
+    expect(provider.call.mock.calls.length).toBeGreaterThan(before);
+    expect(fresh.scopeRevision).toBe(3);
+    await currentSources([fresh]);
+  });
+  test("D05 scope request validates shape/auth/Origin/body bound and never mutates foreign/deleted sources", async () => {
+    const item = await register("scope-input.txt");
+    for (const body of [
+      {},
+      null,
+      [],
+      { included: "false" },
+      { included: false, unexpected: "field" },
+    ])
+      await request(app.getHttpServer())
+        .put(`/files/${item.id}/scope`)
+        .set(headers())
+        .set("Content-Type", "application/json")
+        .send(body === null ? "null" : body)
+        .expect(400);
+    await request(app.getHttpServer())
+      .put(`/files/${item.id}/scope`)
+      .set({ ...headers(), Cookie: "" })
+      .send({ included: false })
+      .expect(401);
+    await request(app.getHttpServer())
+      .put(`/files/${item.id}/scope`)
+      .set({ ...headers(), Origin: "https://foreign.example" })
+      .send({ included: false })
+      .expect(403);
+    await request(app.getHttpServer())
+      .put(`/files/${item.id}/scope`)
+      .set(headers())
+      .send({ included: false, extra: "x".repeat(9000) })
+      .expect(413);
+    await request(app.getHttpServer())
+      .put(`/files/${randomUUID()}/scope`)
+      .set(headers())
+      .send({ included: false })
+      .expect(404);
+    await request(app.getHttpServer())
+      .put(`/files/${item.id}/scope`)
+      .set({ ...headers(), "X-Workspace-Id": "foreign" })
+      .send({ included: false })
+      .expect(403);
+    await expect(
+      app
+        .get(FileManagementService)
+        .setScope(
+          token,
+          { ...context, administratorId: "foreign" },
+          item.id,
+          false,
+        ),
+    ).rejects.toThrow();
+    await request(app.getHttpServer())
+      .delete(`/files/${item.id}`)
+      .set(headers())
+      .send({})
+      .expect(200);
+    await request(app.getHttpServer())
+      .put(`/files/${item.id}/scope`)
+      .set(headers())
+      .send({ included: true })
+      .expect(404);
+    expect(
+      await owner.installationAuditEvent.count({
+        where: { action: "file_scope_changed", requestId: item.id },
+      }),
+    ).toBe(0);
+  });
+  test("D05 a saved reference cannot download a replacement and old run links are hidden", async () => {
+    const item = await register(
+      "reference-version.txt",
+      Buffer.from("alpha original"),
+    );
+    const { source, ack } = await sourceFor(item);
+    await accepted(
+      "put",
+      `/files/${item.id}`,
+      "reference-version.txt",
+      Buffer.from("beta replacement"),
+    );
+    await request(app.getHttpServer())
+      .get(source.reference)
+      .set(headers())
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/files/${item.id}/reference`)
+      .set(headers())
+      .expect(200);
+    const past = (
+      await request(app.getHttpServer())
+        .get(`/file-runs/${ack.runId}`)
+        .set(headers())
+        .expect(200)
+    ).body;
+    expect(past).toMatchObject({
+      sourceState: "replaced",
+      sourceDeleted: false,
+      reference: null,
+      resource: null,
+      searchable: false,
+    });
+    await expect(currentSources([source])).rejects.toMatchObject({
+      code: "source_changed",
+    });
+    for (const query of [
+      "?versionId=x&scopeRevision=1",
+      `?versionId=${item.version.id}`,
+      `?scopeRevision=1`,
+      `?versionId=${item.version.id}&scopeRevision=0`,
+      `?versionId=${item.version.id}&scopeRevision=2147483648`,
+      `?versionId=${item.version.id}&scopeRevision=1&extra=1`,
+    ])
+      await request(app.getHttpServer())
+        .get(`/files/${item.id}/reference${query}`)
+        .set(headers())
+        .expect(400);
+  });
+  test("D05 reference I/O rechecks scope revision even after exclusion is reversed", async () => {
+    const item = await register("scope-download.txt");
+    const { source } = await sourceFor(item);
+    const storage = app.get(FileStorage),
+      originalRead = storage.read.bind(storage);
+    let enter!: () => void, release!: () => void;
+    const entered = new Promise<void>((r) => {
+        enter = r;
+      }),
+      gate = new Promise<void>((r) => {
+        release = r;
+      });
+    const spy = jest
+      .spyOn(storage, "read")
+      .mockImplementationOnce(async (key) => {
+        const bytes = await originalRead(key);
+        enter();
+        await gate;
+        return bytes;
+      });
+    const downloading = request(app.getHttpServer())
+      .get(source.reference)
+      .set(headers())
+      .then((r) => r);
+    try {
+      await entered;
+      await scope(item.id, false);
+      await scope(item.id, true);
+    } finally {
+      release();
+      spy.mockRestore();
+    }
+    expect((await downloading).status).toBe(404);
+  });
+  test("D05 deletion keeps tombstone/cost/history but cleans original text and all vectors", async () => {
+    const item = await register("lifecycle-delete.txt");
+    const { source, ack } = await sourceFor(item);
+    const call = await owner.modelCall.findUniqueOrThrow({
+      where: {
+        installationId_requestId: {
+          installationId: "primary",
+          requestId: chunkRequestId(ack.runId, 0),
+        },
+      },
+    });
+    expect(
+      (
+        await request(app.getHttpServer())
+          .delete(`/files/${item.id}`)
+          .set(headers())
+          .send({})
+          .expect(200)
+      ).body.cleanup,
+    ).toBe("complete");
+    expect(
+      (await owner.fileOriginal.findUniqueOrThrow({ where: { id: item.id } }))
+        .deletedAt,
+    ).not.toBeNull();
+    expect(
+      await owner.fileIndex.count({ where: { originalId: item.id } }),
+    ).toBe(0);
+    expect(
+      await owner.fileIndexChunk.count({ where: { indexId: source.indexId } }),
+    ).toBe(0);
+    expect(
+      await owner.fileVersion.findUniqueOrThrow({
+        where: { id: item.version.id },
+      }),
+    ).toMatchObject({ extraction: null, rawDeletedAt: expect.any(Date) });
+    expect(
+      await owner.modelCall.findUnique({
+        where: {
+          installationId_requestId: {
+            installationId: "primary",
+            requestId: call.requestId,
+          },
+        },
+      }),
+    ).toEqual(call);
+    const past = (
+      await request(app.getHttpServer())
+        .get(`/file-runs/${ack.runId}`)
+        .set(headers())
+        .expect(200)
+    ).body;
+    expect(past).toMatchObject({
+      sourceState: "deleted",
+      sourceDeleted: true,
+      resource: null,
+      reference: null,
+      searchable: false,
+    });
+    await request(app.getHttpServer())
+      .post(`/files/${item.id}/index`)
+      .set(headers())
+      .send({})
+      .expect(404);
+    await request(app.getHttpServer())
+      .post(`/files/${item.id}/reprocess`)
+      .set(headers())
+      .send({})
+      .expect(404);
+    await expect(currentSources([source])).rejects.toMatchObject({
+      code: "source_changed",
+    });
+  });
+  test("D05 failed deletion cleanup stays blocked and startup maintenance retries physical deletion", async () => {
+    const item = await register("retry-cleanup.txt");
+    const { source } = await sourceFor(item);
+    const remove = jest
+      .spyOn(app.get(DeploymentDatabase).prisma.fileIndex, "deleteMany")
+      .mockRejectedValue(new Error("synthetic unavailable DB"));
+    try {
+      expect(
+        (
+          await request(app.getHttpServer())
+            .delete(`/files/${item.id}`)
+            .set(headers())
+            .send({})
+            .expect(200)
+        ).body.cleanup,
+      ).toBe("pending");
+      expect(
+        await owner.fileIndex.count({ where: { originalId: item.id } }),
+      ).toBe(1);
+      await request(app.getHttpServer())
+        .get(source.reference)
+        .set(headers())
+        .expect(404);
+      await expect(currentSources([source])).rejects.toMatchObject({
+        code: "source_changed",
+      });
+      expect(
+        (await search(unitVector(2))).some((r) => r.originalId === item.id),
+      ).toBe(false);
+    } finally {
+      remove.mockRestore();
+    }
+    await app.get(FileManagementService).startMaintenance();
+    expect(
+      await owner.fileIndex.count({ where: { originalId: item.id } }),
+    ).toBe(0);
+    expect(
+      (
+        await owner.fileVersion.findUniqueOrThrow({
+          where: { id: item.version.id },
+        })
+      ).rawDeletedAt,
+    ).not.toBeNull();
+  });
+  test("D05 replacement grace retains reusable vectors then removes old raw/text/vectors after 24h", async () => {
+    const bytes = Buffer.from("alpha grace replacement");
+    const item = await register("grace.txt", bytes);
+    const { source } = await sourceFor(item);
+    const replacement = await accepted(
+      "put",
+      `/files/${item.id}`,
+      "grace.txt",
+      bytes,
+    );
+    const before = provider.call.mock.calls.length;
+    expect(await settled(await index(item.id))).toMatchObject({
+      status: "succeeded",
+      unchangedCount: 1,
+    });
+    expect(provider.call).toHaveBeenCalledTimes(before);
+    expect(
+      await owner.fileIndex.count({ where: { originalId: item.id } }),
+    ).toBe(2);
+    await owner.fileVersion.update({
+      where: { id: replacement.version.id },
+      data: { createdAt: new Date(Date.now() - 86401000) },
+    });
+    await app.get(FileManagementService).startMaintenance();
+    expect(
+      await owner.fileIndex.count({ where: { versionId: item.version.id } }),
+    ).toBe(0);
+    expect(
+      await owner.fileIndexChunk.count({ where: { indexId: source.indexId } }),
+    ).toBe(0);
+    expect(
+      await owner.fileVersion.findUniqueOrThrow({
+        where: { id: item.version.id },
+      }),
+    ).toMatchObject({ extraction: null, rawDeletedAt: expect.any(Date) });
+    expect((await read(item.id)).version.searchable).toBe(true);
+    expect(
+      (
+        await owner.fileVersion.findUniqueOrThrow({
+          where: { id: replacement.version.id },
+        })
+      ).rawDeletedAt,
+    ).toBeNull();
+  });
+  test("D05 failed replacement remains visibly failed while the previous version stays unusable", async () => {
+    const item = await register("failure-old.txt");
+    const { source, ack } = await sourceFor(item);
+    const replacement = await accepted(
+      "put",
+      `/files/${item.id}`,
+      "failed.pdf",
+      Buffer.from("not pdf"),
+    );
+    expect(replacement.version.runs[0].status).toBe("failed");
+    expect(replacement.version.searchable).toBe(false);
+    await expect(currentSources([source])).rejects.toMatchObject({
+      code: "source_changed",
+    });
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get(`/file-runs/${ack.runId}`)
+          .set(headers())
+          .expect(200)
+      ).body,
+    ).toMatchObject({ sourceState: "replaced", reference: null });
+    await owner.fileVersion.update({
+      where: { id: replacement.version.id },
+      data: { createdAt: new Date(Date.now() - 86401000) },
+    });
+    await app.get(FileManagementService).startMaintenance();
+    expect(
+      (
+        await owner.fileVersion.findUniqueOrThrow({
+          where: { id: item.version.id },
+        })
+      ).rawDeletedAt,
+    ).not.toBeNull();
+    expect((await read(item.id)).version.runs[0].status).toBe("failed");
+  });
+  test("D05 source admission rechecks after master I/O and never sends stale context", async () => {
+    const item = await register(
+      "source-admission.txt",
+      Buffer.from("alpha real source body"),
+    );
+    const { source } = await sourceFor(item);
+    const vault = app.get(CredentialVault);
+    await owner.modelCredential.create({
+      data: {
+        installationId: "primary",
+        purpose: "answer",
+        ...(await vault.seal(
+          "primary",
+          "answer",
+          "sk-synthetic-D05-answer-never-sent-1234567890",
+        )),
+      },
+    });
+    await owner.modelTransferPolicy.update({
+      where: { installationId: "primary" },
+      data: { rag: true },
+    });
+    const execute = (requestId: string) =>
+      app.get(ModelExecutionService).execute(
+        token,
+        context,
+        { requestId, purpose: "rag_answer", input: source.content },
+        {
+          signal: new AbortController().signal,
+          authorize: async (tx, c) => assertFileSourcesCurrent(tx, c, [source]),
+        },
+      );
+    const success = provider.call.getMockImplementation()!;
+    provider.call.mockImplementationOnce(async (...args) => ({
+      ...(await success(...args)),
+      text: "synthetic grounded answer",
+    }));
+    d05AnswerRequestId = randomUUID();
+    expect((await execute(d05AnswerRequestId)).call.status).toBe("succeeded");
+    const calls = provider.call.mock.calls.length,
+      prepare = vault.prepareReader.bind(vault),
+      id = randomUUID();
+    const spy = jest
+      .spyOn(vault, "prepareReader")
+      .mockImplementationOnce(async () => {
+        await scope(item.id, false);
+        return prepare();
+      });
+    try {
+      await expect(execute(id)).rejects.toMatchObject({
+        code: "source_changed",
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(provider.call).toHaveBeenCalledTimes(calls);
+    expect(
+      await owner.modelCall.findUnique({
+        where: {
+          installationId_requestId: {
+            installationId: "primary",
+            requestId: id,
+          },
+        },
+      }),
+    ).toBeNull();
+  });
+  test("D05 audit failure rolls scope and revision back without removing a valid index", async () => {
+    const item = await register("audit-rollback.txt");
+    const { source } = await sourceFor(item);
+    await owner.$executeRawUnsafe(
+      `ALTER TABLE "InstallationAuditEvent" ADD CONSTRAINT "D05_reject_scope_audit" CHECK (action<>'file_scope_changed') NOT VALID`,
+    );
+    try {
+      await request(app.getHttpServer())
+        .put(`/files/${item.id}/scope`)
+        .set(headers())
+        .send({ included: false })
+        .expect(503);
+    } finally {
+      await owner.$executeRawUnsafe(
+        'ALTER TABLE "InstallationAuditEvent" DROP CONSTRAINT "D05_reject_scope_audit"',
+      );
+    }
+    expect(await read(item.id)).toMatchObject({
+      excludedAt: null,
+      scopeRevision: 1,
+      version: { searchable: true },
+    });
+    await currentSources([source]);
+  });
   test("indexes only persistent files and preserves legacy tables without attachment side effects", async () => {
     expect(await owner.document.count()).toBe(0);
     expect(await owner.documentChunk.count()).toBe(0);
     expect(await owner.fileIndexChunk.count()).toBeGreaterThan(0);
     expect(
-      await owner.modelCall.count({
-        where: { purpose: { not: "document_embedding" } },
-      }),
-    ).toBe(0);
+      (
+        await owner.modelCall.findMany({
+          where: { purpose: { not: "document_embedding" } },
+          select: { requestId: true },
+        })
+      ).map((r) => r.requestId),
+    ).toEqual([d05AnswerRequestId]);
   });
 });
