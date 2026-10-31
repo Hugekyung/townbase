@@ -63,7 +63,7 @@ export async function fileSourceReference(
   c: AdministratorContext,
   originalId: string,
   versionId: string | null,
-  scopeRevision?: number,
+  scopeRevision: number | null | undefined,
 ): Promise<{
   state: FileSourceState;
   resource: string | null;
@@ -96,6 +96,7 @@ export async function fileSourceReference(
   )
     state = "excluded";
   else if (
+    scopeRevision == null ||
     !version ||
     version.rawDeletedAt != null ||
     version.runs[0]?.status !== "extracted"

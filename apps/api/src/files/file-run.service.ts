@@ -254,6 +254,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
           c,
           id,
           run.resultVersionId ?? run.baseVersionId,
+          run.sourceScopeRevision,
         )
       : {
           state: "unavailable" as const,
@@ -402,10 +403,12 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
           return { run: recovered, created: false };
         }
       }
+      let sourceScopeRevision: number | null = null;
       if (input.target) {
         const current = await this.target(tx, c, input.target);
         if (current.version.id !== input.base)
           throw new ConflictException({ code: "source_changed" });
+        sourceScopeRevision = current.original.scopeRevision;
       }
       const targetKey = input.target
         ? `original:${input.target}`
@@ -420,6 +423,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
       let run: Run;
       if (active) {
         if (
+          active.sourceScopeRevision !== sourceScopeRevision ||
           active.operation !== input.operation ||
           active.baseVersionId !== (input.base ?? null) ||
           active.contentHash !== input.hash ||
@@ -444,6 +448,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
             targetKey,
             targetOriginalId: input.target ?? null,
             baseVersionId: input.base ?? null,
+            sourceScopeRevision,
             retryOfId: input.retryOf ?? null,
             fileName: input.name,
             format: fileFormat(input.name),
@@ -912,6 +917,21 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
   ) {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(741126, 6)::text`;
     await this.checkOwner();
+    const source = await tx.fileOriginal.findFirst({
+      where: {
+        id: value.originalId,
+        installationId: run.installationId,
+        ownerAdministratorId: run.ownerAdministratorId,
+        deletedAt: null,
+      },
+      select: { scopeRevision: true },
+    });
+    if (
+      !source ||
+      (run.sourceScopeRevision != null &&
+        run.sourceScopeRevision !== source.scopeRevision)
+    )
+      throw new ConflictException({ code: "source_changed" });
     const success = value.status === "extracted";
     const count = await tx.fileRun.updateMany({
       where: { id: run.id, status: "running" },
@@ -919,6 +939,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
         status: success ? "succeeded" : "failed",
         errorCode: value.errorCode,
         completedAt: await clock(tx),
+        sourceScopeRevision: run.sourceScopeRevision ?? source.scopeRevision,
         resultOriginalId: value.originalId,
         resultVersionId: value.versionId,
         resultExtractionRunId: value.extractionRunId,
@@ -938,9 +959,11 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
       if (!identity) throw new UnauthorizedException();
       if (run.targetOriginalId)
         await this.scoped(identity, async (tx, c) => {
+          const target = await this.target(tx, c, run.targetOriginalId!);
           if (
-            (await this.target(tx, c, run.targetOriginalId!)).version.id !==
-            run.baseVersionId
+            target.version.id !== run.baseVersionId ||
+            run.sourceScopeRevision == null ||
+            target.original.scopeRevision !== run.sourceScopeRevision
           )
             throw new ConflictException({ code: "source_changed" });
         });

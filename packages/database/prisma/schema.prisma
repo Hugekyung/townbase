@@ -551,6 +551,7 @@ model FileExtractionRun {
 
 // Single-API persistent file jobs, not a generic queue. No body, token or Key.
 model FileRun {
+  sourceScopeRevision Int?
   id String @id @db.Uuid
   installationId String
   ownerAdministratorId String

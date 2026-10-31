@@ -1724,6 +1724,213 @@ integration("D04 actual persistent run queue", () => {
     });
     await currentSources([source]);
   });
+  test.each(["register", "replace", "reprocess", "index"])(
+    "PR45 %s history retains captured scope across exclusion/re-inclusion on every read path",
+    async (operation) => {
+      let item = await register(`history-${operation}.txt`);
+      let runId: string;
+      if (operation === "replace")
+        item = await accepted(
+          "put",
+          `/files/${item.id}`,
+          `history-${operation}.txt`,
+          Buffer.from("alpha replacement history"),
+        );
+      if (operation === "reprocess") {
+        const ack = await request(app.getHttpServer())
+          .post(`/files/${item.id}/reprocess`)
+          .set(headers())
+          .send({})
+          .expect(202);
+        expect((await settled(ack.body)).status).toBe("succeeded");
+        runId = ack.body.runId;
+      } else if (operation === "index") {
+        const ack = await index(item.id);
+        expect((await settled(ack)).status).toBe("succeeded");
+        runId = ack.runId;
+      } else
+        runId = (
+          await owner.fileRun.findFirstOrThrow({
+            where: { resultVersionId: item.version.id, operation },
+          })
+        ).id;
+      const alias = await owner.fileRunRequest.findFirstOrThrow({
+        where: { runId },
+      });
+      async function views() {
+        return [
+          (
+            await request(app.getHttpServer())
+              .get(`/file-runs/${runId}`)
+              .set(headers())
+              .expect(200)
+          ).body,
+          (
+            await request(app.getHttpServer())
+              .get(`/file-runs/requests/${alias.requestId}`)
+              .set(headers())
+              .expect(200)
+          ).body,
+          (
+            await request(app.getHttpServer())
+              .get("/file-runs")
+              .set(headers())
+              .expect(200)
+          ).body.items.find((r: { id: string }) => r.id === runId),
+        ];
+      }
+      expect(
+        (await owner.fileRun.findUniqueOrThrow({ where: { id: runId } }))
+          .sourceScopeRevision,
+      ).toBe(1);
+      for (const row of await views())
+        expect(row).toMatchObject({
+          sourceScopeRevision: 1,
+          sourceState: "available",
+          reference: expect.stringContaining("scopeRevision=1"),
+        });
+      await scope(item.id, false);
+      await scope(item.id, true);
+      for (const row of await views())
+        expect(row).toMatchObject({
+          sourceScopeRevision: 1,
+          sourceState: "excluded",
+          sourceDeleted: false,
+          reference: null,
+          resource: null,
+          searchable: false,
+        });
+      const fresh = await settled(await index(item.id));
+      expect(fresh.sourceScopeRevision).toBe(3);
+      expect(
+        (
+          await request(app.getHttpServer())
+            .get(`/file-runs/${fresh.id}`)
+            .set(headers())
+            .expect(200)
+        ).body,
+      ).toMatchObject({
+        sourceState: "available",
+        reference: expect.stringContaining("scopeRevision=3"),
+        searchable: true,
+      });
+      for (const row of await views())
+        expect(row).toMatchObject({
+          sourceScopeRevision: 1,
+          sourceState: "excluded",
+          reference: null,
+          resource: null,
+          searchable: false,
+        });
+    },
+  );
+  test("PR45 unknown historical scope stays unavailable while a new execution captures the real scope", async () => {
+    const item = await register("unknown-history.txt");
+    const run = await owner.fileRun.findFirstOrThrow({
+      where: { resultVersionId: item.version.id, operation: "register" },
+    });
+    await owner.fileRun.update({
+      where: { id: run.id },
+      data: { sourceScopeRevision: null },
+    });
+    const alias = await owner.fileRunRequest.findFirstOrThrow({
+      where: { runId: run.id },
+    });
+    await settled(await index(item.id));
+    for (const path of [
+      `/file-runs/${run.id}`,
+      `/file-runs/requests/${alias.requestId}`,
+    ])
+      expect(
+        (
+          await request(app.getHttpServer())
+            .get(path)
+            .set(headers())
+            .expect(200)
+        ).body,
+      ).toMatchObject({
+        sourceScopeRevision: null,
+        sourceState: "unavailable",
+        sourceDeleted: false,
+        reference: null,
+        resource: null,
+        searchable: false,
+      });
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get("/file-runs")
+          .set(headers())
+          .expect(200)
+      ).body.items.find((r: { id: string }) => r.id === run.id),
+    ).toMatchObject({ sourceState: "unavailable", reference: null });
+  });
+  test("PR45 explicit retry captures a fresh scope without rewriting the failed parent", async () => {
+    const item = await register("retry-scope.txt");
+    provider.call.mockRejectedValueOnce(
+      new ModelCallError("provider_unavailable", 502),
+    );
+    const failed = await settled(await index(item.id));
+    expect(failed.status).toBe("failed");
+    expect(failed.sourceScopeRevision).toBe(1);
+    await scope(item.id, false);
+    await scope(item.id, true);
+    const retry = await request(app.getHttpServer())
+      .post(`/file-runs/${failed.id}/retry`)
+      .set(headers())
+      .send({})
+      .expect(202);
+    expect(await settled(retry.body)).toMatchObject({
+      status: "succeeded",
+      sourceScopeRevision: 3,
+      retryOfId: failed.id,
+    });
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get(`/file-runs/${failed.id}`)
+          .set(headers())
+          .expect(200)
+      ).body,
+    ).toMatchObject({
+      sourceScopeRevision: 1,
+      sourceState: "excluded",
+      reference: null,
+    });
+  });
+  test("PR45 queued work never silently rebinds to a changed scope", async () => {
+    const item = await register("queued-scope.txt");
+    const internal = runs as unknown as {
+      wake: () => void;
+      task?: Promise<void>;
+    };
+    await internal.task;
+    const wake = jest.spyOn(internal, "wake").mockImplementation(() => {});
+    let ack: { runId: string };
+    try {
+      ack = await index(item.id);
+      await scope(item.id, false);
+      await scope(item.id, true);
+    } finally {
+      wake.mockRestore();
+    }
+    const before = provider.call.mock.calls.length;
+    internal.wake();
+    expect(await settled(ack!)).toMatchObject({
+      status: "failed",
+      errorCode: "source_changed",
+      sourceScopeRevision: 1,
+    });
+    expect(provider.call).toHaveBeenCalledTimes(before);
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get(`/file-runs/${ack!.runId}`)
+          .set(headers())
+          .expect(200)
+      ).body,
+    ).toMatchObject({ sourceState: "excluded", reference: null });
+  });
   test("indexes only persistent files and preserves legacy tables without attachment side effects", async () => {
     expect(await owner.document.count()).toBe(0);
     expect(await owner.documentChunk.count()).toBe(0);

@@ -498,6 +498,7 @@ test("D03 run storage grants only status/result/cleanup columns and request alia
     "resultOriginalId",
     "resultVersionId",
     "resultExtractionRunId",
+    "sourceScopeRevision",
     "createdCount",
     "updatedCount",
     "excludedCount",

@@ -1,6 +1,7 @@
 import type { Prisma } from "@townbase/database";
 import {
   assertFileSourcesCurrent,
+  fileSourceReference,
   type FileSource,
 } from "../src/files/file-source";
 import type { AdministratorContext } from "../src/auth/auth.service";
@@ -49,4 +50,45 @@ describe("D05 source admission input boundary", () => {
       assertFileSourcesCurrent(tx, context, [source]),
     ).rejects.toMatchObject({ code: "source_changed" });
   });
+});
+
+describe("D05 captured source revision", () => {
+  test.each([null, undefined])(
+    "unknown historical scope never receives a current reference",
+    async (revision) => {
+      const tx = {
+        fileOriginal: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({
+              deletedAt: null,
+              excludedAt: null,
+              scopeRevision: 3,
+              versions: [
+                {
+                  id: source.versionId,
+                  documentStatus: "active",
+                  rawDeletedAt: null,
+                  runs: [{ status: "extracted" }],
+                },
+              ],
+            }),
+        },
+      } as unknown as Prisma.TransactionClient;
+      expect(
+        await fileSourceReference(
+          tx,
+          context,
+          source.originalId,
+          source.versionId,
+          revision,
+        ),
+      ).toMatchObject({
+        state: "unavailable",
+        reference: null,
+        resource: null,
+        sourceDeleted: false,
+      });
+    },
+  );
 });

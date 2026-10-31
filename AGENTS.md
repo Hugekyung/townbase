@@ -216,3 +216,11 @@
 - 후속 migration 20261101020000_file_lifecycle은 범위 열/감사 enum만 추가한다. runtime UPDATE는 FileOriginal.excludedAt/scopeRevision만 추가하고 색인/식별/소유 열 UPDATE·REFERENCES/DDL은 차단한다.
 - 실제 DB D05 검증은 기존 D04 suite에 추가하며 TOWNBASE_FILE_INDEX_TEST=1·정확한 postgres/townbase_d04_test의 새 합성 DB guard를 그대로 쓴다. 일반 API 시험은 건너뛴다. [D05 계약·검증·한계](docs/implementation/v0.2-d05-file-lifecycle.md)를 따른다.
 - D05 로컬 검증673개(API453·배포24·DB 단위20·D04/D05 DB46·D03 DB34·D02 DB26·권한70)와 별도 실제 D04→D05 업그레이드/운영 HTTP·재시작을 확인했다. 합성 공급자·Linux arm64 증거이며 유료/기존 DB·x86_64 성능·품질/백업 수락과 구분한다. 사용자는 구현·검증 요약 확인 후 커밋·푸시·main 대상 PR 생성을 승인했다. 전달 결과는 저장소 PR 기록을 따른다.
+
+
+## PR #45 실행 출처 순번 보완 (2026-11-01, 로컬 검증)
+
+- FileRun.sourceScopeRevision은 교체/재처리/색인 접수 시, 최초 등록은 원본/결과 완료 transaction에서 저장한다. 완료/대기 실행과 활성 중복 연결은 접수 순번과 현재 원본을 대조한다. 바뀌면 source_changed로 실패하며 새 순번에 자동 재결합하지 않는다.
+- 실행 목록/상세/요청 UUID 조회는 반드시 저장 순번을 공통 출처 판정에 전달한다. 재포함·새 색인 후에도 옛 실행 링크는 숨기고, 새 명시 retry만 새 순번을 갖는다. 당시 순번을 모르는 기존 이력은 NULL로 이관하고 unavailable·링크 NULL로 처리한다. 현재 순번으로 backfill하지 않는다. 현재 파일 색인의 유효성은 별도다.
+- 후속 migration 20261101030000_file_run_source_scope와 완료 결과 열의 좁은 UPDATE 권한만 추가한다. helper 자체 시험뿐 아니라 실제 소비자인 목록/상세/요청 ID 세 경로와 실제 저장 행을 함께 검증한다.
+- 검증682개(API455·배포24·DB 단위20·D04/D05 DB53·D03 DB34·D02 DB26·권한70)와 실제 이전 D05 데이터 업그레이드 보존을 확인했다. 별도 production runtime/실모델/유료 시험은 이번 수정에서 재실행하지 않았다. 사용자는 수정·검증 요약 확인 후 커밋/푸시/PR 댓글 등록을 승인했다. 전달 결과는 PR #45 기록을 따른다.
