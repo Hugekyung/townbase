@@ -814,6 +814,7 @@ integration("D03 actual persistent run queue", () => {
       auth,
       service,
       app.get(FileExtractor),
+      app.get(built("../dist/files/file-index.service").FileIndexService),
     );
     await expect(second.onModuleInit()).rejects.toThrow();
     await second.onModuleDestroy();

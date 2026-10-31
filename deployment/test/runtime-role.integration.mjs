@@ -548,3 +548,42 @@ test("D03 refuses PUBLIC write access to run identity or alias fingerprint", asy
     }
   }
 });
+
+test("D04 file indexes allow scoped storage but deny every UPDATE/REFERENCES column", async () => {
+  for (const table of ["FileIndex", "FileIndexChunk"]) {
+    const [rights] =
+      await db.$queryRaw`SELECT has_table_privilege('townbase_runtime',format('public.%I',${table}),'SELECT') AS readable,has_table_privilege('townbase_runtime',format('public.%I',${table}),'INSERT') AS insertable,has_table_privilege('townbase_runtime',format('public.%I',${table}),'DELETE') AS deletable,has_table_privilege('townbase_runtime',format('public.%I',${table}),'UPDATE,TRUNCATE,REFERENCES,TRIGGER') AS forbidden`;
+    assert.deepEqual(rights, {
+      readable: true,
+      insertable: true,
+      deletable: true,
+      forbidden: false,
+    });
+    const columns =
+      await db.$queryRaw`SELECT a.attname,has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE,REFERENCES') AS writable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname=${table} AND a.attnum>0 AND NOT a.attisdropped`;
+    assert.ok(columns.length > 0);
+    assert.ok(columns.every((c) => !c.writable));
+  }
+});
+test("D04 rejects PUBLIC index mutation and reference privileges", async () => {
+  for (const [table, column] of [
+    ["FileIndex", "versionId"],
+    ["FileIndexChunk", "embedding"],
+  ]) {
+    for (const privilege of ["UPDATE", "REFERENCES"]) {
+      await db.$executeRawUnsafe(
+        `GRANT ${privilege} ("${column}") ON "${table}" TO PUBLIC`,
+      );
+      try {
+        await assert.rejects(configure, {
+          code: "TOWNBASE_UNSAFE_RUNTIME_GRANTS",
+        });
+      } finally {
+        await db.$executeRawUnsafe(
+          `REVOKE ${privilege} ("${column}") ON "${table}" FROM PUBLIC`,
+        );
+        await configure();
+      }
+    }
+  }
+});

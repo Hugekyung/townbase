@@ -22,6 +22,10 @@ import {
 import { FileManagementService, originalId } from "./file-management.service";
 import { FileStorage } from "./file-storage";
 import { FileExtractor } from "./file-extractor";
+import { FileIndexService } from "./file-index.service";
+import { FILE_INDEX_CONFIGURATION } from "./file-chunker";
+import { ModelCallError } from "../model-integration/model-policy";
+import { CredentialStorageError } from "../model-integration/credential-vault";
 import {
   FILE_LIMITS,
   FileError,
@@ -33,7 +37,7 @@ type Run = Prisma.FileRunGetPayload<Record<string, never>>;
 type Tx = Prisma.TransactionClient;
 type Identity = { token: string | undefined; context: AdministratorContext };
 type Input = {
-  operation: "register" | "replace" | "reprocess";
+  operation: "register" | "replace" | "reprocess" | "index";
   trigger: string;
   name: string;
   hash: string;
@@ -82,6 +86,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     private readonly auth: AuthService,
     private readonly files: FileManagementService,
     private readonly extractor: FileExtractor,
+    private readonly indexing: FileIndexService,
   ) {
     this.pending = new FileStorage(
       path.join(
@@ -427,7 +432,10 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
             byteSize: input.size,
             contentHash: input.hash,
             inputKey: key,
-            configurationVersion: CONFIGURATION,
+            configurationVersion:
+              input.operation === "index"
+                ? FILE_INDEX_CONFIGURATION
+                : CONFIGURATION,
             status: "queued",
           },
         });
@@ -582,6 +590,34 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     });
     return this.acknowledged(identity, requestId, signature, input, bytes);
   }
+  async index(
+    token: string | undefined,
+    context: AdministratorContext,
+    request: unknown,
+    id: string,
+  ) {
+    const requestId = fileRequestId(request),
+      identity = { token, context },
+      target = originalId(id),
+      hash = fingerprint(["index", target]);
+    const old = await this.scoped(identity, (tx, c) =>
+      this.request(tx, c, requestId, hash),
+    );
+    if (old) return { runId: old.id, status: old.status, existing: true };
+    const input = await this.scoped(identity, async (tx, c): Promise<Input> => {
+      const current = await this.target(tx, c, target);
+      return {
+        operation: "index",
+        trigger: "index",
+        name: current.version.fileName,
+        hash: current.version.contentHash,
+        size: current.version.byteSize,
+        target,
+        base: current.version.id,
+      };
+    });
+    return this.acknowledged(identity, requestId, hash, input);
+  }
   async reprocess(
     token: string | undefined,
     context: AdministratorContext,
@@ -696,7 +732,7 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     if (
       !inputKey &&
       !parent.resultVersionId &&
-      parent.operation !== "reprocess"
+      !["reprocess", "index"].includes(parent.operation)
     )
       throw new ConflictException({ code: "retry_input_unavailable" });
     const operation = parent.resultVersionId
@@ -890,7 +926,23 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
           )
             throw new ConflictException({ code: "source_changed" });
         });
-      if (run.operation === "reprocess") {
+      if (run.operation === "index") {
+        await this.indexing.execute(
+          identity.token,
+          identity.context,
+          run,
+          signal,
+          async (tx, c) => {
+            await this.checkOwner();
+            const active = await tx.fileRun.findFirst({
+              where: { id: run.id, ...this.where(c), status: "running" },
+            });
+            if (!active || signal.aborted)
+              throw new ModelCallError("call_cancelled", 409);
+          },
+          (tx, value, unchanged) => this.complete(tx, run, value, unchanged),
+        );
+      } else if (run.operation === "reprocess") {
         {
           const current = await this.scoped(identity, async (tx, c) =>
             this.target(tx, c, run.targetOriginalId!),
@@ -996,19 +1048,24 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const code =
         error instanceof TransferDenied
-          ? "sensitive_file"
-          : error instanceof FileError
+          ? error.code === "sensitive_content"
+            ? "sensitive_file"
+            : error.code
+          : error instanceof ModelCallError ||
+              error instanceof CredentialStorageError
             ? error.code
-            : error instanceof UnauthorizedException
-              ? "authorization_expired"
-              : error instanceof NotFoundException
-                ? "source_unavailable"
-                : error instanceof ConflictException
-                  ? (error.getResponse() as { code?: string }).code ===
-                    "source_changed"
-                    ? "source_changed"
-                    : "processing_conflict"
-                  : "storage_unavailable";
+            : error instanceof FileError
+              ? error.code
+              : error instanceof UnauthorizedException
+                ? "authorization_expired"
+                : error instanceof NotFoundException
+                  ? "source_unavailable"
+                  : error instanceof ConflictException
+                    ? (error.getResponse() as { code?: string }).code ===
+                      "source_changed"
+                      ? "source_changed"
+                      : "processing_conflict"
+                    : "storage_unavailable";
       await this.db.prisma.fileRun.updateMany({
         where: { id: run.id, status: "running" },
         data: {

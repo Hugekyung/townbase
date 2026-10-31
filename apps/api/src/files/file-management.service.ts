@@ -19,6 +19,8 @@ import { FileExtractor } from "./file-extractor";
 import { FileStorage } from "./file-storage";
 import { assertExtraction, FileError, type FileFormat } from "./file-contract";
 
+import { fileIndexStates, type IndexState } from "./file-index-state";
+
 export const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function originalId(id: string): string {
@@ -126,6 +128,7 @@ export class FileManagementService implements OnApplicationShutdown {
   }
   private summary(
     version: Prisma.FileVersionGetPayload<{ include: { runs: true } }>,
+    indexState?: IndexState,
   ) {
     const {
       storageKey: _key,
@@ -136,7 +139,14 @@ export class FileManagementService implements OnApplicationShutdown {
     void _key;
     void _extraction;
     void _deleted;
-    return { ...safe, searchable: false };
+    return {
+      ...safe,
+      ...(indexState ?? {
+        searchable: false,
+        indexStatus: "not_indexed",
+        chunkCount: 0,
+      }),
+    };
   }
   async list(
     token: string | undefined,
@@ -157,10 +167,17 @@ export class FileManagementService implements OnApplicationShutdown {
           },
         },
       });
+      const states = await fileIndexStates(
+        tx,
+        c.installationId,
+        rows.slice(0, 20).flatMap((r) => r.versions.map((v) => v.id)),
+      );
       return {
         items: rows.slice(0, 20).map(({ versions, ...original }) => ({
           ...original,
-          version: versions[0] ? this.summary(versions[0]) : null,
+          version: versions[0]
+            ? this.summary(versions[0], states.get(versions[0].id))
+            : null,
         })),
         nextCursor: rows.length > 20 ? rows[19]!.id : null,
       };
@@ -177,9 +194,13 @@ export class FileManagementService implements OnApplicationShutdown {
       const version = versions[0]!;
       if (version.extraction != null)
         assertExtraction(version.extraction, version.format as FileFormat);
+      const states = await fileIndexStates(tx, c.installationId, [version.id]);
       return {
         ...original,
-        version: { ...this.summary(version), extraction: version.extraction },
+        version: {
+          ...this.summary(version, states.get(version.id)),
+          extraction: version.extraction,
+        },
         reference: `/files/${id}/reference`,
       };
     });

@@ -1,6 +1,6 @@
 # v0.2 초기 배포 실행 안내
 
-현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·Key 암호화/전송 정책 설정 API·PostgreSQL/pgvector·migration·분리된 파일 volume. 모델/예산 설정과 합성 연결 검사 API도 제공한다. 실제 OpenAI 계정의 합성 연결 검사3회는 성공했다. 설정 웹·실제 RAG 품질 평가는 후속 범위다. Key·예산·가격표 확인·전송 허용을 모두 갖추면 연결 검사도 유료 호출을 수행한다. 보호된 문서 등록·관리·실행 API는 D02/D03으로 제공한다. 문서 웹·채팅·벡터 색인은 후속이다. 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
+현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·Key 암호화/전송 정책 설정 API·PostgreSQL/pgvector·migration·분리된 파일 volume. 모델/예산 설정과 합성 연결 검사 API도 제공한다. 실제 OpenAI 계정의 합성 연결 검사3회는 성공했다. 설정 웹·실제 RAG 품질 평가는 후속 범위다. Key·예산·가격표 확인·전송 허용을 모두 갖추면 연결 검사도 유료 호출을 수행한다. 보호된 문서 등록·관리·실행 API는 D02/D03/D04로 제공한다. 명시 색인 API와 파일 벡터 저장·내부 검색을 제공하며 문서 웹·채팅은 후속이다. 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
 
 ## 1. 첫 실행
 
@@ -207,7 +207,7 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 등록된 self-hosted HTTP 처리 경로는 기본적으로 관리자 세션을 요구한다. 공개 예외는 정적 웹·health/readyz·초기 상태/등록·로그인·로그아웃·복구 소비뿐이다. 공개 예외에도 기존 Origin·전송·JSON·비밀번호/토큰·시도 제한을 적용한다. 세션 조회·비밀번호 변경은 공통 검사 대상이다. 요청의 workspaceId/installationId/administratorId 또는 x-*-id 헤더는 신원 증명이 아니며, 저장된 세션의 설치/자료 범위와 다르면403이다. 검증 불가 상태는503으로 차단한다.
 
-기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서 관리·실행 API는 아래 D02/D03 경로로 제공하며 채팅은 아직 제공하지 않는다. Key/모델/예산·전송 설정과 합성 연결 검사를10~11절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
+기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서 관리·실행 API는 아래 D02/D03/D04 경로로 제공하며 채팅은 아직 제공하지 않는다. Key/모델/예산·전송 설정과 합성 연결 검사를10~11절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
 
 운영 runtime에는 connectors 패키지와 평가/seed 개발 소스·도구가 포함되지 않는다. 빌드/migration 환경에는 있으므로 그 환경에서도 프로필 보호가 필요하다. 유지보수 migration/bootstrap/recovery는 기존 서버 로컬 secret/토큰 절차를 따른다. 일반 데이터 기능을 활성화하는 CLI는 아니다. 설치 운영자의 임의 코드 실행/DB 소유자 권한을 격리하는 sandbox로 설명하지 않는다.
 
@@ -263,7 +263,7 @@ self-hosted가 공급자 미전송을 뜻하지는 않는다. 연결 검사도 �
 
 D01은 파일 업로드 웹/API를 공개하지 않는다. API 이미지에 고정 PDF.js/Mammoth/ZIP 검사를 포함하고 별도 로컬 프로세스로 본문과 위치를 추출하는 기반이다. FileOriginal/FileVersion/FileExtractionRun의 SELECT/INSERT만 runtime 계정에 추가했으며 UPDATE/DELETE는 없다. sourceType의 uploaded_file enum migration을 먼저 commit한 뒤 파일 테이블 migration을 적용한다. 기존 문서/벡터는 유지한다.
 
-Linux 파서에는 DATA512 MiB·V8 heap128 MiB·RSS512 MiB 감시/30초 종료가 적용된다. RSS 감시의 짧은 간격과 전체 메모리의 cgroup 보장은 다르다. 실제 runtime 이미지의 read-only root·비특권·network none에서 4형식을 검증했지만 HTTP 업로드/파일 관리는 아래 D02/D03에서 documents volume과 연결해 제공한다. 벡터 색인/검색은 후속이다. [D01 구현·시험 범위](implementation/v0.2-d01-file-extraction.md)를 따른다.
+Linux 파서에는 DATA512 MiB·V8 heap128 MiB·RSS512 MiB 감시/30초 종료가 적용된다. RSS 감시의 짧은 간격과 전체 메모리의 cgroup 보장은 다르다. 실제 runtime 이미지의 read-only root·비특권·network none에서 4형식을 검증했지만 HTTP 업로드/파일 관리는 아래 D02/D03에서 documents volume과 연결해 제공한다. 파일 벡터 색인과 내부 검색은 아래 D04를 따르며 질문/답변 흐름은 E 후속이다. [D01 구현·시험 범위](implementation/v0.2-d01-file-extraction.md)를 따른다.
 
 ### D01 파일 제약 업그레이드의 사전 검사
 
@@ -298,7 +298,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase logs --tail=60 ap
 
 `TOWNBASE_DOCUMENTS_PATH/originals`는 지속 raw 전용0700 디렉터리이며 다른 자료/첨부/백업을 넣지 않는다. 시작 시 DB에 없는 UUID 파일과 삭제된 원본의 남은 파일을 정리한다. 알 수 없는 파일/하위 디렉터리/symlink 또는 DB/파일 오류면 시작을 거절하므로 경로와 로그 코드부터 확인한다. 동작 중 삭제 정리는1분마다 재시도하며 실패하면 cleanup=pending이다. API 삭제는 접근을 먼저 차단하고 추출문을 제거한다. 실패한 물리 삭제를 완료로 표시하지 않는다. 원본 다운로드는 현재 버전만 제공하며 HTML을 직접 렌더하지 않는다.
 
-새 migration은 tombstone/물리 정리 상태·감사 enum과 최소 열 권한을 추가한다. 배포 전 DB/원본 백업 절차를 유지한다. 비동기 실행 ID/재시도는 아래 D03으로 제공한다. 파일 웹·벡터·과거 파생 참조·백업 복구 시 삭제 기록 반영은 후속 단계다. 지금은 extracted를 검색 가능으로 오인하지 않게 searchable=false로 반환한다. 실제 실행 조건·현재 한계는 [D02 기록](implementation/v0.2-d02-file-management.md)을 따른다.
+새 migration은 tombstone/물리 정리 상태·감사 enum과 최소 열 권한을 추가한다. 배포 전 DB/원본 백업 절차를 유지한다. 비동기 실행 ID/재시도는 아래 D03으로 제공한다. 파일 웹·과거 파생 참조·백업 복구 시 삭제 기록 반영은 후속 단계다. 추출만 완료하면 searchable=false이며 D04 색인 완료 뒤 true로 반환한다. 실제 실행 조건·현재 한계는 [D02 기록](implementation/v0.2-d02-file-management.md)을 따른다.
 
 
 ## 파일 실행 관리 (D03, PR #43 전달)
@@ -311,10 +311,22 @@ docker compose --env-file .townbase/compose.env -p my-townbase logs --tail=60 ap
 | 실행 상세 | GET `/file-runs/:id` | 실행 ID |
 | 수동 재시도 | POST `/file-runs/:id/retry` | 새 `X-Townbase-Request-Id` UUID v4 헤더와 JSON `{}` |
 | 실행 중단 | POST `/file-runs/:id/stop` | JSON `{}`. 새 요청 ID는 필요 없음 |
+| 현재 버전 색인 | POST `/files/:id/index` | 원본 ID·새 `X-Townbase-Request-Id` UUID v4 헤더와 JSON `{}` |
 | 현재 버전 재처리 | POST `/files/:id/reprocess` | 원본 ID·새 `X-Townbase-Request-Id` UUID v4 헤더와 JSON `{}` |
 
-재시도/재처리는202 접수 결과, 중단은200 결과를 반환한다. 새 작업은 새 UUID를 사용하고, 같은 재시도 요청의 응답이 유실됐으면 보관한 동일 UUID로 조회하거나 같은 요청을 재전송한다.
+재시도/재처리/색인은202 접수 결과, 중단은200 결과를 반환한다. 새 작업은 새 UUID를 사용하고, 같은 재시도 요청의 응답이 유실됐으면 보관한 동일 UUID로 조회하거나 같은 요청을 재전송한다.
 
 `documents/pending`도 지속 접수 raw 저장소다. 첨부와 섞거나 원본 저장소의 orphan 정리 대상으로 취급하지 않는다. 실행 소유권을 먼저 확보한 단일 API만 정리/처리한다. 기존 API가 실행 중인 중복 기동은 거절한다. queued+running20·실행1개이며 다른 작업은 DB 대기한다. 재시작은 이전 대기/실행을 interrupted로 표시하며 자동 재실행하지 않는다. 남은 입력/원본과 이력을 확인하고 운영자가 retry한다. 이미 파일 버전이 저장됐으면 그 버전을 사용하므로 임시 복사본이 지워졌다는 이유로 재시도를 실패시키지 않는다.
 
 Run/요청 별칭의90일 보관 만료 후 UUID 재전송 보장은 종료한다. 중단/실패 접수 입력은 수동 재시도/보관 범위 안에서 유지하고, 성공/내용 실패로 버전이 생긴 중복 복사본·비밀 패턴 입력·orphan·삭제 자료 입력을 정리한다. 분산 failover·자동 백업/재시도 또는 D04 임베딩 완료로 설명하지 않는다. [상세 계약·검증](implementation/v0.2-d03-file-runs.md)을 따른다.
+
+
+## 지속 파일 색인 (D04, 로컬 구현)
+
+등록/교체·재처리는 로컬 추출을 완료한다. 외부 임베딩은 별도로 `POST /files/:id/index`를 실행한다. 임베딩 Key 활성화·documentEmbedding 전송 허용·예산·가격표 확인이 필요하며 미설정은 실행 실패로 표시한다. 한 요청은 현재 원본 하나를 색인한다. 조각별 유료 호출은 기존 ModelExecutionService의 비용 예약/usage에 포함된다.
+
+파일 목록/상세의 searchable=true·indexStatus=indexed는 현재 버전의 모든 조각/1536차원 벡터가 저장됐음을 뜻한다. indexStatus=not_indexed/stale이면 검색에 사용하지 않는다. 동일 버전·추출·설정은 재사용하고 같은 원본의 동일 bytes/hash 교체도 새 버전에 벡터를 연결한다. 별도 원본끼리는 자동 병합하지 않는다.
+
+원본 위치/metadata와 벡터는 DB의 FileIndex/FileIndexChunk에 저장한다. DB 백업 대상이며 첨부와 구분한다. 두 테이블의 runtime 권한은 SELECT/INSERT/DELETE뿐이며 UPDATE/REFERENCES/DDL은 없다. 외부 file-search/vector-store를 만들지 않는다. 질문 임베딩/검색 API·답변·문서 웹은 E/G 후속이다.
+
+중단/재시작은 D03의 실행 상태를 따른다. 전송 후 불확실한 비용은 예약을 유지하며 새 실행으로 명시 retry하면 앞서 처리한 조각도 다시 과금될 수 있다. 입력 파일 작업이 진행 중일 때 삭제/교체가409 file_operation_busy이면 실행을 중단하고 종료 후 다시 요청한다. 삭제/교체/재처리 변경 자료는 내부 검색에서 제외하지만 과거 벡터 물리 정리·파생 답변 참조·백업 복원 보호 전체는 D05/I에서 마무리한다. [D04 계약·검증](implementation/v0.2-d04-file-indexing.md)을 따른다.

@@ -1,4 +1,6 @@
 import path from "node:path";
+import { ModelIntegrationModule } from "../model-integration/model-integration.module";
+import { FileIndexService } from "./file-index.service";
 import { Module } from "@nestjs/common";
 import { FileRunService } from "./file-run.service";
 import { FileRunController } from "./file-run.controller";
@@ -11,7 +13,8 @@ import { FileManagementService } from "./file-management.service";
 import { FileManagementController } from "./file-management.controller";
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, ModelIntegrationModule],
+  exports: [FileIndexService],
   controllers: [FileManagementController, FileRunController],
   providers: [
     {
@@ -27,6 +30,7 @@ import { FileManagementController } from "./file-management.controller";
     },
     FileExtractor,
     FileRunService,
+    FileIndexService,
     {
       provide: FileManagementService,
       useFactory: (

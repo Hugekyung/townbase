@@ -133,6 +133,31 @@ export class FileManagementController {
       );
     });
   }
+  @Post(":id/index")
+  @HttpCode(202)
+  @Header("Cache-Control", "no-store")
+  index(
+    @Req() req: AccessRequest,
+    @Param("id") id: string,
+    @Headers("x-townbase-request-id") requestId: unknown,
+    @Body() body: unknown,
+  ) {
+    return this.run(() => {
+      if (
+        body == null ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).length !== 0
+      )
+        throw new HttpException({ code: "invalid_request" }, 400);
+      return this.runs.index(
+        readSessionCookie(req),
+        this.access.requester(req),
+        requestId,
+        id,
+      );
+    });
+  }
   @Post(":id/reprocess")
   @HttpCode(202)
   @Header("Cache-Control", "no-store")
