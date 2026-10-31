@@ -1,3 +1,4 @@
+import type { FileIndexService } from "../src/files/file-index.service";
 import { Logger } from "@nestjs/common";
 import { FileRunService } from "../src/files/file-run.service";
 import type { DeploymentDatabase } from "../src/deployment/deployment-database";
@@ -34,6 +35,7 @@ describe("D03 shutdown with unavailable persistence", () => {
       {} as AuthService,
       { onApplicationShutdown: jest.fn() } as unknown as FileManagementService,
       { cancel } as unknown as FileExtractor,
+      {} as FileIndexService,
     );
     const internals = service as unknown as {
       owner: unknown;

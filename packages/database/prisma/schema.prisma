@@ -452,6 +452,7 @@ model ModelExecutionSettings {
 // No prompt, attachment, answer, raw credential or raw provider errors here.
 // Unknown charge reservations survive restarts, month rollover and Key changes.
 model ModelCall {
+  fileChunks FileIndexChunk[]
   installationId       String
   requestId            String       @db.Uuid
   ownerAdministratorId String
@@ -490,6 +491,8 @@ model FileOriginal {
   targetRuns FileRun[] @relation("FileRunTarget")
   resultRuns FileRun[] @relation("FileRunResult")
 
+  indexes FileIndex[]
+  @@unique([installationId, ownerAdministratorId, id])
   @@unique([installationId, id])
 }
 
@@ -513,6 +516,7 @@ model FileVersion {
   installation   Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
   original       FileOriginal @relation(fields: [installationId, originalId], references: [installationId, id], onDelete: Restrict)
   runs           FileExtractionRun[]
+  indexes FileIndex[]
   baseRuns FileRun[] @relation("FileRunBase")
   resultRuns FileRun[] @relation("FileRunVersion")
 
@@ -522,6 +526,7 @@ model FileVersion {
 }
 
 model FileExtractionRun {
+  ordinal        Int @default(1)
   id             String @id @db.Uuid
   installationId String
   versionId      String @db.Uuid
@@ -537,6 +542,7 @@ model FileExtractionRun {
   @@unique([installationId,versionId,id])
   @@index([installationId, completedAt])
   @@index([installationId, versionId, completedAt])
+  @@unique([installationId, versionId, ordinal])
 }
 
 
@@ -594,4 +600,48 @@ model FileRunRequest {
   run FileRun @relation(fields:[installationId,runId],references:[installationId,id],onDelete:Restrict)
   @@id([installationId,requestId])
   @@index([installationId,runId])
+}
+
+// Persistent uploaded-file retrieval only; attachments never enter these tables.
+model FileIndex {
+ chunkBytes Int @default(4096)
+ id String @id @db.Uuid
+ installationId String
+ ownerAdministratorId String
+ originalId String @db.Uuid
+ versionId String @db.Uuid
+ originRunId String @db.Uuid
+ extractionDigest String @db.VarChar(64)
+ configurationVersion String @db.VarChar(64)
+ embeddingModel String @db.VarChar(64)
+ chunkCount Int
+ createdAt DateTime @default(now())
+ original FileOriginal @relation(fields:[installationId,ownerAdministratorId,originalId], references:[installationId,ownerAdministratorId,id], onDelete:Restrict)
+ version FileVersion @relation(fields:[installationId,originalId,versionId], references:[installationId,originalId,id], onDelete:Restrict)
+ chunks FileIndexChunk[]
+ @@unique([installationId,id])
+ @@unique([installationId,versionId])
+}
+model FileIndexChunk {
+ id String @id @db.Uuid
+ installationId String
+ indexId String @db.Uuid
+ ordinal Int
+ content String
+ contentHash String @db.VarChar(64)
+ headingPath Json
+ locations Json
+ sourceType SourceType @default(uploaded_file)
+ knowledgeTypes KnowledgeType[]
+ domainTags String[]
+ status DocumentStatus
+ sourcePriority Int
+ requestedMode RetrievalMode?
+ resolvedMode RetrievalMode?
+ modelCallRequestId String @db.Uuid
+ embedding Unsupported("vector(1536)")
+ createdAt DateTime @default(now())
+ index FileIndex @relation(fields:[installationId,indexId], references:[installationId,id],onDelete:Cascade)
+ call ModelCall @relation(fields:[installationId,modelCallRequestId],references:[installationId,requestId],onDelete:Restrict)
+ @@unique([installationId,indexId,ordinal])
 }

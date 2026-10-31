@@ -34,8 +34,8 @@ export async function configureRuntimeRole(tx, env = process.env) {
   for (const sql of Object.values(databaseGrants))
     await tx.$executeRawUnsafe(sql);
   await tx.$executeRaw`GRANT USAGE ON SCHEMA public TO townbase_runtime`;
-  await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent", "BootstrapState", "Workspace", "AuthenticationState", "AdministratorSession", "ModelCredential", "ModelTransferPolicy", "ModelExecutionSettings", "ModelCall", "FileOriginal", "FileVersion", "FileExtractionRun", "FileRun", "FileRunRequest" TO townbase_runtime`;
-  await tx.$executeRaw`GRANT INSERT ON "Installation", "Administrator", "InstallationAuditEvent", "AdministratorSession", "ModelCredential", "ModelTransferPolicy", "ModelExecutionSettings", "ModelCall", "FileOriginal", "FileVersion", "FileExtractionRun", "FileRun", "FileRunRequest" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT SELECT ON "_prisma_migrations", "Installation", "Administrator", "InstallationAuditEvent", "BootstrapState", "Workspace", "AuthenticationState", "AdministratorSession", "ModelCredential", "ModelTransferPolicy", "ModelExecutionSettings", "ModelCall", "FileOriginal", "FileVersion", "FileExtractionRun", "FileRun", "FileRunRequest", "FileIndex", "FileIndexChunk" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT INSERT ON "Installation", "Administrator", "InstallationAuditEvent", "AdministratorSession", "ModelCredential", "ModelTransferPolicy", "ModelExecutionSettings", "ModelCall", "FileOriginal", "FileVersion", "FileExtractionRun", "FileRun", "FileRunRequest", "FileIndex", "FileIndexChunk" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ON "BootstrapState", "AuthenticationState" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("initializedAt", "updatedAt") ON "Installation" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("passwordHash", "updatedAt") ON "Administrator" TO townbase_runtime`;
@@ -48,7 +48,7 @@ export async function configureRuntimeRole(tx, env = process.env) {
   await tx.$executeRaw`GRANT UPDATE ("deletedAt") ON "FileOriginal" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("extraction", "rawDeletedAt") ON "FileVersion" TO townbase_runtime`;
   await tx.$executeRaw`GRANT UPDATE ("status", "errorCode", "inputKey", "resultOriginalId", "resultVersionId", "resultExtractionRunId", "createdCount", "updatedCount", "excludedCount", "unchangedCount", "failedCount", "startedAt", "completedAt") ON "FileRun" TO townbase_runtime`;
-  await tx.$executeRaw`GRANT DELETE ON "FileRun", "FileRunRequest" TO townbase_runtime`;
+  await tx.$executeRaw`GRANT DELETE ON "FileRun", "FileRunRequest", "FileIndex", "FileIndexChunk" TO townbase_runtime`;
   // The PUBLIC schema/database DDL revokes above are intentional. Object and
   // default ACLs belonging to other consumers are inspected, not auto-rewritten.
   // Only the explicit public table/column allowlist and invoker routines from the
@@ -66,9 +66,9 @@ export async function configureRuntimeRole(tx, env = process.env) {
       WHERE CASE WHEN n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
         AND c.relkind IN ('r', 'p', 'v', 'm', 'f') THEN (
         has_table_privilege('townbase_runtime', c.oid, 'TRUNCATE,REFERENCES,TRIGGER')
-        OR (has_table_privilege('townbase_runtime', c.oid, 'DELETE') AND NOT (n.nspname = 'public' AND c.relname IN ('ModelCredential','FileRun','FileRunRequest')))
+        OR (has_table_privilege('townbase_runtime', c.oid, 'DELETE') AND NOT (n.nspname = 'public' AND c.relname IN ('ModelCredential','FileRun','FileRunRequest', 'FileIndex', 'FileIndexChunk')))
         OR has_any_column_privilege('townbase_runtime', c.oid, 'REFERENCES')
-        OR (NOT (n.nspname = 'public' AND c.relname IN ('Installation', 'Administrator', 'InstallationAuditEvent', 'AdministratorSession', 'ModelCredential', 'ModelTransferPolicy', 'ModelExecutionSettings', 'ModelCall', 'FileOriginal', 'FileVersion', 'FileExtractionRun', 'FileRun', 'FileRunRequest'))
+        OR (NOT (n.nspname = 'public' AND c.relname IN ('Installation', 'Administrator', 'InstallationAuditEvent', 'AdministratorSession', 'ModelCredential', 'ModelTransferPolicy', 'ModelExecutionSettings', 'ModelCall', 'FileOriginal', 'FileVersion', 'FileExtractionRun', 'FileRun', 'FileRunRequest', 'FileIndex', 'FileIndexChunk'))
           AND has_any_column_privilege('townbase_runtime', c.oid, 'INSERT'))
         OR EXISTS (
           SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
@@ -77,7 +77,7 @@ export async function configureRuntimeRole(tx, env = process.env) {
         )
         OR has_table_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION,DELETE WITH GRANT OPTION')
         OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT WITH GRANT OPTION,INSERT WITH GRANT OPTION,UPDATE WITH GRANT OPTION')
-        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent', 'BootstrapState', 'Workspace', 'AuthenticationState', 'AdministratorSession', 'ModelCredential', 'ModelTransferPolicy', 'ModelExecutionSettings', 'ModelCall', 'FileOriginal', 'FileVersion', 'FileExtractionRun', 'FileRun', 'FileRunRequest'))
+        OR ((n.nspname <> 'public' OR c.relname NOT IN ('_prisma_migrations', 'Installation', 'Administrator', 'InstallationAuditEvent', 'BootstrapState', 'Workspace', 'AuthenticationState', 'AdministratorSession', 'ModelCredential', 'ModelTransferPolicy', 'ModelExecutionSettings', 'ModelCall', 'FileOriginal', 'FileVersion', 'FileExtractionRun', 'FileRun', 'FileRunRequest', 'FileIndex', 'FileIndexChunk'))
           AND (has_table_privilege('townbase_runtime', c.oid, 'SELECT')
             OR has_any_column_privilege('townbase_runtime', c.oid, 'SELECT')))
       ) ELSE false END

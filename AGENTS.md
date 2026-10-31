@@ -64,7 +64,7 @@
 - `pnpm test:deployment`는 실제 Vite proxy의 Host/Origin·전달 경로도 시험한다. pnpm build 이후 API/Connector/database 산출물·web 의존성·ts-node와 프로젝트 Node24 실행 환경이 필요하며, 시험 서버/캐시는 loopback 임시 포트와 /tmp에 한정한다.
 - B01 설치/관리자/감사 저장 기반은 `docs/implementation/v0.2-b01-storage.md`를 따른다. custom SQL CHECK를 포함하므로 Prisma schema만으로 DB를 만드는 `db push`로 migration을 대체하지 않는다. 현재 로그인/API 보호 구현 완료와 구분한다.
 - database 패키지의 DB 없는 단위 시험은 `--testPathIgnorePatterns=integration.spec.ts`로 전체 DB 통합 suite를 제외한다. 특정 옛 파일 하나만 제외하면 새 통합 시험이 남는다.
-- 기본 Compose는 API/웹·내부 DB·일회성 migration을 함께 실행한다. `node deployment/prepare.mjs`로 DB 소유자/API 전용 secret을 준비하며 설치별 고유 Compose 프로젝트 이름(`-p`)과 포트 설정 파일(`--env-file .townbase/compose.env`)을 유지한다. API는 `townbase_runtime` 제한 계정을 사용한다. 기존 상태/최초 등록 권한에 B04 AuthenticationState SELECT/UPDATE·AdministratorSession SELECT/INSERT·lastSeenAt/revokedAt 열 UPDATE·Administrator passwordHash/updatedAt 열 UPDATE만 추가하며 실제 목록은 배포 안내를 따른다. 사용자 schema·테이블/열/sequence·저장 루틴·기본 권한을 함께 검사하며 우회되면 migration을 거절한다. PUBLIC의 public schema CREATE와 DB CREATE/TEMPORARY는 성공 시 제거한다. 그 외 객체/기본 ACL의 보존·차단 및 vector extension 신뢰 경계는 배포 안내를 따른다. migration/API 모두 비특권·읽기 전용 root로 실행하며 호스트 API는 loopback에만 게시한다. 웹은 상태 확인·최초 관리자 등록·로그인·로그아웃·비밀번호 변경·로컬 토큰 복구를 제공한다. B05 기본 인증·설치/자료 범위 공통 검사가 적용된다. 문서 관리·실행 API는 아래 D02/D03를 따르며 문서 웹/채팅 기능은 아직 없다. 실행/비밀/volume/TLS 계약은 `docs/self-hosted-deployment.md`를 따른다.
+- 기본 Compose는 API/웹·내부 DB·일회성 migration을 함께 실행한다. `node deployment/prepare.mjs`로 DB 소유자/API 전용 secret을 준비하며 설치별 고유 Compose 프로젝트 이름(`-p`)과 포트 설정 파일(`--env-file .townbase/compose.env`)을 유지한다. API는 `townbase_runtime` 제한 계정을 사용한다. 기존 상태/최초 등록 권한에 B04 AuthenticationState SELECT/UPDATE·AdministratorSession SELECT/INSERT·lastSeenAt/revokedAt 열 UPDATE·Administrator passwordHash/updatedAt 열 UPDATE만 추가하며 실제 목록은 배포 안내를 따른다. 사용자 schema·테이블/열/sequence·저장 루틴·기본 권한을 함께 검사하며 우회되면 migration을 거절한다. PUBLIC의 public schema CREATE와 DB CREATE/TEMPORARY는 성공 시 제거한다. 그 외 객체/기본 ACL의 보존·차단 및 vector extension 신뢰 경계는 배포 안내를 따른다. migration/API 모두 비특권·읽기 전용 root로 실행하며 호스트 API는 loopback에만 게시한다. 웹은 상태 확인·최초 관리자 등록·로그인·로그아웃·비밀번호 변경·로컬 토큰 복구를 제공한다. B05 기본 인증·설치/자료 범위 공통 검사가 적용된다. 문서 관리·실행 API는 아래 D02/D03/D04를 따르며 문서 웹/채팅 기능은 아직 없다. 실행/비밀/volume/TLS 계약은 `docs/self-hosted-deployment.md`를 따른다.
 - B03 로컬 발급은 API 컨테이너의 `node deployment/bootstrap.mjs`다. 원문은 별도 bootstrap volume의 0600 파일에만 두며 웹/API/로그로 제공하지 않는다. 실 DB 등록 시험은 `TOWNBASE_SETUP_INTEGRATION=1`과 postgres 호스트의 `townbase_b03_test`에서만 실행한다. owner URL 및 runtime secret 파일이 필요하다. 일반 API 시험에서는 이 suite를 제외한다. [B03 기록](docs/implementation/v0.2-b03-administrator.md)을 따른다.
 - B04 복구 발급은 API 컨테이너의 `node deployment/recovery.mjs`다. recovery 전용 volume의0700 디렉터리·0600 파일,60분·1회용·digest 저장을 적용한다. 변경·복구는 모든 세션을 폐기하고 복구 토큰도 무효화한다. 실 DB 인증 시험은 `TOWNBASE_AUTH_INTEGRATION=1`과 postgres 호스트의 `townbase_b04_test`에서만 실행한다. owner URL/runtime secret이 필요하며 일반 API 시험은 opt-in suite를 건너뛴다. [B04 기록](docs/implementation/v0.2-b04-authentication.md)을 따른다.
 - B05는 AuthModule 전역 기본 인증과 메서드별 공개 예외를 사용한다. 신원은 세션/Installation.workspaceId에서만 만들며 DTO의 ID는 인증이 아니다. 자료 범위/소유 검사는 저장된 행을 입력으로 사용한다. 실제 자료/Key/작업 기능은 해당 단계에서 조회·저장·전송 경계에 검사를 연결한다. 새 테이블·범용 권한 엔진을 미리 추가하지 않는다. 실 DB 공통 검사 시험은 TOWNBASE_ACCESS_INTEGRATION=1과 postgres 호스트의 townbase_b05_test에서만 실행하며 owner URL/runtime secret이 필요하다. [B05 기록](docs/implementation/v0.2-b05-access.md)을 따른다.
@@ -167,7 +167,7 @@
 
 ## D03 영속 실행 적용 상태 (2026-10-31, PR #43 전달)
 
-- `/files` POST/PUT는 `X-Townbase-Request-Id` UUID v4와202 실행 ID 계약으로 전환했다. `/file-runs` 목록/상세/requests/:requestId·retry/stop 및 `/files/:id/reprocess`를 관리자 보호 경로로 제공한다. D02의 동기 응답 설명보다 이 현재 계약을 우선한다. 파일당1요청이며 현재 성공은 로컬 추출/저장이지 검색 가능이 아니다.
+- `/files` POST/PUT는 `X-Townbase-Request-Id` UUID v4와202 실행 ID 계약으로 전환했다. `/file-runs` 목록/상세/requests/:requestId·retry/stop 및 `/files/:id/reprocess`를 관리자 보호 경로로 제공한다. D02의 동기 응답 설명보다 이 현재 계약을 우선한다. 파일당1요청이며 등록/교체/재처리 성공은 로컬 추출/저장이다. 별도 index 작업과 검색 가능 표시는 D04를 따른다.
 - FileRun/FileRunRequest에 신원·대상/설정 버전·시각·상태·카운트·재시도 부모·정확한 원본/버전/추출 이력 ID를 저장한다. 결과와 실행 완료를 같은 인증 transaction에서 확정한다. 요청 재전송·동일 active 대상/버전·같은 실패 등록의 반복 복구는 기존 실행으로 연결하고 원본을 중복 생성하지 않는다.
 - 단일 API 소유권(741126,4)을 먼저 얻은 뒤 시작 정리/dispatch를 허용한다. 설치당 running1·queued+running20, 초과429다. 파일 잠금3을 얻기 전에는 running으로 선점하지 않고 idle 확인은 파일 잠금을 잡지 않는다. pending 입출력5·짧은 DB 전이6을 분리하며 인증 transaction에 파서/파일 I/O를 넣지 않는다. Redis/별도 worker/분산 lease/자동 재시도를 추가하지 않는다.
 - raw 접수는 documents/pending 전용0700/0600이며 originals/첨부와 분리한다. 세션은 API 메모리에만 연결하고 재시작 뒤 queued/running은 interrupted다. 같은 API에서 수동 retry하며 늦은 완료는 running CAS로 차단한다. 파서 취소는 D01 bounded 종료 경계를 유지한다.
@@ -182,3 +182,26 @@
 - 취소는 claim부터 작업별 AbortSignal로 전달하며 파서 시작 전에 이미 취소된 작업은 spawn하지 않는다. 다음 작업으로 취소 상태를 전파하지 않는다. FileFoundation에서도 extraction_cancelled를 내용 실패/버전 생성으로 저장하지 않는다.
 - 재처리 실패는 마지막 성공 extraction을 보존하되 실패 이력을 남긴다. inputKey/결과 ID가 없는 reprocess retry는 저장된 현재 원본/기준 버전을 검증해 사용한다.
 - 20261031010000 후속 migration은 원본/버전/추출 이력의 복합 FK·작업/trigger 일치·미완료/중단 결과 NULL을 강제한다. 기존 D03 migration을 재작성하지 않는다. D02/D03 DB suite 제한은60초다. [14건 대응·572개 검증](docs/implementation/v0.2-d03-review-response.md)을 따른다.
+
+
+## D04 지속 파일 색인 적용 상태 (2026-10-31, 로컬 구현)
+
+- PR #43은 main dac7e8f로 동기화했다. 별도 codex/v02-d04-file-indexing 브랜치에서 POST /files/:id/index(새 요청 UUID·빈 JSON·202)를 D03 실행에 연결한다. 등록만으로 자동 임베딩하지 않으며 웹은 G 후속이다.
+- FileIndex/FileIndexChunk는 저장된 FileVersion·소유·고정 small/1536과 실제 ModelCall을 연결한다. 전체 조각과 실행 완료를 같은 transaction/CAS로 게시한다. 부분 실패/취소/로그아웃 뒤 검색 가능으로 표시하지 않는다. 원문 위치·metadata를 유지하며 legacy Document/DocumentChunk와 첨부는 자동 편입하지 않는다.
+- ModelExecutionService.execute의 내부 CallBoundary는 signal과 현재 source/run 검사를 받는다. master 준비 전/예약 transaction에서 재검사하며 network는 transaction 밖이다. 전송 전 취소 not_sent/0원과 전송 후 unknown/예약 유지, 같은 호출 ID 유료 재호출 금지를 유지한다. 새 수동 retry는 조각 비용이 다시 생길 수 있다.
+- 분할은 최대4096 UTF-8 bytes(현재 입력 한도-256 이내)·위치 fragment128개, overlap 없음이며 실제 tokenizer가 아니다. 원본 크기/hash는 인증 transaction 밖에서 전송 전에 다시 확인한다. sourcePriority50·mode NULL에서 E의 질문별 mode 전략으로 연결한다. 같은 버전/추출/설정 및 같은 원본의 동일 bytes/hash 교체는 벡터를 재사용한다.
+- API의 searchable/indexStatus/chunkCount와 내부 FileIndexService.search는 현재 최신 버전·성공 추출·동일 SHA-256·active/삭제/소유 조건을 SQL에서 검사한다. 질문/공개 검색·답변은 E, 과거 벡터 물리 정리/참조/전체 보관은 D05/I 후속이다.
+- 후속 migration 20261101000000_file_indexes와 새 두 테이블의 SELECT/INSERT/DELETE 권한만 추가한다. 모든 UPDATE/REFERENCES/DDL·PUBLIC 우회를 거절한다. 현재 사용한 파일 작업 잠금3을 유지하므로 진행 중 삭제/교체409는 중단 후 재요청한다.
+- 새 통합 suite는 TOWNBASE_FILE_INDEX_TEST=1·정확한 postgres/townbase_d04_test의 새 합성 DB·owner URL/runtime secret을 요구한다. 전체 compiled API·Linux 파서·제한 DB 계정을 사용하고 공급자만 합성으로 대체한다. 일반 API 시험은 opt-in을 건너뛰며 기존/live DB와 유료 모델 호출을 사용하지 않는다. [D04 검증·한계](docs/implementation/v0.2-d04-file-indexing.md)를 따른다.
+
+- D04 최종 로컬 검증은681개(API435·배포24·DB 단위20·D04 DB31·D03 DB34·D02 DB26·C01 DB41·권한70)와 별도 production 미설정 차단/원본 재조회·D03 데이터 업그레이드 보존이다. 합성 공급자·linux/arm64 실행 증거이며 실계정 호출·x86_64 기준 성능/품질 수락과 구분한다. 사용자는 D04 커밋·푸시·main PR 생성을 승인했으며 전달 결과는 PR 기록을 따른다.
+
+
+## PR #44 D04 리뷰 보완 (2026-11-01, 로컬 수정)
+
+- 분할 v2는 segment 앞뒤 공백 제거·연속 공백/탭/줄바꿈 한 칸 정규화를 명시하고 위치는 정규화 전 code point 범위로 보존한다. 원본/추출 JSON은 변경하지 않는다. 기존 v1 색인은 보존·stale, 명시 index로만 갱신한다.
+- FileIndex.chunkBytes는 현재 입력 한도-256과4096 중 작은 값이다. 동일 버전/동일 bytes 교체 재사용 모두 이를 대조한다. 한도 변경 자체로 기존 벡터를 숨기지 않으며 새 명시 색인에서 새 분할/비용을 적용한다.
+- FileExtractionRun.ordinal은 버전별 저장 순서이며 공통 인증 잠금 아래 증가한다. API·기반 read·색인·검색 모두 ordinal DESC로 최신을 판정한다. 과거 동률은 후속 migration에서 실패 우선 차단 순서로 이관한다. runtime 추가 권한/DB sequence는 없다. 기존 migration은 수정하지 않는다.
+- 전송 후 취소는 call_cancelled·unknown/예약 유지, 전송 전은 not_sent/0원이다. 공급자 시간 초과와 구분한다. 검증 증거·제한은 D04 기록의 PR #44 절을 따른다.
+- 새 업그레이드 opt-in 시험은 TOWNBASE_FILE_INDEX_UPGRADE_TEST=1·정확한 postgres/townbase_d04_pr44_upgrade_test의 빈 DB에서만 실행한다. deployment/test/file-index-review.integration.mjs는 최소 구버전 테이블의 후속 SQL/이력 보존 시험이며 일반 test:deployment에는 포함되지 않는다.
+- PR #44 로컬 수정 검증689개(API438·배포24·DB 단위20·D04 DB35·D03 DB34·D02 DB26·C01 DB41·권한70·업그레이드1) 통과. 이전 검증과 중복 합산하지 않는다. 사용자는 수정 요약 확인 후 커밋/푸시/PR 댓글 등록을 승인했다. 전달 결과는 PR 기록을 따른다.

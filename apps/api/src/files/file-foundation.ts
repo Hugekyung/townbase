@@ -232,7 +232,7 @@ export class FileFoundation {
           include: {
             versions: {
               orderBy: { version: "desc" },
-              include: { runs: { orderBy: { completedAt: "desc" } } },
+              include: { runs: { orderBy: { ordinal: "desc" } } },
             },
           },
         });

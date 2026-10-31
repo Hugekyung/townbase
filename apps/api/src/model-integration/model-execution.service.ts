@@ -51,6 +51,14 @@ export type CallInput = {
   input: string;
   fileNames?: readonly string[];
 };
+export type CallBoundary = {
+  signal: AbortSignal;
+  // Internal source/run check, under the same fresh-auth admission transaction.
+  authorize: (
+    tx: AuthTransaction,
+    context: AdministratorContext,
+  ) => Promise<void>;
+};
 export const CONNECTION_INPUT = "Townbase connection test. Reply with OK.";
 const TIMEOUT_MS = 90000;
 @Injectable()
@@ -308,8 +316,9 @@ export class ModelExecutionService {
     token: string | undefined,
     context: AdministratorContext,
     input: CallInput,
+    boundary?: CallBoundary,
   ) {
-    return this.run(token, context, input);
+    return this.run(token, context, input, undefined, undefined, boundary);
   }
   private async run(
     token: string | undefined,
@@ -317,6 +326,7 @@ export class ModelExecutionService {
     input: CallInput,
     check?: CredentialPurpose,
     password?: unknown,
+    boundary?: CallBoundary,
   ): Promise<{
     call: Awaited<ReturnType<ModelExecutionService["status"]>>;
     result?: ProviderResult;
@@ -414,7 +424,13 @@ export class ModelExecutionService {
       };
       return { settings, limit, credential, model, request };
     };
+    const verifyBoundary = async (tx: Tx, fresh: AdministratorContext) => {
+      if (boundary?.signal.aborted)
+        throw new ModelCallError("call_cancelled", 409);
+      await boundary?.authorize(tx, fresh);
+    };
     const existingWork = async (tx: Tx, fresh: AdministratorContext) => {
+      await verifyBoundary(tx, fresh);
       const prior = await findPrior(tx, fresh);
       if (prior == null) await preflight(tx, fresh);
       return { prior };
@@ -439,6 +455,7 @@ export class ModelExecutionService {
       reader: PreparedCredentialReader,
     ) => {
       await this.lock(tx, fresh.installationId);
+      await verifyBoundary(tx, fresh);
       const [clockRow] = await tx.$queryRaw<
         Array<{ now: Date }>
       >`SELECT clock_timestamp() AS now`;
@@ -534,7 +551,7 @@ export class ModelExecutionService {
       return { call: this.view(authorization.prior) };
     const dispatch = authorization.dispatch!;
     const remaining = dispatch.row.deadlineAt.getTime() - Date.now();
-    if (remaining <= 0) {
+    if (remaining <= 0 || boundary?.signal.aborted) {
       await this.database.prisma.modelCall.update({
         where: {
           installationId_requestId: {
@@ -545,7 +562,9 @@ export class ModelExecutionService {
         data: {
           status: "not_sent",
           chargedNanoUsd: 0n,
-          errorCode: "dispatch_deadline_exceeded",
+          errorCode: boundary?.signal.aborted
+            ? "call_cancelled"
+            : "dispatch_deadline_exceeded",
           completedAt: new Date(),
         },
       });
@@ -556,7 +575,9 @@ export class ModelExecutionService {
       result = await this.provider.call(
         dispatch.key,
         dispatch.request,
-        AbortSignal.timeout(remaining),
+        boundary
+          ? AbortSignal.any([AbortSignal.timeout(remaining), boundary.signal])
+          : AbortSignal.timeout(remaining),
       );
       assertAdmittedUsage(
         dispatch.request.model,
@@ -569,12 +590,14 @@ export class ModelExecutionService {
       const code =
         error instanceof ModelCallError
           ? error.code
-          : error != null &&
-              typeof error === "object" &&
-              "name" in error &&
-              ["AbortError", "TimeoutError"].includes(String(error.name))
-            ? "provider_timeout"
-            : "provider_transport_failed";
+          : boundary?.signal.aborted
+            ? "call_cancelled"
+            : error != null &&
+                typeof error === "object" &&
+                "name" in error &&
+                ["AbortError", "TimeoutError"].includes(String(error.name))
+              ? "provider_timeout"
+              : "provider_transport_failed";
       await this.database.prisma.modelCall.updateMany({
         where: {
           installationId: context.installationId,
