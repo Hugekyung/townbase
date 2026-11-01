@@ -57,13 +57,18 @@ export class FileIndexService {
         originalId: run.targetOriginalId!,
         rawDeletedAt: null,
         documentStatus: "active",
-        original: { ownerAdministratorId: c.administratorId, deletedAt: null },
+        original: {
+          ownerAdministratorId: c.administratorId,
+          deletedAt: null,
+        },
       },
       include: {
         runs: { orderBy: { ordinal: "desc" }, take: 1 },
         original: true,
       },
     });
+    if (version?.original.excludedAt != null)
+      throw new ModelCallError("source_excluded", 409);
     if (!version || version.runs[0]?.status !== "extracted")
       throw new ModelCallError("source_not_extracted", 409);
     const newer = await tx.fileVersion.count({
@@ -124,7 +129,7 @@ export class FileIndexService {
         SELECT encode(sha256(convert_to(v.extraction::text,'UTF8')),'hex') AS digest
         FROM "FileVersion" v JOIN "FileOriginal" o ON o.id=v."originalId" AND o."installationId"=v."installationId"
         WHERE v.id=${source.version.id}::uuid AND v."installationId"=${c.installationId}
-        AND o."ownerAdministratorId"=${c.administratorId} AND ${currentFileWhere}`);
+        AND o."ownerAdministratorId"=${c.administratorId} AND o."scopeRevision"=${source.version.original.scopeRevision} AND ${currentFileWhere}`);
       if (latest?.digest !== source.digest)
         throw new ModelCallError("source_changed", 409);
     };
@@ -149,6 +154,7 @@ export class FileIndexService {
         old?.extractionDigest === source.digest &&
         old.configurationVersion === FILE_INDEX_CONFIGURATION &&
         old.chunkBytes === source.chunkBytes &&
+        old.scopeRevision === source.version.original.scopeRevision &&
         old.chunkCount ===
           (await tx.fileIndexChunk.count({
             where: { installationId: c.installationId, indexId: old.id },
@@ -181,6 +187,7 @@ export class FileIndexService {
           extractionDigest: source.digest,
           configurationVersion: FILE_INDEX_CONFIGURATION,
           chunkBytes: source.chunkBytes,
+          scopeRevision: source.version.original.scopeRevision,
           embeddingModel: "text-embedding-3-small",
           version: {
             contentHash: source.version.contentHash,
@@ -215,6 +222,7 @@ export class FileIndexService {
           extractionDigest: source.digest,
           configurationVersion: FILE_INDEX_CONFIGURATION,
           chunkBytes: source.chunkBytes,
+          scopeRevision: source.version.original.scopeRevision,
           embeddingModel: "text-embedding-3-small",
           chunkCount: prior.chunkCount,
         },
@@ -294,6 +302,7 @@ export class FileIndexService {
           extractionDigest: source.digest,
           configurationVersion: FILE_INDEX_CONFIGURATION,
           chunkBytes: source.chunkBytes,
+          scopeRevision: source.version.original.scopeRevision,
           embeddingModel: "text-embedding-3-small",
           chunkCount: chunks.length,
         },
@@ -328,6 +337,8 @@ export class FileIndexService {
       tx.$queryRaw<
         Array<{
           id: string;
+          indexId: string;
+          scopeRevision: number;
           originalId: string;
           versionId: string;
           content: string;
@@ -349,7 +360,7 @@ export class FileIndexService {
           reference: string;
         }>
       >(Prisma.sql`
-      SELECT ch.id,i."originalId",i."versionId",o.title,v."fileName",v.format,v."contentHash",ch."contentHash" AS "chunkHash",ch.content,ch.locations,ch."headingPath",ch."sourceType",ch."knowledgeTypes",ch."domainTags",ch.status,ch."sourcePriority",ch."requestedMode",ch."resolvedMode",1-(ch.embedding <=> ${toPgVectorLiteral(vector)}::vector) AS score, '/files/'||o.id::text||'/reference' AS reference
+      SELECT ch.id,i.id AS "indexId",i."scopeRevision",i."originalId",i."versionId",o.title,v."fileName",v.format,v."contentHash",ch."contentHash" AS "chunkHash",ch.content,ch.locations,ch."headingPath",ch."sourceType",ch."knowledgeTypes",ch."domainTags",ch.status,ch."sourcePriority",ch."requestedMode",ch."resolvedMode",1-(ch.embedding <=> ${toPgVectorLiteral(vector)}::vector) AS score, '/files/'||o.id::text||'/reference?versionId='||v.id::text||'&scopeRevision='||o."scopeRevision"::text AS reference
       FROM "FileIndexChunk" ch JOIN "FileIndex" i ON i.id=ch."indexId" AND i."installationId"=ch."installationId"
       JOIN "FileVersion" v ON v.id=i."versionId" AND v."installationId"=i."installationId"
       JOIN "FileOriginal" o ON o.id=i."originalId" AND o."installationId"=i."installationId"

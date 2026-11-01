@@ -330,3 +330,12 @@ Run/요청 별칭의90일 보관 만료 후 UUID 재전송 보장은 종료한�
 원본 위치/metadata와 벡터는 DB의 FileIndex/FileIndexChunk에 저장한다. DB 백업 대상이며 첨부와 구분한다. 두 테이블의 runtime 권한은 SELECT/INSERT/DELETE뿐이며 UPDATE/REFERENCES/DDL은 없다. 외부 file-search/vector-store를 만들지 않는다. 질문 임베딩/검색 API·답변·문서 웹은 E/G 후속이다.
 
 중단/재시작은 D03의 실행 상태를 따른다. 전송 후 불확실한 비용은 예약을 유지하며 새 실행으로 명시 retry하면 앞서 처리한 조각도 다시 과금될 수 있다. 입력 파일 작업이 진행 중일 때 삭제/교체가409 file_operation_busy이면 실행을 중단하고 종료 후 다시 요청한다. 삭제/교체/재처리 변경 자료는 내부 검색에서 제외하지만 과거 벡터 물리 정리·파생 답변 참조·백업 복원 보호 전체는 D05/I에서 마무리한다. [D04 계약·검증](implementation/v0.2-d04-file-indexing.md)을 따른다.
+
+
+## 파일 범위·삭제·과거 출처 (D05)
+
+PUT `/files/:id/scope`에 JSON `{ "included": false }`를 보내면 검색 범위에서 제외한다. 현재 관리자·Origin/Host·인증 헤더·8KB 본문 제한은 동일하다.200은 저장 후 재조회한 excludedAt/scopeRevision·파일 상태·cleanup을 반환한다. 같은 상태 요청은 순번/감사를 늘리지 않는다. `{ "included": true }`로 다시 포함한 후에는 새 UUID로 명시 index해야 검색할 수 있다. 변경 중409는 진행 중 실행을 stop한 뒤 재요청한다. 새 UUID는 색인 접수용이며 scope 자체에는 요청 UUID가 필요 없다.
+
+파일/검색/실행 이력이 반환하는 reference의 versionId/scopeRevision 쿼리를 그대로 사용한다. 교체/삭제/제외 뒤 과거 참조는404이며, 과거 링크로 최신 파일의 다른 내용을 반환하지 않는다. 쿼리 없는 `/files/:id/reference`는 관리자 자료 관리의 현재 raw 다운로드다. 파일 실행의 sourceState는 available/deleted/replaced/excluded/unavailable이며 비노출 상태에는 참조/자료 링크를 제공하지 않는다. 실행 당시 결과 ID·파일명·시각·비용 이력은 문서 삭제와 별도로 보존한다.
+
+삭제는 즉시 접근을 막고 원본/추출문/벡터를 정리한다. cleanup=pending이면 정리 실패 상태이며 시작/1분 주기로 재시도한다. 제외는 raw/추출문을 보존하고 벡터만 정리한다. 교체 전 자료는 즉시 검색에서 제외하고 동일 내용 재사용을 위해24시간 유예 뒤 다음 정리 주기에 raw/추출문/벡터를 제거한다. 장애가 계속되거나 API가 중단됐는데도 물리 삭제가 성공했다고 간주하지 않는다. 백업 복구와 E/F의 실제 대화·Gap·첨부 결과 처리는 후속이며 DB tombstone만으로 백업까지 삭제되는 것은 아니다. 자세한 경계는 [D05 기록](implementation/v0.2-d05-file-lifecycle.md)을 따른다.

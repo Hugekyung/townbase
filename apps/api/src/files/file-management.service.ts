@@ -7,7 +7,7 @@ import {
   OnApplicationShutdown,
   UnauthorizedException,
 } from "@nestjs/common";
-import { PrismaClient, type Prisma } from "@townbase/database";
+import { PrismaClient, Prisma } from "@townbase/database";
 import { AuthService, type AdministratorContext } from "../auth/auth.service";
 import { DeploymentDatabase } from "../deployment/deployment-database";
 import {
@@ -201,7 +201,10 @@ export class FileManagementService implements OnApplicationShutdown {
           ...this.summary(version, states.get(version.id)),
           extraction: version.extraction,
         },
-        reference: `/files/${id}/reference`,
+        reference:
+          original.excludedAt == null && version.documentStatus === "active"
+            ? `/files/${id}/reference?versionId=${version.id}&scopeRevision=${original.scopeRevision}`
+            : null,
       };
     });
   }
@@ -209,19 +212,32 @@ export class FileManagementService implements OnApplicationShutdown {
     token: string | undefined,
     context: AdministratorContext,
     id: string,
+    expected?: { versionId: string; scopeRevision: number },
   ) {
     id = originalId(id);
     const load = () =>
-      this.scoped(
-        token,
-        context,
-        async (tx, c) => (await this.current(tx, c, id)).versions[0]!,
-      );
+      this.scoped(token, context, async (tx, c) => {
+        const original = await this.current(tx, c, id);
+        const version = original.versions[0]!;
+        if (original.excludedAt != null || version.documentStatus !== "active")
+          throw new NotFoundException();
+        return { ...version, scopeRevision: original.scopeRevision };
+      });
     const version = await load();
-    if (version.rawDeletedAt != null) throw new NotFoundException();
+    if (
+      version.rawDeletedAt != null ||
+      (expected != null &&
+        (version.id !== expected.versionId ||
+          version.scopeRevision !== expected.scopeRevision))
+    )
+      throw new NotFoundException();
     const recheck = async () => {
       const latest = await load();
-      if (latest.id !== version.id || latest.rawDeletedAt != null)
+      if (
+        latest.id !== version.id ||
+        latest.rawDeletedAt != null ||
+        latest.scopeRevision !== version.scopeRevision
+      )
         throw new NotFoundException();
     };
     let bytes: Buffer;
@@ -302,6 +318,46 @@ export class FileManagementService implements OnApplicationShutdown {
       await this.reconcile();
     }
   }
+  async setScope(
+    token: string | undefined,
+    context: AdministratorContext,
+    id: string,
+    included: boolean,
+  ) {
+    id = originalId(id);
+    return this.locked(async () => {
+      await this.scoped(token, context, async (tx, c) => {
+        const current = await this.current(tx, c, id);
+        if ((current.excludedAt == null) === included) return {};
+        await tx.fileOriginal.update({
+          where: { id },
+          data: {
+            excludedAt: included ? null : new Date(),
+            scopeRevision: { increment: 1 },
+          },
+        });
+        await tx.installationAuditEvent.create({
+          data: {
+            installationId: c.installationId,
+            actorType: "administrator",
+            actorAdministratorId: c.administratorId,
+            action: "file_scope_changed",
+            outcome: "succeeded",
+            requestId: id,
+          },
+        });
+        return {};
+      });
+      let cleanup: "complete" | "pending" = "complete";
+      try {
+        await this.reconcile();
+      } catch {
+        Logger.error("TOWNBASE_FILE_CLEANUP_FAILED");
+        cleanup = "pending";
+      }
+      return { ...(await this.read(token, context, id)), cleanup };
+    });
+  }
   async remove(
     token: string | undefined,
     context: AdministratorContext,
@@ -350,13 +406,35 @@ export class FileManagementService implements OnApplicationShutdown {
   // Caller must hold the file-operation lock. Internal cleanup is independent of a
   // user's now-expired session, and never returns storage keys to a requester.
   private async reconcile() {
+    // Retain inaccessible replacement versions for at most 24h, allowing D04's
+    // identical-content rebind during that window. Deletion/exclusion invalidates
+    // indexes immediately; failed cleanup never restores eligibility.
     while (true) {
-      const rows = await this.db.prisma.fileVersion.findMany({
-        where: { rawDeletedAt: null, original: { deletedAt: { not: null } } },
-        select: { id: true, storageKey: true },
-        orderBy: { id: "asc" },
-        take: 100,
+      const rows = await this.db.prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT i.id FROM "FileIndex" i
+        JOIN "FileOriginal" o ON o.id=i."originalId" AND o."installationId"=i."installationId"
+        JOIN "FileVersion" v ON v.id=i."versionId" AND v."installationId"=i."installationId"
+        WHERE o."deletedAt" IS NOT NULL OR o."excludedAt" IS NOT NULL OR v."documentStatus"<>'active' OR i."scopeRevision"<>o."scopeRevision"
+        OR EXISTS (SELECT 1 FROM "FileVersion" newer WHERE newer."installationId"=v."installationId" AND newer."originalId"=v."originalId" AND newer.version>v.version AND newer."createdAt"<=CURRENT_TIMESTAMP-INTERVAL '24 hours')
+        OR EXISTS (SELECT 1 FROM "FileExtractionRun" r WHERE r."installationId"=v."installationId" AND r."versionId"=v.id
+          AND NOT EXISTS (SELECT 1 FROM "FileExtractionRun" later WHERE later."installationId"=r."installationId" AND later."versionId"=r."versionId" AND later.ordinal>r.ordinal)
+          AND r."completedAt"<=CURRENT_TIMESTAMP-INTERVAL '24 hours'
+          AND (r.status<>'extracted' OR i."extractionDigest"<>encode(sha256(convert_to(v.extraction::text,'UTF8')),'hex')))
+        ORDER BY i.id LIMIT 100`;
+      if (!rows.length) break;
+      await this.db.prisma.fileIndex.deleteMany({
+        where: { id: { in: rows.map((r) => r.id) } },
       });
+    }
+    while (true) {
+      const rows = await this.db.prisma.$queryRaw<
+        Array<{ id: string; storageKey: string }>
+      >`
+        SELECT v.id,v."storageKey" FROM "FileVersion" v
+        JOIN "FileOriginal" o ON o.id=v."originalId" AND o."installationId"=v."installationId"
+        WHERE v."rawDeletedAt" IS NULL AND (o."deletedAt" IS NOT NULL OR EXISTS (
+          SELECT 1 FROM "FileVersion" newer WHERE newer."installationId"=v."installationId" AND newer."originalId"=v."originalId" AND newer.version>v.version AND newer."createdAt"<=CURRENT_TIMESTAMP-INTERVAL '24 hours'))
+        ORDER BY v.id LIMIT 100`;
       if (rows.length === 0) break;
       for (const row of rows) {
         await this.storage.removeIfPresent(row.storageKey);

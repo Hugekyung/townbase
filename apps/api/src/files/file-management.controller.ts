@@ -20,6 +20,7 @@ import { readSessionCookie } from "../auth/auth-transport";
 import { TransferDenied } from "../model-integration/transfer-policy";
 import { FileRunService } from "./file-run.service";
 import { FileError } from "./file-contract";
+import { UUID } from "./file-management.service";
 import { FileManagementService } from "./file-management.service";
 import { fileInput } from "./file-upload";
 
@@ -79,12 +80,35 @@ export class FileManagementController {
   }
   @Get(":id/reference")
   @Header("Cache-Control", "no-store")
-  reference(@Req() req: AccessRequest, @Param("id") id: string) {
+  reference(
+    @Req() req: AccessRequest,
+    @Param("id") id: string,
+    @Query() query: Record<string, unknown>,
+  ) {
     return this.run(async () => {
+      let expected: { versionId: string; scopeRevision: number } | undefined;
+      if (Object.keys(query).length) {
+        if (
+          Object.keys(query).some(
+            (k) => !["versionId", "scopeRevision"].includes(k),
+          ) ||
+          typeof query.versionId !== "string" ||
+          !UUID.test(query.versionId) ||
+          typeof query.scopeRevision !== "string" ||
+          !/^[1-9][0-9]{0,9}$/.test(query.scopeRevision) ||
+          Number(query.scopeRevision) > 2147483647
+        )
+          throw new HttpException({ code: "invalid_request" }, 400);
+        expected = {
+          versionId: query.versionId.toLowerCase(),
+          scopeRevision: Number(query.scopeRevision),
+        };
+      }
       const result = await this.files.reference(
         readSessionCookie(req),
         this.access.requester(req),
         id,
+        expected,
       );
       return new StreamableFile(result.bytes, {
         type: "application/octet-stream",
@@ -130,6 +154,32 @@ export class FileManagementController {
         name,
         bytes,
         id,
+      );
+    });
+  }
+  @Put(":id/scope")
+  @Header("Cache-Control", "no-store")
+  scope(
+    @Req() req: AccessRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return this.run(() => {
+      if (
+        body == null ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).length !== 1 ||
+        !("included" in body) ||
+        Object.keys(body)[0] !== "included" ||
+        typeof body.included !== "boolean"
+      )
+        throw new HttpException({ code: "invalid_request" }, 400);
+      return this.files.setScope(
+        readSessionCookie(req),
+        this.access.requester(req),
+        id,
+        body.included,
       );
     });
   }

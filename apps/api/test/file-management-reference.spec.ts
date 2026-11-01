@@ -10,6 +10,7 @@ const id = "11111111-1111-4111-8111-111111111111";
 const version = {
   id,
   rawDeletedAt: null,
+  documentStatus: "active",
   storageKey: id + ".bin",
   byteSize: 1,
   contentHash: createHash("sha256").update("x").digest("hex"),
@@ -25,8 +26,16 @@ const context = {
 function fixture(next: unknown, bytes?: Buffer, revoked = false) {
   const findFirst = jest
     .fn()
-    .mockResolvedValueOnce({ versions: [version] })
-    .mockResolvedValue(next);
+    .mockResolvedValueOnce({
+      excludedAt: null,
+      scopeRevision: 1,
+      versions: [version],
+    })
+    .mockResolvedValue(
+      next == null
+        ? next
+        : { excludedAt: null, scopeRevision: 1, ...(next as object) },
+    );
   const error = new FileError("storage_unavailable");
   const read = bytes
     ? jest.fn().mockResolvedValue(bytes)
@@ -100,5 +109,34 @@ describe("D02 source read failure rechecks current access", () => {
     await expect(
       f.service.reference("token", context, id),
     ).rejects.toMatchObject({ status: 404 });
+  });
+  test("scope changed during a successful read rejects a previously bound reference", async () => {
+    const f = fixture(
+      { versions: [version], scopeRevision: 3 },
+      Buffer.from("x"),
+    );
+    await expect(
+      f.service.reference("token", context, id, {
+        versionId: id,
+        scopeRevision: 1,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+  test("a stale bound reference is rejected before reading raw bytes", async () => {
+    const f = fixture({ versions: [version] }, Buffer.from("x"));
+    await expect(
+      f.service.reference("token", context, id, {
+        versionId: id,
+        scopeRevision: 2,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(f.read).not.toHaveBeenCalled();
+  });
+  test("scope exclusion wins over a failed disk read", async () => {
+    const f = fixture({ versions: [version], excludedAt: new Date() });
+    await expect(
+      f.service.reference("token", context, id),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(f.read).toHaveBeenCalledTimes(1);
   });
 });
