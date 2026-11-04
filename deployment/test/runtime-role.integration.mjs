@@ -303,6 +303,10 @@ for (const [table, privilege, column] of [
   ["ModelCredential", "UPDATE", "createdAt"],
   ["ModelTransferPolicy", "UPDATE", "installationId"],
   ["ModelExecutionSettings", "UPDATE", "installationId"],
+  ["BasicAgent", "UPDATE", "installationId"],
+  ["BasicAgent", "UPDATE", "id"],
+  ["BasicAgent", "UPDATE", "ownerAdministratorId"],
+  ["BasicAgent", "UPDATE", "createdAt"],
   ["ModelCall", "UPDATE", "installationId"],
   ["ModelCall", "UPDATE", "requestId"],
   ["ModelCall", "UPDATE", "ownerAdministratorId"],
@@ -361,7 +365,7 @@ test("C02 grants only credential/policy writes and no identity mutations or poli
 });
 
 test("C02 refuses PUBLIC DELETE on a policy or audit table", async () => {
-  for (const table of ["ModelTransferPolicy", "InstallationAuditEvent"]) {
+  for (const table of ["ModelTransferPolicy", "InstallationAuditEvent", "BasicAgent"]) {
     await db.$executeRawUnsafe(`GRANT DELETE ON public."${table}" TO PUBLIC`);
     try {
       await assert.rejects(configure, {
@@ -417,6 +421,15 @@ test("C01 grants only enumerated execution columns and no call deletion", async 
       await db.$queryRaw`SELECT has_table_privilege('townbase_runtime',format('public.%I',${table}),'DELETE,UPDATE,TRUNCATE') AS broad`;
     assert.equal(rights.broad, false);
   }
+});
+
+test("E01 grants only Agent content/revision updates and no delete, identity change or delegation", async () => {
+  await configure();
+  const columns = await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname='BasicAgent' AND a.attnum>0 AND NOT a.attisdropped`;
+  assert.equal(columns.length, 12);
+  assert.deepEqual(columns.filter(c => c.writable).map(c => c.attname).sort(), ["name", "purpose", "instructions", "terminology", "sourceSelection", "sourceOriginalIds", "revision", "updatedAt"].sort());
+  const [rights] = await db.$queryRaw`SELECT has_table_privilege('townbase_runtime','"BasicAgent"','SELECT') AS readable, has_table_privilege('townbase_runtime','"BasicAgent"','INSERT') AS insertable, has_table_privilege('townbase_runtime','"BasicAgent"','UPDATE') AS table_update, has_table_privilege('townbase_runtime','"BasicAgent"','DELETE') AS deletable, has_any_column_privilege('townbase_runtime','"BasicAgent"','REFERENCES') AS referenceable, has_any_column_privilege('townbase_runtime','"BasicAgent"','UPDATE WITH GRANT OPTION') AS delegation`;
+  assert.deepEqual(rights, { readable: true, insertable: true, table_update: false, deletable: false, referenceable: false, delegation: false });
 });
 
 test("C01 refuses PUBLIC deletion of execution settings or calls", async () => {
