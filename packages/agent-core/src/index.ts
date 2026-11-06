@@ -1,5 +1,15 @@
 export { AGENT_CORE_PACKAGE_INFO } from "./package-info";
 export {
+  BASIC_AGENT_MODES,
+  AgentContractError,
+  parseBasicAgentQuestion,
+  type BasicAgentMode,
+  type BasicAgentConfiguration,
+  type BasicAgentQuestion,
+  type BasicAgentSource,
+  type BasicAgentResult,
+} from "./basic-agent-contract";
+export {
   buildEmptyPromptContext,
   PROMPT_RESPONSE_SCHEMA_KEYS,
   SOURCE_GROUNDED_ANSWER_RULE,

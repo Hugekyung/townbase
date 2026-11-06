@@ -339,3 +339,12 @@ PUT `/files/:id/scope`에 JSON `{ "included": false }`를 보내면 검색 범�
 파일/검색/실행 이력이 반환하는 reference의 versionId/scopeRevision 쿼리를 그대로 사용한다. 교체/삭제/제외 뒤 과거 참조는404이며, 과거 링크로 최신 파일의 다른 내용을 반환하지 않는다. 쿼리 없는 `/files/:id/reference`는 관리자 자료 관리의 현재 raw 다운로드다. 파일 실행의 sourceState는 available/deleted/replaced/excluded/unavailable이며 비노출 상태에는 참조/자료 링크를 제공하지 않는다. 실행 당시 결과 ID·파일명·시각·비용 이력은 문서 삭제와 별도로 보존한다.
 
 삭제는 즉시 접근을 막고 원본/추출문/벡터를 정리한다. cleanup=pending이면 정리 실패 상태이며 시작/1분 주기로 재시도한다. 제외는 raw/추출문을 보존하고 벡터만 정리한다. 교체 전 자료는 즉시 검색에서 제외하고 동일 내용 재사용을 위해24시간 유예 뒤 다음 정리 주기에 raw/추출문/벡터를 제거한다. 장애가 계속되거나 API가 중단됐는데도 물리 삭제가 성공했다고 간주하지 않는다. 백업 복구와 E/F의 실제 대화·Gap·첨부 결과 처리는 후속이며 DB tombstone만으로 백업까지 삭제되는 것은 아니다. 자세한 경계는 [D05 기록](implementation/v0.2-d05-file-lifecycle.md)을 따른다.
+
+
+## 기본 Agent 설정 (E01, 로컬 검증)
+
+관리자 GET/PUT `/settings/agent`는 기본 Agent 한 개를 저장/조회한다. 최초 GET은 agent=null이며 PUT에 currentPassword·expectedRevision(최초0)·name·purpose·instructions·terminology(term/meaning 배열)·sourceSelection(all/selected)·sourceOriginalIds를 전달한다. 이후 수정에는 GET의 revision을 사용하며 오래된 수정은409 agent_changed다. 같은 값은 변경 감사를 추가하지 않는다. 기존 JSON8KB·인증/Origin 보호를 유지한다.
+
+답변 모델은 기존 `/settings/model-integration/execution`의 지원 목록/재인증/전체 설정 계약으로 변경한다. Agent GET의 answerModel/modelSettingsPath가 그 단일 값을 반영한다. Agent PUT은 모델·임베딩·Key 필드를 받지 않는다. 소스 선택은 접근 허용을 대체하지 않으며 삭제/제외 자료는 새 사용에서 차단한다.
+
+후속 migration은 BasicAgent 및 감사 action을 추가하고 runtime SELECT/INSERT·내용/revision/updatedAt 열 UPDATE만 허용한다. 식별/소유/생성 시각 UPDATE·DELETE·REFERENCES/DDL은 차단한다. 실제 답변·대화/Gap·웹은 후속이며 [E01 저장/한도/검증](implementation/v0.2-e01-agent-settings.md)을 따른다.

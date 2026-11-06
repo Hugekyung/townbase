@@ -115,6 +115,7 @@ enum InstallationAuditAction {
   file_replaced
   file_deleted
   file_scope_changed
+  agent_settings_changed
 }
 
 // Seeded singleton, even before the operator explicitly links the installation.
@@ -156,6 +157,7 @@ model Installation {
   fileVersions FileVersion[]
   fileExtractionRuns FileExtractionRun[]
   fileRuns FileRun[]
+  basicAgent BasicAgent?
 }
 
 model Administrator {
@@ -172,6 +174,7 @@ model Administrator {
   sessions            AdministratorSession[]
   fileOriginals       FileOriginal[]
   fileRuns            FileRun[]
+  basicAgents         BasicAgent[]
 
   @@unique([installationId, id])
 }
@@ -448,6 +451,24 @@ model ModelExecutionSettings {
   priceVersion         String?      @db.VarChar(64)
   updatedAt            DateTime     @updatedAt
   installation         Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+}
+
+// One explicitly configured Agent per installation; model choice lives in C settings.
+model BasicAgent {
+  installationId String @id
+  id String @unique @db.Uuid
+  ownerAdministratorId String
+  revision Int @default(1)
+  name String @db.VarChar(128)
+  purpose String @db.VarChar(512)
+  instructions String @db.VarChar(2000)
+  terminology Json
+  sourceSelection String @db.VarChar(16)
+  sourceOriginalIds String[] @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  installation Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
+  owner Administrator @relation(fields: [installationId, ownerAdministratorId], references: [installationId, id], onDelete: Restrict)
 }
 
 // No prompt, attachment, answer, raw credential or raw provider errors here.

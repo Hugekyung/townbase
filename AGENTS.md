@@ -224,3 +224,13 @@
 - 실행 목록/상세/요청 UUID 조회는 반드시 저장 순번을 공통 출처 판정에 전달한다. 재포함·새 색인 후에도 옛 실행 링크는 숨기고, 새 명시 retry만 새 순번을 갖는다. 당시 순번을 모르는 기존 이력은 NULL로 이관하고 unavailable·링크 NULL로 처리한다. 현재 순번으로 backfill하지 않는다. 현재 파일 색인의 유효성은 별도다.
 - 후속 migration 20261101030000_file_run_source_scope와 완료 결과 열의 좁은 UPDATE 권한만 추가한다. helper 자체 시험뿐 아니라 실제 소비자인 목록/상세/요청 ID 세 경로와 실제 저장 행을 함께 검증한다.
 - 검증682개(API455·배포24·DB 단위20·D04/D05 DB53·D03 DB34·D02 DB26·권한70)와 실제 이전 D05 데이터 업그레이드 보존을 확인했다. 별도 production runtime/실모델/유료 시험은 이번 수정에서 재실행하지 않았다. 사용자는 수정·검증 요약 확인 후 커밋/푸시/PR 댓글 등록을 승인했다. 전달 결과는 PR #45 기록을 따른다.
+
+
+## E01 기본 Agent 설정 적용 상태 (2026-11-04, 로컬 검증)
+
+- self_hosted GET/PUT /settings/agent는 기본 Agent 한 개의 이름·목적·지침·용어·참조 파일을 저장/조회한다. GET은 최초 agent=null이며 생성하지 않는다. PUT은 현재 비밀번호·expectedRevision(최초0)을 검사하고 설정/감사를 원자적으로 저장한다. 충돌 agent_changed409·동일 상태 revision/감사 불변을 유지한다.
+- 답변 모델은 C ModelExecutionSettings가 단일 기준이며 Agent snapshot은 현재 모델·지원 목록·기존 설정 경로를 제공한다. Agent 모델 열/PUT·임베딩 변경 경로를 추가하지 않는다. E02/E03은 Agent revision과 실제 모델/호출 설정을 각각 기록/검사한다.
+- all/selected 원본 선택은 권한이 아니다. 저장/내부 assertSourceSelection은 최신 설치/소유/삭제/제외·저장 Agent id/revision을 검사한다. E02는 검색 후보 필터와 D05 chunk/version/scope 검사·C 호출 보호를 함께 연결한다. 공개 답변·대화/Gap·웹 완료로 간주하지 않는다.
+- agent-core basic-agent-contract는 지원 mode·4,000 code point 질문과 종료 결과의 기본 계약이다. parser/타입만으로 공개 질문·실제 결과/Gap 저장이 완료된 것은 아니다. 전체 본문8KB 등 세부 설정 한도는 [E01 기록](docs/implementation/v0.2-e01-agent-settings.md)을 따른다.
+- migration 20261104000000_basic_agent와 좁은 BasicAgent SELECT/INSERT·내용/revision/updatedAt 열 UPDATE만 추가한다. DELETE·식별/소유/생성 시각·REFERENCES/DDL은 차단한다. 실 DB suite는 TOWNBASE_AGENT_SETTINGS_TEST=1·정확한 postgres/townbase_e01_test의 전용 합성 DB·owner URL/runtime secret을 요구한다. 최초 실행은 시험 자료가 비어 있어야 하며 이후 정상 정리한 DB는 재사용할 수 있다. 전체 compiled API를 사용하며 일반 시험은 opt-in을 건너뛴다.
+- 검증651개 및 별도 운영 이미지 HTTP/재시작·D05→E01 업그레이드 자료 보존을 확인했다. Linux arm64 API·amd64 PostgreSQL 에뮬레이션·합성 공급자이며 유료/품질/x86_64 성능 수락과 구분한다. 사용자가 구현·검증 요약 확인 후 커밋/푸시/main PR 생성을 승인했다. 전달 결과는 저장소 PR 기록을 따른다.
