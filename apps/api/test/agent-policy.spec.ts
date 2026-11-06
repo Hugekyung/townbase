@@ -13,10 +13,17 @@ const config = {
 };
 describe("E01 Agent settings boundary", () => {
   test("canonicalizes source identities without altering instructions", () => {
-    expect(validAgentConfiguration(config)).toBe(true);
-    expect(
-      canonicalAgent(config as Parameters<typeof canonicalAgent>[0]),
-    ).toEqual({ ...config, sourceOriginalIds: [id.toLowerCase()] });
+    const laterId = "BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB";
+    const input = {
+      ...config,
+      sourceSelection: "selected" as const,
+      sourceOriginalIds: [laterId, id],
+    };
+    expect(validAgentConfiguration(input)).toBe(true);
+    expect(canonicalAgent(input)).toEqual({
+      ...input,
+      sourceOriginalIds: [id.toLowerCase(), laterId.toLowerCase()],
+    });
   });
   test.each([
     undefined,
@@ -26,13 +33,14 @@ describe("E01 Agent settings boundary", () => {
     { ...config, name: " " },
     { ...config, purpose: "\u0000" },
     { ...config, instructions: "\ud800" },
-    { ...config, name: "😀".repeat(129) },
+    { ...config, name: "가".repeat(129) },
     { ...config, instructions: " ".repeat(1000000) },
     { ...config, sourceSelection: "all" },
     { ...config, sourceSelection: "other" },
     { ...config, sourceOriginalIds: [id, id.toLowerCase()] },
     { ...config, sourceOriginalIds: Array(1) },
     { ...config, sourceOriginalIds: Object.assign(Array(1), { extra: id }) },
+    { ...config, sourceOriginalIds: Object.assign([id], { extra: id }) },
     { ...config, sourceOriginalIds: [null] },
     { ...config, sourceOriginalIds: Array(201).fill(id) },
     { ...config, terminology: Array(1) },

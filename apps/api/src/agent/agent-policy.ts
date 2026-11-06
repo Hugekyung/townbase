@@ -68,7 +68,7 @@ export function validAgentConfiguration(
 export function canonicalAgent(
   value: BasicAgentConfiguration,
 ): BasicAgentConfiguration {
-  return {
+  const common = {
     name: value.name,
     purpose: value.purpose,
     instructions: value.instructions,
@@ -76,7 +76,12 @@ export function canonicalAgent(
       term,
       meaning,
     })),
-    sourceSelection: value.sourceSelection,
+  };
+  if (value.sourceSelection === "all")
+    return { ...common, sourceSelection: "all", sourceOriginalIds: [] };
+  return {
+    ...common,
+    sourceSelection: "selected",
     sourceOriginalIds: value.sourceOriginalIds
       .map((id) => id.toLowerCase())
       .sort(),

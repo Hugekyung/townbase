@@ -35,10 +35,10 @@ describe("basic Agent question contract", () => {
     expect(() => parseBasicAgentQuestion(value)).toThrow("invalid_request");
   });
   test("counts Unicode code points and rejects excess without truncating", () => {
+    const atLimit = "😀".repeat(3999) + "가";
     expect(
-      parseBasicAgentQuestion({ ...input, question: "😀".repeat(4000) })
-        .question,
-    ).toHaveLength(8000);
+      parseBasicAgentQuestion({ ...input, question: atLimit }).question,
+    ).toBe(atLimit);
     for (const question of [
       "가".repeat(4001),
       "😀".repeat(4001),

@@ -167,7 +167,7 @@ export class AgentService {
       Object.keys(originalIds).length !== originalIds.length ||
       !Array.from(originalIds).every(validRequestId)
     )
-      throw new ConflictException({ code: "agent_source_unavailable" });
+      throw new BadRequestException({ code: "invalid_request" });
     const row = await tx.basicAgent.findFirst({ where: this.where(c) });
     if (!row || row.id !== expected.id || row.revision !== expected.revision)
       throw new ConflictException({ code: "agent_changed" });

@@ -1,11 +1,12 @@
 import "reflect-metadata";
 import { createRequire } from "node:module";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile, mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PrismaClient } from "@townbase/database";
 import { Test } from "@nestjs/testing";
+import { Logger } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import request from "supertest";
 import type { AdministratorContext } from "../src/auth/auth.service";
@@ -48,6 +49,18 @@ enabled("E01 persisted Agent settings, actual HTTP/auth/runtime role", () => {
     token: string,
     context: AdministratorContext;
   let first: string, second: string;
+  let fixture:
+    | {
+        workspaceId: string;
+        administratorId: string;
+        authState: Awaited<
+          ReturnType<PrismaClient["authenticationState"]["findUniqueOrThrow"]>
+        >;
+      }
+    | undefined;
+  const sessionKey = () => ({
+    tokenHash: createHash("sha256").update(token).digest("hex"),
+  });
   const config = () => ({
     name: "문서 도우미",
     purpose: "출처 기반 회사 문서 안내",
@@ -103,35 +116,45 @@ enabled("E01 persisted Agent settings, actual HTTP/auth/runtime role", () => {
     await assertFreshFileManagementDatabase(owner);
     if (await owner.basicAgent.count())
       throw new Error("E01 fixture already exists");
-    const workspace = await owner.workspace.create({
-      data: { name: "E01 synthetic" },
-    });
-    await owner.installation.create({
-      data: {
-        workspaceId: workspace.id,
-        name: "E01 synthetic",
-        timeZone: "UTC",
-        initializedAt: new Date(),
-      },
-    });
-    const admin = await owner.administrator.create({
-      data: {
-        installationId: "primary",
-        username: "e01-admin",
-        passwordHash: await hashPassword(password),
-      },
-    });
+    const passwordHash = await hashPassword(password);
     first = randomUUID();
     second = randomUUID();
-    for (const id of [first, second])
-      await owner.fileOriginal.create({
+    fixture = await owner.$transaction(async (tx) => {
+      const authState = await tx.authenticationState.findUniqueOrThrow({
+        where: { id: "primary" },
+      });
+      const workspace = await tx.workspace.create({
+        data: { name: "E01 synthetic" },
+      });
+      const installation = await tx.installation.create({
         data: {
-          id,
-          installationId: "primary",
-          ownerAdministratorId: admin.id,
-          title: "E01 synthetic source",
+          workspaceId: workspace.id,
+          name: "E01 synthetic",
+          timeZone: "UTC",
+          initializedAt: new Date(),
         },
       });
+      const admin = await tx.administrator.create({
+        data: {
+          installationId: installation.id,
+          username: "e01-admin",
+          passwordHash,
+        },
+      });
+      await tx.fileOriginal.createMany({
+        data: [first, second].map((id) => ({
+          id,
+          installationId: installation.id,
+          ownerAdministratorId: admin.id,
+          title: "E01 synthetic source",
+        })),
+      });
+      return {
+        workspaceId: workspace.id,
+        administratorId: admin.id,
+        authState,
+      };
+    });
     url.username = "townbase_runtime";
     url.password = (
       await readFile(process.env.TOWNBASE_RUNTIME_PASSWORD_FILE!, "utf8")
@@ -150,21 +173,67 @@ enabled("E01 persisted Agent settings, actual HTTP/auth/runtime role", () => {
     await login();
   });
   beforeEach(async () => {
-    await owner.basicAgent.deleteMany();
-    await owner.modelExecutionSettings.deleteMany();
-    await owner.installationAuditEvent.deleteMany();
+    if (!fixture) throw new Error("E01 fixture was not created");
+    const scope = { installation: { workspaceId: fixture.workspaceId } };
+    await owner.basicAgent.deleteMany({ where: scope });
+    await owner.modelExecutionSettings.deleteMany({ where: scope });
+    await owner.installationAuditEvent.deleteMany({ where: scope });
     await owner.fileOriginal.updateMany({
+      where: {
+        ...scope,
+        ownerAdministratorId: fixture.administratorId,
+        id: { in: [first, second] },
+      },
       data: { excludedAt: null, deletedAt: null },
     });
     provider.call.mockClear();
   });
   afterAll(async () => {
-    await app?.close();
-    await owner?.$disconnect();
-    if (directory) await rm(directory, { recursive: true, force: true });
-    process.env = environment;
+    try {
+      await app?.close();
+      if (!fixture) return;
+      const { workspaceId, administratorId, authState } = fixture;
+      const scope = { installation: { workspaceId } };
+      await owner.$transaction(async (tx) => {
+        await tx.administratorSession.deleteMany({
+          where: { administratorId, installationId: "primary" },
+        });
+        await tx.basicAgent.deleteMany({ where: scope });
+        await tx.modelExecutionSettings.deleteMany({ where: scope });
+        await tx.installationAuditEvent.deleteMany({ where: scope });
+        await tx.fileOriginal.deleteMany({
+          where: {
+            ...scope,
+            ownerAdministratorId: administratorId,
+            id: { in: [first, second] },
+          },
+        });
+        await tx.administrator.delete({
+          where: { id: administratorId, ...scope },
+        });
+        await tx.installation.delete({ where: { id: "primary", workspaceId } });
+        await tx.workspace.delete({ where: { id: workspaceId } });
+        const { id, ...data } = authState;
+        await tx.authenticationState.update({ where: { id }, data });
+      });
+    } finally {
+      try {
+        await owner?.$disconnect();
+        if (directory) await rm(directory, { recursive: true, force: true });
+      } finally {
+        process.env = environment;
+      }
+    }
   });
-  test("GET is read only and never auto-creates an Agent or paid call", async () => {
+  test("GET refreshes session activity without creating Agent settings, audits or paid calls", async () => {
+    const session = await owner.administratorSession.findUniqueOrThrow({
+      where: sessionKey(),
+    });
+    const lastSeenAt = new Date(session.createdAt.getTime() - 60_000);
+    await owner.administratorSession.update({
+      where: sessionKey(),
+      data: { createdAt: lastSeenAt, lastSeenAt },
+    });
     const response = await call("get")
       .expect(200)
       .expect("Cache-Control", "no-store");
@@ -173,6 +242,13 @@ enabled("E01 persisted Agent settings, actual HTTP/auth/runtime role", () => {
       answerModel: "gpt-6-luna",
       modelSettingsPath: "/settings/model-integration/execution",
     });
+    expect(
+      (
+        await owner.administratorSession.findUniqueOrThrow({
+          where: sessionKey(),
+        })
+      ).lastSeenAt.getTime(),
+    ).toBeGreaterThan(lastSeenAt.getTime());
     expect(await owner.basicAgent.count()).toBe(0);
     expect(await owner.installationAuditEvent.count()).toBe(0);
     expect(await owner.modelCall.count()).toBe(0);
@@ -242,21 +318,37 @@ enabled("E01 persisted Agent settings, actual HTTP/auth/runtime role", () => {
       .expect(401);
     expect(await owner.basicAgent.count()).toBe(0);
   });
-  test("session expiry between guard and storage is rechecked", async () => {
-    const service = app.get(AgentService),
-      original = service.snapshot.bind(service);
-    const spy = jest
-      .spyOn(service, "snapshot")
-      .mockImplementationOnce(async (...args) => {
-        await owner.administratorSession.updateMany({
-          data: { revokedAt: new Date() },
+  test.each(["revoked", "expired"] as const)(
+    "rejects a session %s between guard and storage",
+    async (state) => {
+      const service = app.get(AgentService);
+      const original = service.snapshot.bind(service);
+      const spy = jest
+        .spyOn(service, "snapshot")
+        .mockImplementationOnce(async (...args) => {
+          const now = Date.now();
+          await owner.administratorSession.update({
+            where: sessionKey(),
+            data:
+              state === "revoked"
+                ? { revokedAt: new Date(now) }
+                : {
+                    createdAt: new Date(now - 120_000),
+                    lastSeenAt: new Date(now - 60_000),
+                    expiresAt: new Date(now - 1_000),
+                  },
+          });
+          return original(...args);
         });
-        return original(...args);
-      });
-    await call("get").expect(401);
-    spy.mockRestore();
-    await login();
-  });
+      try {
+        await call("get").expect(401);
+        expect(spy).toHaveBeenCalledTimes(1);
+      } finally {
+        spy.mockRestore();
+        await login();
+      }
+    },
+  );
   test("scope claims, wrong Origin and non-JSON input are rejected", async () => {
     await call("get").set("X-Workspace-Id", "another-workspace").expect(403);
     await call("put")
@@ -346,6 +438,17 @@ enabled("E01 persisted Agent settings, actual HTTP/auth/runtime role", () => {
         return {};
       });
     expect((await check([first])).ok).toBe(true);
+    for (const malformed of [
+      [],
+      ["not-a-uuid"],
+      Array(21).fill(first),
+      Array(1),
+    ]) {
+      await expect(check(malformed)).rejects.toMatchObject({
+        status: 400,
+        response: { code: "invalid_request" },
+      });
+    }
     await expect(check([second])).rejects.toMatchObject({
       response: { code: "agent_source_unavailable" },
     });
@@ -421,6 +524,28 @@ enabled("E01 persisted Agent settings, actual HTTP/auth/runtime role", () => {
         data: { ownerAdministratorId: "another-owner" },
       }),
     ).rejects.toThrow();
+  });
+  test.each([
+    ["P1001", "database_unavailable"],
+    ["P2028", "database_transaction_unavailable"],
+    ["unlisted", "unexpected_error"],
+  ])("logs a safe diagnostic for %s", async (code, reason) => {
+    const service = jest
+      .spyOn(app.get(AgentService), "snapshot")
+      .mockRejectedValueOnce(
+        Object.assign(new Error("E01 private canary"), { code }),
+      );
+    const log = jest.spyOn(Logger, "error").mockImplementation(() => {});
+    try {
+      const response = await call("get").expect(503);
+      expect(response.body).toEqual({ code: "agent_unavailable" });
+      expect(log.mock.calls).toEqual([
+        [`TOWNBASE_AGENT_SETTINGS_FAILED [${reason}]`],
+      ]);
+    } finally {
+      log.mockRestore();
+      service.mockRestore();
+    }
   });
   test("unknown/corrupt stored configuration fails closed without leaking its content", async () => {
     await save().expect(200);

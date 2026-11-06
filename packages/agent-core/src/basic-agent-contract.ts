@@ -11,9 +11,14 @@ export type BasicAgentConfiguration = Readonly<{
   purpose: string;
   instructions: string;
   terminology: readonly Readonly<{ term: string; meaning: string }>[];
-  sourceSelection: "all" | "selected";
-  sourceOriginalIds: readonly string[];
-}>;
+}> &
+  (
+    | Readonly<{ sourceSelection: "all"; sourceOriginalIds: readonly [] }>
+    | Readonly<{
+        sourceSelection: "selected";
+        sourceOriginalIds: readonly string[];
+      }>
+  );
 export type BasicAgentQuestion = Readonly<{
   requestId: string;
   question: string;
