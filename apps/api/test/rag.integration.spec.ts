@@ -898,6 +898,108 @@ integration(
       ).expect(503);
       expect(read.body).toEqual({ code: "stored_result_unavailable" });
     });
+    test("rejects undersized settings on write and historical settings before creating or charging a question", async () => {
+      const stored = await owner.modelExecutionSettings.findUniqueOrThrow({
+        where: { installationId: "primary" },
+      });
+      const update = {
+        answerModel: "gpt-6-luna",
+        reasoning: "low",
+        inputTokenLimit: 512,
+        outputTokenLimit: 4096,
+        monthlyBudgetUsd: "5.00",
+        priceVersion: PRICE_VERSION,
+      };
+      const rejected = await call(
+        "put",
+        "/settings/model-integration/execution",
+      )
+        .send({ currentPassword: password, ...update })
+        .expect(400);
+      expect(rejected.body.code).toBe("invalid_request");
+      expect(
+        (
+          await owner.modelExecutionSettings.findUniqueOrThrow({
+            where: { installationId: "primary" },
+          })
+        ).inputTokenLimit,
+      ).toBe(stored.inputTokenLimit);
+      // Simulate a setting saved by C before this minimum was introduced.
+      await owner.modelExecutionSettings.update({
+        where: { installationId: "primary" },
+        data: { inputTokenLimit: 512 },
+      });
+      const body = input();
+      const r = await ask(body).expect(409);
+      expect(r.body.code).toBe("invalid_model_settings");
+      expect(provider.call).not.toHaveBeenCalled();
+      expect(await owner.ragTurn.count()).toBe(0);
+      expect(await owner.ragConversation.count()).toBe(0);
+      expect(
+        await owner.modelCall.count({
+          where: { requestId: { in: [body.requestId] } },
+        }),
+      ).toBe(0);
+      expect(
+        await owner.modelCall.count({
+          where: { purpose: { in: ["rag_answer", "rag_question_embedding"] } },
+        }),
+      ).toBe(0);
+    });
+    test.each(["onboarding", "product_history", "documentation_gap"])(
+      "minimum configured budget produces a sourced %s answer",
+      async (requestedMode) => {
+        await call("put", "/settings/model-integration/execution")
+          .send({
+            currentPassword: password,
+            answerModel: "gpt-6-luna",
+            reasoning: "low",
+            inputTokenLimit: 4096,
+            outputTokenLimit: 4096,
+            monthlyBudgetUsd: "5.00",
+            priceVersion: PRICE_VERSION,
+          })
+          .expect(200);
+        const r = await ask(input({ requestedMode })).expect(200);
+        expect(r.body.status).toBe("answered");
+        expect(r.body.model).toBe("gpt-6-luna");
+        expect(r.body.sources).toHaveLength(1);
+        expect(provider.call).toHaveBeenCalledTimes(2);
+      },
+    );
+    test("Gap DB reference limit admits 0/20, rejects 21/non-array and leaves listing readable", async () => {
+      variant = "refusal";
+      const r = await ask().expect(200);
+      const row = await owner.ragGap.findUniqueOrThrow({
+        where: { id: r.body.gapId },
+      });
+      const reference = (row.sourceRefs as unknown as { id: string }[])[0]!;
+      const twenty = Array.from({ length: 20 }, () => ({
+        ...reference,
+        id: randomUUID(),
+      }));
+      const where = { id: row.id };
+      await owner.ragGap.update({ where, data: { sourceRefs: [] } });
+      await call("get", "/rag/gaps").expect(200);
+      await owner.ragGap.update({ where, data: { sourceRefs: twenty } });
+      for (const sourceRefs of [
+        [...twenty, { ...reference, id: randomUUID() }],
+        {},
+      ]) {
+        await expect(
+          owner.ragGap.update({ where, data: { sourceRefs } }),
+        ).rejects.toThrow();
+        expect(
+          (await owner.ragGap.findUniqueOrThrow({ where })).sourceRefs,
+        ).toEqual(twenty);
+      }
+      const gaps = await call("get", "/rag/gaps").expect(200);
+      expect(gaps.body.gaps[0]).toMatchObject({
+        id: row.id,
+        sourceState: "unavailable",
+        question: null,
+      });
+    });
     test("selected source preferences restrict candidates even when other indexed files exist", async () => {
       await owner.basicAgent.update({
         where: { installationId: "primary" },

@@ -1,5 +1,6 @@
 import {
   DEFAULT_EXECUTION,
+  MIN_INPUT_TOKEN_LIMIT,
   PRICE_VERSION,
   cost,
   budgetUsd,
@@ -13,6 +14,14 @@ import {
   validRequestId,
 } from "../src/model-integration/model-policy";
 describe("model configuration and exact cost arithmetic", () => {
+  test("accepts the minimum input budget reserved for the document Agent", () => {
+    expect(
+      validExecution({
+        ...DEFAULT_EXECUTION,
+        inputTokenLimit: MIN_INPUT_TOKEN_LIMIT,
+      }),
+    ).toBe(true);
+  });
   test.each(["gpt-6-luna", "gpt-6.1-sol"])(
     "supports approved %s and bounded reasoning",
     (answerModel) => {
@@ -32,6 +41,8 @@ describe("model configuration and exact cost arithmetic", () => {
     undefined,
     { ...DEFAULT_EXECUTION, answerModel: "gpt-unknown" },
     { ...DEFAULT_EXECUTION, inputTokenLimit: 16001 },
+    { ...DEFAULT_EXECUTION, inputTokenLimit: 512 },
+    { ...DEFAULT_EXECUTION, inputTokenLimit: MIN_INPUT_TOKEN_LIMIT - 1 },
     { ...DEFAULT_EXECUTION, outputTokenLimit: 4097 },
     { ...DEFAULT_EXECUTION, priceVersion: "stale" },
   ])("rejects unsupported configuration %#", (value) =>

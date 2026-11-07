@@ -1,4 +1,17 @@
 import { parseBasicAgentQuestion } from "../src/basic-agent-contract";
+import type { BasicAgentResult } from "../src/basic-agent-contract";
+// Compile-time regression: successful answers always name the actual model.
+type Assert<T extends true> = T;
+type AnswerRequiresModel = Assert<
+  null extends Extract<BasicAgentResult, { status: "answered" }>["model"]
+    ? false
+    : true
+>;
+type RefusalAllowsNoModel = Assert<
+  null extends Extract<BasicAgentResult, { status: "refused" }>["model"]
+    ? true
+    : false
+>;
 const input = {
   requestId: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
   question: " 질문 원문 ",

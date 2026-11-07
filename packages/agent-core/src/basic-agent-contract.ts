@@ -101,12 +101,12 @@ type BasicAgentResultIdentity = Readonly<{
   agentRevision: number;
   requestedMode: BasicAgentMode;
   resolvedMode: Exclude<BasicAgentMode, "auto">;
-  model: string | null;
 }>;
 export type BasicAgentResult = BasicAgentResultIdentity &
   (
     | Readonly<{
         status: "answered";
+        model: string;
         isAnswerable: true;
         answer: string;
         sources: readonly BasicAgentSource[];
@@ -114,6 +114,7 @@ export type BasicAgentResult = BasicAgentResultIdentity &
       }>
     | Readonly<{
         status: "refused";
+        model: string | null;
         isAnswerable: false;
         answer: string;
         sources: readonly BasicAgentSource[];

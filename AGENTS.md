@@ -240,8 +240,9 @@
 
 - main b739222 이후 codex/v02-document-agent에서 E02~E05·H01을 연결했다. 관리자 POST /rag/questions, GET questions/:id·conversations·conversations/:id/turns·gaps, DELETE gaps/:id를 제공한다. 웹·첨부는 F/G 후속이다.
 - RagConversation/RagTurn/RagGap은 소유자 전용 RAG 저장이다. 같은 질문 UUID는 저장 상태로 연결하며 C 호출 UUID는 용도별 결정적으로 만든다. 문서 부족/Gap과 기술 실패를 구분하고 Gap/종료를 같은 transaction에 저장한다.
-- C 호출은 instructions/input을 나눠 두 필드 모두 digest/전송/입력 한도에 포함한다. JSON 전 질문·Agent 선호·이력·근거도 검사한다. 호출 입장/게시/재조회에 최신 신원·Agent/모델 설정·원본/버전/scope/색인을 검사한다. 과거 자료 무효화 시 답변/근거/관련 Gap 본문을 가린다.
+- C 호출은 instructions/input을 나눠 두 필드 모두 digest/전송/입력 한도에 포함한다. JSON 전 질문·Agent 선호·이력·근거도 검사한다. 호출 입장/게시에는 최신 신원·Agent/모델 설정·원본/버전/scope/색인을 검사하고, 재조회에는 최신 신원과 원본/버전/scope/색인 유효성을 검사한다. 과거 자료 무효화 시 답변/근거/관련 Gap 본문을 가린다.
 - 후보20/근거5·8KB 완전 조각·초기 raw 판정0.45/0.40·명시 이력3개·전체90초·동시1개/분당10개를 적용한다. 이력은30일 조회 만료, 시작/1분200개 정리이며 Gap은 명시 삭제까지 보관한다. 품질/성능은 J에서 검증한다.
 - /rag/questions JSON64KB는 선인증·압축 거절·본문 deadline을 적용한다. Express 대소문자/끝 slash 별칭도 동일하며 질문 본문 완료 시 슬롯을 해제한다. 다른 일반 API는8KB다.
 - migration 20261107000000_document_agent와 새3테이블 SELECT/INSERT/보관·Gap DELETE, RagTurn 결과/상태7열 UPDATE만 추가했다. 식별/입력/소유/설정·보관/호출 ID UPDATE·REFERENCES/DDL은 거절한다. legacy 기본 factory도 DB/Key/fallback 생성 전에 프로필을 검사한다.
 - DB suite는 TOWNBASE_RAG_TEST=1·정확한 postgres/townbase_e02_test·owner URL/runtime secret을 요구한다. compiled API·실제 업로드/파서/색인·합성 공급자만 사용하며 일반 시험은 opt-in을 건너뛴다. [계약·884개 검증·환경/한계](docs/implementation/v0.2-document-agent.md)를 따른다. 이번 요약 후 전달 승인을 받는다.
+- PR #47 보완은 입력 설정 최소4,096(기본16,000 유지), answered 모델 필수·refused만 null, Gap 출처 최대20 후속 migration을 적용한다. 옛 낮은 입력 설정은 자동 변경하지 않으며 새 RAG 접수 전에 invalid_model_settings409로 차단한다. 관리자가 execution 설정을 명시 변경해야 한다. 재조회는 설정 revision/digest가 아니라 최신 인증·출처 유효성을 검사한다. [리뷰 보완·회귀 범위](docs/implementation/v0.2-document-agent.md)를 따른다.

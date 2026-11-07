@@ -15,6 +15,7 @@ import {
 } from "../files/file-source";
 import {
   DEFAULT_EXECUTION,
+  MIN_INPUT_TOKEN_LIMIT,
   digest,
   ModelCallError,
   validRequestId,
@@ -236,6 +237,10 @@ export class RagStore {
       const { agent } = await this.agents.readInTransaction(tx, fresh);
       if (!agent) throw new ModelCallError("agent_not_configured", 409);
       const settings = await this.execution(tx, fresh);
+      // Existing installations may retain a smaller historical C setting.
+      // Require an explicit settings change before persisting or charging a turn.
+      if (settings.inputTokenLimit < MIN_INPUT_TOKEN_LIMIT)
+        throw new ModelCallError("invalid_model_settings", 409);
       let conversationId = input.conversationId;
       if (conversationId) {
         const conversation = await tx.ragConversation.findFirst({

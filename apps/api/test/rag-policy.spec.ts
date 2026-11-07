@@ -9,6 +9,10 @@ import {
   type RagSource,
 } from "../src/rag/rag-policy";
 import { isRagQuestion } from "../src/rag/rag-http";
+import {
+  MIN_INPUT_TOKEN_LIMIT,
+  inputBound,
+} from "../src/model-integration/model-policy";
 const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const source = (overrides: Partial<RagSource> = {}): RagSource => {
   const content = "등록 문서에 기록된 발송 절차입니다.";
@@ -58,6 +62,48 @@ const valid = {
   conflicts: [],
 };
 describe("RAG question and grounded evidence contracts", () => {
+  test.each(["onboarding", "product_history", "documentation_gap"] as const)(
+    "minimum configured input budget admits a short sourced %s prompt without truncation",
+    (mode) => {
+      const prompt = promptFor(
+        {
+          name: "도우미",
+          purpose: "안내",
+          instructions: "",
+          terminology: [],
+          sourceSelection: "all",
+          sourceOriginalIds: [],
+        },
+        "배송 절차는?",
+        mode,
+        [source()],
+        [],
+        MIN_INPUT_TOKEN_LIMIT,
+      );
+      const bound = inputBound(prompt.instructions + prompt.input);
+      expect(bound).toBeLessThanOrEqual(MIN_INPUT_TOKEN_LIMIT);
+      expect(JSON.parse(prompt.input).sources[0].content).toBe(
+        source().content,
+      );
+      expect(() =>
+        promptFor(
+          {
+            name: "도우미",
+            purpose: "안내",
+            instructions: "",
+            terminology: [],
+            sourceSelection: "all",
+            sourceOriginalIds: [],
+          },
+          "배송 절차는?",
+          mode,
+          [source()],
+          [],
+          bound - 1,
+        ),
+      ).toThrow("input_limit_exceeded");
+    },
+  );
   test("question metadata preserves exact text and canonicalizes UUIDs", () => {
     expect(
       questionInput({
