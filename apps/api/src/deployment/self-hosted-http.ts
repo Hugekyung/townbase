@@ -1,5 +1,6 @@
 import { HttpException } from "@nestjs/common";
 import { AccessService, type AccessRequest } from "../access/access.service";
+import { isRagQuestion } from "../rag/rag-http";
 import { isFileUpload } from "../files/file-upload";
 import path from "node:path";
 import type { NestExpressApplication } from "@nestjs/platform-express";
@@ -42,7 +43,7 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
       },
       next: () => void,
     ) => {
-      if (!isFileUpload(req)) return next();
+      if (!isFileUpload(req) && !isRagQuestion(req)) return next();
       void app
         .get(AccessService)
         .authenticate(req)
@@ -55,7 +56,11 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
           else {
             if (req.destroyed || res.destroyed) return;
             if (uploading) {
-              res.status(409).json({ code: "file_operation_busy" });
+              res.status(isRagQuestion(req) ? 429 : 409).json({
+                code: isRagQuestion(req)
+                  ? "question_body_busy"
+                  : "file_operation_busy",
+              });
               return;
             }
             uploading = true;
@@ -70,7 +75,10 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
             };
             res.once("finish", release);
             res.once("close", release);
-            req.once("end", () => clearTimeout(deadline));
+            req.once("end", () => {
+              clearTimeout(deadline);
+              if (isRagQuestion(req)) release();
+            });
             next();
           }
         })
@@ -85,6 +93,11 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
     limit: "28mb",
     strict: true,
     type: isFileUpload,
+  });
+  app.useBodyParser("json", {
+    limit: "64kb",
+    strict: true,
+    type: isRagQuestion,
   });
   app.useBodyParser("json", { limit: "8kb", strict: true });
   app.use(

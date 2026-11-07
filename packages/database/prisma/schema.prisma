@@ -158,6 +158,9 @@ model Installation {
   fileExtractionRuns FileExtractionRun[]
   fileRuns FileRun[]
   basicAgent BasicAgent?
+  ragConversations RagConversation[]
+  ragTurns RagTurn[]
+  ragGaps RagGap[]
 }
 
 model Administrator {
@@ -175,6 +178,9 @@ model Administrator {
   fileOriginals       FileOriginal[]
   fileRuns            FileRun[]
   basicAgents         BasicAgent[]
+  ragConversations RagConversation[]
+  ragTurns RagTurn[]
+  ragGaps RagGap[]
 
   @@unique([installationId, id])
 }
@@ -670,4 +676,67 @@ model FileIndexChunk {
  index FileIndex @relation(fields:[installationId,indexId], references:[installationId,id],onDelete:Cascade)
  call ModelCall @relation(fields:[installationId,modelCallRequestId],references:[installationId,requestId],onDelete:Restrict)
  @@unique([installationId,indexId,ordinal])
+}
+
+// Dedicated self-hosted RAG provenance. Attachment turns use a separate F contract.
+model RagConversation {
+  id String @id @db.Uuid
+  installationId String
+  ownerAdministratorId String
+  createdAt DateTime @default(now())
+  installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict)
+  owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict)
+  turns RagTurn[]
+  @@unique([installationId,ownerAdministratorId,id])
+}
+model RagTurn {
+  installationId String
+  requestId String @db.Uuid
+  ownerAdministratorId String
+  conversationId String @db.Uuid
+  agentId String @db.Uuid
+  agentRevision Int
+  executionDigest String @db.VarChar(64)
+  fingerprint String @db.VarChar(64)
+  question String
+  requestedMode RetrievalMode
+  resolvedMode RetrievalMode
+  historyRequestIds String[] @db.Uuid
+  configuredModel String @db.VarChar(64)
+  model String? @db.VarChar(64)
+  status String @db.VarChar(16)
+  errorCode String? @db.VarChar(64)
+  sources Json @default("[]")
+  result Json?
+  answer String?
+  embeddingRequestId String @db.Uuid
+  answerRequestId String @db.Uuid
+  createdAt DateTime @default(now())
+  deadlineAt DateTime
+  completedAt DateTime?
+  expiresAt DateTime
+  installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict)
+  owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict)
+  conversation RagConversation @relation(fields:[installationId,ownerAdministratorId,conversationId],references:[installationId,ownerAdministratorId,id],onDelete:Restrict)
+  @@id([installationId,requestId])
+  @@index([installationId,status,createdAt])
+  @@index([installationId,ownerAdministratorId,conversationId,createdAt])
+  @@index([expiresAt])
+}
+model RagGap {
+  id String @id @db.Uuid
+  installationId String
+  ownerAdministratorId String
+  // Opaque history ID survives the 30-day conversation retention.
+  turnRequestId String @db.Uuid
+  question String
+  requestedMode RetrievalMode
+  resolvedMode RetrievalMode
+  reason String
+  sourceRefs Json
+  createdAt DateTime @default(now())
+  installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict)
+  owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict)
+  @@unique([installationId,turnRequestId])
+  @@index([installationId,ownerAdministratorId,id])
 }

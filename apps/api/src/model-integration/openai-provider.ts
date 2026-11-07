@@ -7,6 +7,7 @@ export type ProviderRequest = {
   input: string;
   outputLimit: number;
   reasoning: Reasoning;
+  instructions?: string;
 };
 export type ProviderResult = {
   usage: Usage;
@@ -155,6 +156,9 @@ export class OpenAIProvider {
             : {
                 model: request.model,
                 input: request.input,
+                ...(request.instructions == null
+                  ? {}
+                  : { instructions: request.instructions }),
                 max_output_tokens: request.outputLimit,
                 reasoning: { effort: request.reasoning },
                 store: false,

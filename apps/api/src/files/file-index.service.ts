@@ -325,6 +325,10 @@ export class FileIndexService {
     context: AdministratorContext,
     vector: unknown,
     topK = 5,
+    selection?: {
+      originalIds?: readonly string[];
+      knowledgeTypes?: readonly string[];
+    },
   ) {
     try {
       embeddingVector(vector);
@@ -365,6 +369,8 @@ export class FileIndexService {
       JOIN "FileVersion" v ON v.id=i."versionId" AND v."installationId"=i."installationId"
       JOIN "FileOriginal" o ON o.id=i."originalId" AND o."installationId"=i."installationId"
       WHERE i."installationId"=${c.installationId} AND o."ownerAdministratorId"=${c.administratorId} AND i."ownerAdministratorId"=${c.administratorId} AND ${currentIndexWhere}
+      ${selection?.originalIds == null ? Prisma.empty : selection.originalIds.length === 0 ? Prisma.sql`AND false` : Prisma.sql`AND i."originalId" IN (${Prisma.join(selection.originalIds.map((id) => Prisma.sql`${id}::uuid`))})`}
+      ${selection?.knowledgeTypes == null ? Prisma.empty : Prisma.sql`AND ch."knowledgeTypes"::text[] && ARRAY[${Prisma.join(selection.knowledgeTypes)}]::text[]`}
       ORDER BY ch.embedding <=> ${toPgVectorLiteral(vector)}::vector, ch.id LIMIT ${topK}`),
     );
   }

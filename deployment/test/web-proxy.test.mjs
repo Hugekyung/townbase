@@ -90,6 +90,9 @@ test("Vite forwards readiness, setup, authentication and integration settings wh
       ["/settings/model-integration/credentials/embedding/disable", "POST"],
       ["/settings/model-integration/credentials/embedding", "DELETE"],
       ["/settings/model-integration/transfers", "PUT"],
+      ["/rag/questions", "POST"],
+      ["/rag/conversations", "GET"],
+      ["/rag/gaps/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "DELETE"],
     ]) {
       const response = await fetch(`${origin}${route}`, {
         method,

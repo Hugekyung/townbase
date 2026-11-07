@@ -4,6 +4,8 @@ export const PRICE_VERSION = "openai-global-standard-2026-10-26";
 export const ANSWER_MODELS = ["gpt-6-luna", "gpt-6.1-sol"] as const;
 export type AnswerModel = (typeof ANSWER_MODELS)[number];
 export type Reasoning = "none" | "low" | "medium" | "high" | "xhigh" | "max";
+// Leave room for the fixed document-Agent instructions and a small source.
+export const MIN_ANSWER_INPUT_TOKEN_LIMIT = 4096;
 export const DEFAULT_EXECUTION = Object.freeze({
   answerModel: "gpt-6-luna" as AnswerModel,
   reasoning: "low" as Reasoning,
@@ -52,7 +54,12 @@ export function budgetUsd(nano: bigint): string {
   if (parseBudget(value) !== nano) throw new ModelCallError("invalid_budget");
   return value;
 }
-export function validExecution(value: unknown): value is ExecutionSettings {
+// New settings must support answers. Historical embedding settings keep their
+// original minimum; indexing already splits chunks to fit that saved limit.
+export function validExecution(
+  value: unknown,
+  purpose: "answer" | "embedding" = "answer",
+): value is ExecutionSettings {
   if (value == null || typeof value !== "object" || Array.isArray(value))
     return false;
   const v = value as ExecutionSettings;
@@ -62,7 +69,8 @@ export function validExecution(value: unknown): value is ExecutionSettings {
     ["none", "low", "medium", "high", "xhigh", "max"].includes(v.reasoning) &&
     !(v.answerModel === "gpt-6.1-sol" && v.reasoning === "none") &&
     Number.isInteger(v.inputTokenLimit) &&
-    v.inputTokenLimit >= 512 &&
+    v.inputTokenLimit >=
+      (purpose === "embedding" ? 512 : MIN_ANSWER_INPUT_TOKEN_LIMIT) &&
     v.inputTokenLimit <= 16000 &&
     Number.isInteger(v.outputTokenLimit) &&
     v.outputTokenLimit >= 128 &&

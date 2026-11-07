@@ -7,11 +7,12 @@ import { SetupService } from "../setup/setup.service";
 import { ModelIntegrationModule } from "../model-integration/model-integration.module";
 import { FilesModule } from "../files/files.module";
 import { AuthModule } from "../auth/auth.module";
+import { RagModule } from "../rag/rag.module";
 import { AgentModule } from "../agent/agent.module";
 
 // Intentionally excludes the legacy ingestion, MCP, gap and draft modules.
 @Module({
-  imports: [AuthModule, ModelIntegrationModule, FilesModule, AgentModule],
+  imports: [AuthModule, ModelIntegrationModule, FilesModule, AgentModule, RagModule],
   controllers: [HealthController, ReadinessController, SetupController],
   providers: [SetupService],
 })

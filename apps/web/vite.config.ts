@@ -16,6 +16,7 @@ export default defineConfig({
       "/setup": { ...localApi },
       "/auth": { ...localApi },
       "/settings": { ...localApi },
+      "/rag": { ...localApi },
     },
   },
 });

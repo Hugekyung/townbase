@@ -246,6 +246,45 @@ integration("model execution with isolated DB and synthetic provider", () => {
     await check().expect(409);
     expect(provider.call).not.toHaveBeenCalled();
   });
+  it.each([
+    "document_embedding",
+    "rag_question_embedding",
+    "rag_answer",
+    "attachment_answer",
+  ] as const)(
+    "keeps price precedence and purpose-specific historical minimum for %s",
+    async (purpose) => {
+      await ready();
+      await owner.modelExecutionSettings.update({
+        where: { installationId: "primary" },
+        data: { inputTokenLimit: 512, priceVersion: null },
+      });
+      await expect(execute("Synthetic", purpose)).rejects.toThrow(
+        "price_not_confirmed",
+      );
+      expect(provider.call).not.toHaveBeenCalled();
+      expect(await owner.modelCall.count()).toBe(0);
+      await owner.modelExecutionSettings.update({
+        where: { installationId: "primary" },
+        data: { priceVersion: PRICE_VERSION },
+      });
+      if (
+        purpose === "document_embedding" ||
+        purpose === "rag_question_embedding"
+      ) {
+        const result = await execute("Synthetic", purpose);
+        expect(result.call.status).toBe("succeeded");
+        expect(provider.call).toHaveBeenCalledTimes(1);
+        expect(await owner.modelCall.count()).toBe(1);
+      } else {
+        await expect(execute("Synthetic", purpose)).rejects.toThrow(
+          "invalid_model_settings",
+        );
+        expect(provider.call).not.toHaveBeenCalled();
+        expect(await owner.modelCall.count()).toBe(0);
+      }
+    },
+  );
   it.each(["gpt-6-luna", "gpt-6.1-sol"])(
     "stores/reloads %s, reauthenticates and records only real setting changes",
     async (answerModel) => {
