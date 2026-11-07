@@ -398,7 +398,7 @@ export class ModelExecutionService {
       const settings = await this.settings(tx, fresh.installationId);
       if (settings.priceVersion !== PRICE_VERSION)
         throw new ModelCallError("price_not_confirmed", 409);
-      if (!validExecution(settings))
+      if (!validExecution(settings, purpose))
         throw new ModelCallError("invalid_model_settings");
       if (settings.monthlyBudgetUsd == null)
         throw new ModelCallError("budget_not_configured", 409);

@@ -1,4 +1,8 @@
-import type { RagSource } from "../src/rag/rag-policy";
+import {
+  answerText,
+  type GroundedResult,
+  type RagSource,
+} from "../src/rag/rag-policy";
 import { RagService } from "../src/rag/rag.service";
 import type { RagStore, Admission } from "../src/rag/rag-store";
 import type { ModelExecutionService } from "../src/model-integration/model-execution.service";
@@ -41,15 +45,46 @@ describe("whole-question deadline", () => {
         locations: [],
         headingPath: [],
       } as unknown as RagSource;
+      let state: {
+        requestId: string;
+        status: string;
+        errorCode: string | null;
+        answer: string | null;
+        model: string | null;
+      } = {
+        requestId,
+        status: "running",
+        errorCode: null,
+        answer: null,
+        model: null,
+      };
       const store = {
         admit: jest.fn().mockResolvedValue({ admission }),
-        fail: jest.fn().mockResolvedValue(undefined),
-        read: jest.fn().mockResolvedValue({
-          requestId,
-          status: "failed",
-          errorCode: "question_timeout",
-        }),
-        complete: jest.fn().mockResolvedValue(undefined),
+        fail: jest.fn(
+          async (_c: unknown, _turn: unknown, errorCode: string) => {
+            if (state.status === "running")
+              state = { ...state, status: "failed", errorCode };
+          },
+        ),
+        read: jest.fn(async () => ({ ...state })),
+        complete: jest.fn(
+          async (
+            _token: unknown,
+            _c: unknown,
+            _a: unknown,
+            _sources: unknown,
+            result: GroundedResult,
+            model: string | null,
+          ) => {
+            state = {
+              ...state,
+              status: result.isAnswerable ? "answered" : "refused",
+              errorCode: null,
+              answer: answerText(result),
+              model,
+            };
+          },
+        ),
         recordSources: jest.fn().mockResolvedValue([source]),
       };
       let finish!: (value: unknown) => void;
@@ -114,7 +149,22 @@ describe("whole-question deadline", () => {
           },
         });
         await jest.advanceTimersByTimeAsync(0);
-        await result;
+        await expect(result).resolves.toMatchObject(
+          expired
+            ? {
+                status: "failed",
+                errorCode: "question_timeout",
+                answer: null,
+                model: null,
+              }
+            : {
+                status: "answered",
+                errorCode: null,
+                answer: "기록된 답변 [" + requestId + "]",
+                model: "gpt-6-luna",
+              },
+        );
+        expect(state.status).toBe(expired ? "failed" : "answered");
         expect(store.complete).toHaveBeenCalledTimes(expired ? 0 : 1);
         if (!expired) expect(store.fail).not.toHaveBeenCalled();
         await service.onModuleDestroy();

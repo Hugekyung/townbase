@@ -1,6 +1,6 @@
 import {
   DEFAULT_EXECUTION,
-  MIN_INPUT_TOKEN_LIMIT,
+  MIN_ANSWER_INPUT_TOKEN_LIMIT,
   PRICE_VERSION,
   cost,
   budgetUsd,
@@ -14,11 +14,32 @@ import {
   validRequestId,
 } from "../src/model-integration/model-policy";
 describe("model configuration and exact cost arithmetic", () => {
+  test.each([512, 4095, 4096, 16000])(
+    "historical embedding budget %i uses its own minimum",
+    (inputTokenLimit) => {
+      const settings = { ...DEFAULT_EXECUTION, inputTokenLimit };
+      expect(validExecution(settings, "embedding")).toBe(true);
+      expect(validExecution(settings, "answer")).toBe(
+        inputTokenLimit >= MIN_ANSWER_INPUT_TOKEN_LIMIT,
+      );
+      expect(validExecution(settings)).toBe(
+        inputTokenLimit >= MIN_ANSWER_INPUT_TOKEN_LIMIT,
+      );
+    },
+  );
+  test.each([511, 16001, NaN])(
+    "rejects invalid embedding budget %i",
+    (inputTokenLimit) => {
+      expect(
+        validExecution({ ...DEFAULT_EXECUTION, inputTokenLimit }, "embedding"),
+      ).toBe(false);
+    },
+  );
   test("accepts the minimum input budget reserved for the document Agent", () => {
     expect(
       validExecution({
         ...DEFAULT_EXECUTION,
-        inputTokenLimit: MIN_INPUT_TOKEN_LIMIT,
+        inputTokenLimit: MIN_ANSWER_INPUT_TOKEN_LIMIT,
       }),
     ).toBe(true);
   });
@@ -42,7 +63,7 @@ describe("model configuration and exact cost arithmetic", () => {
     { ...DEFAULT_EXECUTION, answerModel: "gpt-unknown" },
     { ...DEFAULT_EXECUTION, inputTokenLimit: 16001 },
     { ...DEFAULT_EXECUTION, inputTokenLimit: 512 },
-    { ...DEFAULT_EXECUTION, inputTokenLimit: MIN_INPUT_TOKEN_LIMIT - 1 },
+    { ...DEFAULT_EXECUTION, inputTokenLimit: MIN_ANSWER_INPUT_TOKEN_LIMIT - 1 },
     { ...DEFAULT_EXECUTION, outputTokenLimit: 4097 },
     { ...DEFAULT_EXECUTION, priceVersion: "stale" },
   ])("rejects unsupported configuration %#", (value) =>

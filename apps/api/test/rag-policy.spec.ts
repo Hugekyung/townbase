@@ -10,7 +10,7 @@ import {
 } from "../src/rag/rag-policy";
 import { isRagQuestion } from "../src/rag/rag-http";
 import {
-  MIN_INPUT_TOKEN_LIMIT,
+  MIN_ANSWER_INPUT_TOKEN_LIMIT,
   inputBound,
 } from "../src/model-integration/model-policy";
 const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -78,10 +78,10 @@ describe("RAG question and grounded evidence contracts", () => {
         mode,
         [source()],
         [],
-        MIN_INPUT_TOKEN_LIMIT,
+        MIN_ANSWER_INPUT_TOKEN_LIMIT,
       );
       const bound = inputBound(prompt.instructions + prompt.input);
-      expect(bound).toBeLessThanOrEqual(MIN_INPUT_TOKEN_LIMIT);
+      expect(bound).toBeLessThanOrEqual(MIN_ANSWER_INPUT_TOKEN_LIMIT);
       expect(JSON.parse(prompt.input).sources[0].content).toBe(
         source().content,
       );

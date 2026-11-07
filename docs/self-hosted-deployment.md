@@ -352,7 +352,7 @@ PUT `/files/:id/scope`에 JSON `{ "included": false }`를 보내면 검색 범�
 
 ## 문서 Agent API (E02~E05·H01, 로컬 검증)
 
-PR #47 보완 후 execution의 inputTokenLimit은4,096~16,000이며 기본16,000이다. 예전512~4,095 값은 자동 변경하지 않는다. 해당 설정으로 새 질문을 보내면 저장/유료 호출 전에 invalid_model_settings409를 반환하므로 관리자가 기존 execution PUT에서 currentPassword와 함께 명시 변경한다. 최소값에서도 긴 지침/이력/근거가 예산을 넘으면 오류로 거절하며 자동 증액/절단하지 않는다. 후속 Gap migration은 출처 배열 최대20개를 검사한다. 기존 초과 행이 있으면 migration이 실패하므로 백업 후 해당 근거를 검토·정리한 뒤 재시도한다.
+PR #47 보완 후 execution의 inputTokenLimit은4,096~16,000이며 기본16,000이다. 예전512~4,095 값은 자동 변경하지 않는다. 해당 설정으로 새 질문을 보내면 저장/유료 호출 전에 invalid_model_settings409를 반환하므로 관리자가 기존 execution PUT에서 currentPassword와 함께 명시 변경한다. 기존512 이상 값의 파일 임베딩은 저장 한도에 맞춰 조각을 나눠 계속 사용할 수 있다. C 호출은 가격 미확인 시 price_not_confirmed409를 용도별 설정 검사보다 먼저 반환한다. 최소값에서도 긴 지침/이력/근거가 예산을 넘으면 오류로 거절하며 자동 증액/절단하지 않는다. 후속 Gap migration은 출처 배열 최대20개를 검사한다. 기존 초과 행이 있으면 migration이 실패하므로 백업 후 해당 근거를 검토·정리한 뒤 재시도한다.
 
 기본 Agent, C 모델/Key·전송 허용·가격/예산, 파일의 명시 색인을 설정한다. 관리자 POST /rag/questions에 requestId UUID v4·question·requestedMode를 보낸다. mode는 auto/onboarding/product_history/documentation_gap 중 명시한다. 결과/상태는 GET /rag/questions/:id, 대화는 GET /rag/conversations 및 /rag/conversations/:id/turns로 조회한다. Gap은 GET /rag/gaps 및 빈 JSON DELETE /rag/gaps/:id로 관리한다.
 
