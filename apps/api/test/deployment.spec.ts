@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import request from "supertest";
 
+import { RagService } from "../src/rag/rag.service";
 import { FileRunService } from "../src/files/file-run.service";
 import { FileManagementService } from "../src/files/file-management.service";
 import { DeploymentDatabase } from "../src/deployment/deployment-database";
@@ -56,6 +57,8 @@ describe("self-hosted deployment surface", () => {
     const module = await Test.createTestingModule({
       imports: [DeploymentModule],
     })
+      .overrideProvider(RagService)
+      .useValue({})
       .overrideProvider(FileRunService)
       .useValue({})
       .overrideProvider(FileManagementService)

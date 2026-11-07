@@ -49,6 +49,7 @@ export type CallInput = {
   requestId: string;
   purpose: TransferPurpose;
   input: string;
+  instructions?: string;
   fileNames?: readonly string[];
 };
 export type CallBoundary = {
@@ -311,7 +312,7 @@ export class ModelExecutionService {
       password,
     );
   }
-  // Internal future D/E/F entrypoint. HTTP exposes only fixed synthetic checks.
+  // Shared D/E/F entrypoint. Controllers validate product inputs before calling it.
   async execute(
     token: string | undefined,
     context: AdministratorContext,
@@ -339,6 +340,14 @@ export class ModelExecutionService {
     )
       throw new ModelCallError("invalid_call_input");
     if (
+      input.instructions != null &&
+      (typeof input.instructions !== "string" ||
+        !input.instructions.trim() ||
+        input.instructions.length > 8000 ||
+        input.purpose !== "rag_answer")
+    )
+      throw new ModelCallError("invalid_call_input");
+    if (
       input.fileNames != null &&
       (!Array.isArray(input.fileNames) ||
         input.fileNames.some((name) => typeof name !== "string"))
@@ -348,6 +357,9 @@ export class ModelExecutionService {
       requestId: input.requestId.toLowerCase(),
       purpose: input.purpose,
       input: input.input,
+      ...(input.instructions == null
+        ? {}
+        : { instructions: input.instructions }),
       fileNames: [...(input.fileNames ?? [])],
     };
     const purpose: CredentialPurpose =
@@ -359,6 +371,9 @@ export class ModelExecutionService {
     const inputDigest = digest({
       purpose: persistedPurpose,
       input: input.input,
+      ...(input.instructions == null
+        ? {}
+        : { instructions: input.instructions }),
       fileNames: input.fileNames ?? [],
     });
     const findPrior = async (tx: Tx, fresh: AdministratorContext) => {
@@ -395,7 +410,7 @@ export class ModelExecutionService {
         policy ?? DEFAULT_TRANSFERS,
         input.purpose,
         OPENAI_ENDPOINTS[purpose],
-        input.input,
+        (input.instructions ?? "") + input.input,
         input.fileNames ?? [],
       );
       const credential = await tx.modelCredential.findUnique({
@@ -408,7 +423,7 @@ export class ModelExecutionService {
       });
       if (credential == null || !credential.enabled)
         throw new ModelCallError("credential_not_enabled", 409);
-      const bound = inputBound(input.input);
+      const bound = inputBound((input.instructions ?? "") + input.input);
       if (
         bound > settings.inputTokenLimit ||
         (purpose === "embedding" && bound > 8192)
@@ -421,6 +436,9 @@ export class ModelExecutionService {
         input: input.input,
         outputLimit: purpose === "embedding" ? 0 : settings.outputTokenLimit,
         reasoning: settings.reasoning,
+        ...(input.instructions == null
+          ? {}
+          : { instructions: input.instructions }),
       };
       return { settings, limit, credential, model, request };
     };

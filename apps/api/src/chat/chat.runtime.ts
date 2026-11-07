@@ -1,3 +1,4 @@
+import { assertLegacyDevelopment } from "../runtime-profile";
 import {
   createPrismaClient,
   persistKnowledgeGapCandidate,
@@ -185,6 +186,7 @@ export const createDefaultDocumentRetriever = (
 };
 
 export const createDefaultChatDependencies = (): ChatExecutionDependencies => {
+  assertLegacyDevelopment();
   const prisma = createPrismaClient();
   const embedding = process.env.OPENAI_API_KEY
     ? createOpenAIEmbeddingModel({

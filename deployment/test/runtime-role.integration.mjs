@@ -307,6 +307,12 @@ for (const [table, privilege, column] of [
   ["BasicAgent", "UPDATE", "id"],
   ["BasicAgent", "UPDATE", "ownerAdministratorId"],
   ["BasicAgent", "UPDATE", "createdAt"],
+  ["RagTurn", "UPDATE", "requestId"],
+  ["RagTurn", "UPDATE", "expiresAt"],
+  ["RagTurn", "UPDATE", "ownerAdministratorId"],
+  ["RagTurn", "UPDATE", "executionDigest"],
+  ["RagConversation", "UPDATE", "ownerAdministratorId"],
+  ["RagGap", "UPDATE", "question"],
   ["ModelCall", "UPDATE", "installationId"],
   ["ModelCall", "UPDATE", "requestId"],
   ["ModelCall", "UPDATE", "ownerAdministratorId"],
@@ -599,5 +605,21 @@ test("D04 rejects PUBLIC index mutation and reference privileges", async () => {
         await configure();
       }
     }
+  }
+});
+
+test("E02 grants only terminal RAG result updates and denies identity, provenance, deadlines and references", async () => {
+  await configure();
+  for (const [table, allowed] of [
+    ["RagConversation", []],
+    ["RagTurn", ["status","errorCode","sources","result","answer","model","completedAt"]],
+    ["RagGap", []],
+  ]) {
+    const columns=await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable, has_column_privilege('townbase_runtime',c.oid,a.attnum,'REFERENCES') AS referenceable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname=${table} AND a.attnum>0 AND NOT a.attisdropped`;
+    assert.ok(columns.length>allowed.length);
+    assert.deepEqual(columns.filter(c=>c.writable).map(c=>c.attname).sort(),allowed.toSorted());
+    assert.ok(columns.every(c=>!c.referenceable));
+    const [rights]=await db.$queryRaw`SELECT has_table_privilege('townbase_runtime',format('public.%I',${table}),'SELECT') AS readable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'INSERT') AS insertable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'DELETE') AS deletable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'UPDATE') AS table_update`;
+    assert.deepEqual(rights,{readable:true,insertable:true,deletable:true,table_update:false});
   }
 });
