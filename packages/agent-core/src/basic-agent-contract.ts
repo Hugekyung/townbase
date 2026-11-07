@@ -101,7 +101,7 @@ type BasicAgentResultIdentity = Readonly<{
   agentRevision: number;
   requestedMode: BasicAgentMode;
   resolvedMode: Exclude<BasicAgentMode, "auto">;
-  model: string;
+  model: string | null;
 }>;
 export type BasicAgentResult = BasicAgentResultIdentity &
   (
@@ -117,7 +117,7 @@ export type BasicAgentResult = BasicAgentResultIdentity &
         isAnswerable: false;
         answer: string;
         sources: readonly BasicAgentSource[];
-        gapId: string;
+        gapId: string | null;
       }>
   );
 // Technical failures are separate errors, never a fabricated refused result/Gap.

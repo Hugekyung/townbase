@@ -55,7 +55,7 @@ export class AgentService {
       updatedAt: row.updatedAt.toISOString(),
     };
   }
-  private async snapshotIn(tx: AuthTransaction, c: AdministratorContext) {
+  async readInTransaction(tx: AuthTransaction, c: AdministratorContext) {
     const row = await tx.basicAgent.findFirst({ where: this.where(c) });
     const execution = await tx.modelExecutionSettings.findUnique({
       where: { installationId: c.installationId },
@@ -75,7 +75,7 @@ export class AgentService {
     const result = await this.auth.authorizedOperation(
       token,
       c,
-      async (tx, fresh) => ({ value: await this.snapshotIn(tx, fresh) }),
+      async (tx, fresh) => ({ value: await this.readInTransaction(tx, fresh) }),
     );
     if (!result.ok) throw new UnauthorizedException({ code: "unauthorized" });
     return result.value;
@@ -106,7 +106,7 @@ export class AgentService {
           throw new ConflictException({ code: "agent_changed" });
         await this.assertOwnedSources(tx, fresh, config.sourceOriginalIds);
         if (row && digest(this.configuration(row)) === digest(config))
-          return this.snapshotIn(tx, fresh);
+          return this.readInTransaction(tx, fresh);
         const data = {
           ...config,
           sourceOriginalIds: [...config.sourceOriginalIds],
@@ -131,7 +131,7 @@ export class AgentService {
             requestId: randomUUID(),
           },
         });
-        return this.snapshotIn(tx, fresh);
+        return this.readInTransaction(tx, fresh);
       },
     );
   }

@@ -348,3 +348,12 @@ PUT `/files/:id/scope`에 JSON `{ "included": false }`를 보내면 검색 범�
 답변 모델은 기존 `/settings/model-integration/execution`의 지원 목록/재인증/전체 설정 계약으로 변경한다. Agent GET의 answerModel/modelSettingsPath가 그 단일 값을 반영한다. Agent PUT은 모델·임베딩·Key 필드를 받지 않는다. 소스 선택은 접근 허용을 대체하지 않으며 삭제/제외 자료는 새 사용에서 차단한다.
 
 후속 migration은 BasicAgent 및 감사 action을 추가하고 runtime SELECT/INSERT·내용/revision/updatedAt 열 UPDATE만 허용한다. 식별/소유/생성 시각 UPDATE·DELETE·REFERENCES/DDL은 차단한다. 실제 답변·대화/Gap·웹은 후속이며 [E01 저장/한도/검증](implementation/v0.2-e01-agent-settings.md)을 따른다.
+
+
+## 문서 Agent API (E02~E05·H01, 로컬 검증)
+
+기본 Agent, C 모델/Key·전송 허용·가격/예산, 파일의 명시 색인을 설정한다. 관리자 POST /rag/questions에 requestId UUID v4·question·requestedMode를 보낸다. mode는 auto/onboarding/product_history/documentation_gap 중 명시한다. 결과/상태는 GET /rag/questions/:id, 대화는 GET /rag/conversations 및 /rag/conversations/:id/turns로 조회한다. Gap은 GET /rag/gaps 및 빈 JSON DELETE /rag/gaps/:id로 관리한다.
+
+새 대화는 conversationId를 생략하고 후속 질문은 같은 대화 ID와 historyRequestIds 최대3개를 지정한다. 같은 UUID는 기존 상태, 바뀐 입력은409다. 진행 중 중복은202, 완료 상태는200이다. failed의 errorCode와 calls의 usage/예약/실제 비용을 확인하고 새 UUID 재시도의 비용을 고려한다. refused는 저장 Gap을 조회한다.
+
+자료가 삭제/제외/교체되어 출처가 무효해지면 과거 답변과 관련 Gap 본문을 가린다. 대화/결과30일·Gap 명시 삭제 보관을 적용하며 백업/복원은 I 후속이다. 질문은 선인증 JSON64KB·4,000 code points, 모델 문맥은 C와 근거 예산을 함께 적용한다. 다른 일반 JSON은8KB다. [전체 계약·설정값·명령·검증](implementation/v0.2-document-agent.md)을 따른다.

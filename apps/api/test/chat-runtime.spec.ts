@@ -1,10 +1,21 @@
 import {
+  createDefaultChatDependencies,
   createDefaultDocumentRetriever,
   createFallbackEmbeddingModel,
 } from "../src/chat/chat.runtime";
 import { resolveRetrievalExecutionStrategy } from "../src/chat/retrieval-strategy";
 
 describe("chat runtime defaults", () => {
+  it("rejects the legacy default factory before credentials or fallback runtime are created", () => {
+    const prior = process.env.TOWNBASE_RUNTIME_PROFILE;
+    process.env.TOWNBASE_RUNTIME_PROFILE = "self_hosted";
+    try {
+      expect(() => createDefaultChatDependencies()).toThrow(/profile/);
+    } finally {
+      if (prior == null) delete process.env.TOWNBASE_RUNTIME_PROFILE;
+      else process.env.TOWNBASE_RUNTIME_PROFILE = prior;
+    }
+  });
   it("defaults the execution strategy to vector_only", () => {
     expect(resolveRetrievalExecutionStrategy(undefined)).toBe("vector_only");
   });

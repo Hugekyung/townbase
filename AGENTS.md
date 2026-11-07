@@ -234,3 +234,14 @@
 - agent-core basic-agent-contract는 지원 mode·4,000 code point 질문과 종료 결과의 기본 계약이다. parser/타입만으로 공개 질문·실제 결과/Gap 저장이 완료된 것은 아니다. 전체 본문8KB 등 세부 설정 한도는 [E01 기록](docs/implementation/v0.2-e01-agent-settings.md)을 따른다.
 - migration 20261104000000_basic_agent와 좁은 BasicAgent SELECT/INSERT·내용/revision/updatedAt 열 UPDATE만 추가한다. DELETE·식별/소유/생성 시각·REFERENCES/DDL은 차단한다. 실 DB suite는 TOWNBASE_AGENT_SETTINGS_TEST=1·정확한 postgres/townbase_e01_test의 전용 합성 DB·owner URL/runtime secret을 요구한다. 최초 실행은 시험 자료가 비어 있어야 하며 이후 정상 정리한 DB는 재사용할 수 있다. 전체 compiled API를 사용하며 일반 시험은 opt-in을 건너뛴다.
 - 검증651개 및 별도 운영 이미지 HTTP/재시작·D05→E01 업그레이드 자료 보존을 확인했다. Linux arm64 API·amd64 PostgreSQL 에뮬레이션·합성 공급자이며 유료/품질/x86_64 성능 수락과 구분한다. 사용자가 구현·검증 요약 확인 후 커밋/푸시/main PR 생성을 승인했다. 전달 결과는 저장소 PR 기록을 따른다.
+
+
+## 문서 Agent 묶음 적용 상태 (2026-11-07, 로컬 검증)
+
+- main b739222 이후 codex/v02-document-agent에서 E02~E05·H01을 연결했다. 관리자 POST /rag/questions, GET questions/:id·conversations·conversations/:id/turns·gaps, DELETE gaps/:id를 제공한다. 웹·첨부는 F/G 후속이다.
+- RagConversation/RagTurn/RagGap은 소유자 전용 RAG 저장이다. 같은 질문 UUID는 저장 상태로 연결하며 C 호출 UUID는 용도별 결정적으로 만든다. 문서 부족/Gap과 기술 실패를 구분하고 Gap/종료를 같은 transaction에 저장한다.
+- C 호출은 instructions/input을 나눠 두 필드 모두 digest/전송/입력 한도에 포함한다. JSON 전 질문·Agent 선호·이력·근거도 검사한다. 호출 입장/게시/재조회에 최신 신원·Agent/모델 설정·원본/버전/scope/색인을 검사한다. 과거 자료 무효화 시 답변/근거/관련 Gap 본문을 가린다.
+- 후보20/근거5·8KB 완전 조각·초기 raw 판정0.45/0.40·명시 이력3개·전체90초·동시1개/분당10개를 적용한다. 이력은30일 조회 만료, 시작/1분200개 정리이며 Gap은 명시 삭제까지 보관한다. 품질/성능은 J에서 검증한다.
+- /rag/questions JSON64KB는 선인증·압축 거절·본문 deadline을 적용한다. Express 대소문자/끝 slash 별칭도 동일하며 질문 본문 완료 시 슬롯을 해제한다. 다른 일반 API는8KB다.
+- migration 20261107000000_document_agent와 새3테이블 SELECT/INSERT/보관·Gap DELETE, RagTurn 결과/상태7열 UPDATE만 추가했다. 식별/입력/소유/설정·보관/호출 ID UPDATE·REFERENCES/DDL은 거절한다. legacy 기본 factory도 DB/Key/fallback 생성 전에 프로필을 검사한다.
+- DB suite는 TOWNBASE_RAG_TEST=1·정확한 postgres/townbase_e02_test·owner URL/runtime secret을 요구한다. compiled API·실제 업로드/파서/색인·합성 공급자만 사용하며 일반 시험은 opt-in을 건너뛴다. [계약·884개 검증·환경/한계](docs/implementation/v0.2-document-agent.md)를 따른다. 이번 요약 후 전달 승인을 받는다.

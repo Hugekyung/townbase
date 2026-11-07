@@ -133,6 +133,22 @@ describe("fixed OpenAI provider protocol", () => {
       tools: [],
     });
   });
+  test("keeps server instructions separate from untrusted input in Responses", async () => {
+    const spy = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(responseFixture())));
+    await new OpenAIProvider().call(
+      "synthetic-key",
+      { ...request, instructions: "Use only verified document evidence." },
+      AbortSignal.timeout(5000),
+    );
+    expect(JSON.parse(spy.mock.calls[0]![1]!.body as string)).toMatchObject({
+      input: request.input,
+      instructions: "Use only verified document evidence.",
+      store: false,
+      tools: [],
+    });
+  });
   test("uses fixed embedding route/dimensions without an external vector store", async () => {
     const spy = jest.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
