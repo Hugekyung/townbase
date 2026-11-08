@@ -1,3 +1,4 @@
+import { DeletionJournal } from "../operations/deletion-journal";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { Prisma } from "@townbase/database";
@@ -55,6 +56,9 @@ export function savedSources(value: Prisma.JsonValue): RagSource[] {
         typeof s.content !== "string" ||
         s.content.length > 16000 ||
         typeof s.title !== "string" ||
+        (s.promptLabel != null &&
+          (typeof s.promptLabel !== "string" ||
+            !/^S[1-9][0-9]{0,2}$/.test(s.promptLabel))) ||
         !Array.isArray(s.locations) ||
         typeof s.reference !== "string",
     )
@@ -84,6 +88,7 @@ export class RagStore {
     readonly db: DeploymentDatabase,
     private readonly auth: AuthService,
     private readonly agents: AgentService,
+    private readonly journal: DeletionJournal,
   ) {}
   scope(c: Context) {
     return {
@@ -220,9 +225,12 @@ export class RagStore {
         },
       });
       if (
-        await tx.ragTurn.count({
+        (await tx.attachmentTask.count({
           where: { installationId: fresh.installationId, status: "running" },
-        })
+        })) ||
+        (await tx.ragTurn.count({
+          where: { installationId: fresh.installationId, status: "running" },
+        }))
       )
         throw new ModelCallError("answer_busy", 429);
       if (
@@ -231,7 +239,14 @@ export class RagStore {
             installationId: fresh.installationId,
             createdAt: { gte: new Date(now.getTime() - 60_000) },
           },
-        })) >= RAG_LIMITS.perMinute
+        })) +
+          (await tx.attachmentTask.count({
+            where: {
+              installationId: fresh.installationId,
+              createdAt: { gte: new Date(now.getTime() - 60000) },
+            },
+          })) >=
+        RAG_LIMITS.perMinute
       )
         throw new ModelCallError("question_rate_limited", 429);
       const { agent } = await this.agents.readInTransaction(tx, fresh);
@@ -324,7 +339,15 @@ export class RagStore {
     a: Admission,
     selected: RagSource[],
   ) {
-    const sources = unionSources(a.historySources, selected);
+    const history = a.historySources.map((s) => {
+      const copy = { ...s };
+      delete copy.promptLabel;
+      return copy;
+    });
+    const sources = unionSources(
+      history,
+      selected.map((s, i) => ({ ...s, promptLabel: `S${i + 1}` })),
+    );
     await this.scoped(token, c, async (tx, fresh, now) => {
       await this.guard(tx, fresh, a.turn, sources, now);
       await tx.ragTurn.update({
@@ -392,6 +415,32 @@ export class RagStore {
     await this.db.prisma.ragTurn.updateMany({
       where: { ...this.scope(c), requestId: turn.requestId, status: "running" },
       data: { status: "failed", errorCode: code, completedAt: new Date() },
+    });
+  }
+  async stop(token: string | undefined, c: Context, requestId: string) {
+    if (!validRequestId(requestId))
+      throw new ModelCallError("invalid_request_id");
+    await this.scoped(token, c, async (tx, fresh, now) => {
+      const row = await tx.ragTurn.findFirst({
+        where: {
+          ...this.scope(fresh),
+          requestId: requestId.toLowerCase(),
+          expiresAt: { gt: now },
+        },
+      });
+      if (!row) throw new NotFoundException({ code: "question_not_found" });
+      await tx.ragTurn.updateMany({
+        where: {
+          ...this.scope(fresh),
+          requestId: row.requestId,
+          status: "running",
+        },
+        data: {
+          status: "interrupted",
+          errorCode: "operator_stopped",
+          completedAt: now,
+        },
+      });
     });
   }
   private async available(tx: Tx, c: Context, sources: readonly FileSource[]) {
@@ -507,20 +556,67 @@ export class RagStore {
     if (cursor != null && !validRequestId(cursor))
       throw new ModelCallError("invalid_cursor");
     return this.scoped(token, c, async (tx, fresh, now) => {
-      const rows = await tx.ragConversation.findMany({
-        where: {
-          ...this.scope(fresh),
-          ...(cursor ? { id: { gt: cursor.toLowerCase() } } : {}),
-          turns: { some: { expiresAt: { gt: now } } },
-        },
-        orderBy: { id: "asc" },
-        take: 21,
-      });
+      const anchor =
+        cursor == null
+          ? null
+          : await tx.ragConversation.findFirst({
+              where: { ...this.scope(fresh), id: cursor.toLowerCase() },
+              select: {
+                turns: {
+                  where: { expiresAt: { gt: now } },
+                  orderBy: [{ createdAt: "desc" }, { requestId: "desc" }],
+                  take: 1,
+                  select: { createdAt: true },
+                },
+              },
+            });
+      const after = anchor?.turns[0]?.createdAt;
+      if (cursor != null && !after) throw new ModelCallError("invalid_cursor");
+      const rows = await tx.$queryRaw<
+        Array<{
+          id: string;
+          createdAt: Date;
+          updatedAt: Date;
+          question: string;
+          sources: Prisma.JsonValue;
+        }>
+      >(Prisma.sql`
+        SELECT c.id,c."createdAt",latest."createdAt" AS "updatedAt",first.question,
+          (SELECT COALESCE(jsonb_agg(jsonb_build_object('id',s->'id','indexId',s->'indexId','originalId',s->'originalId','versionId',s->'versionId','scopeRevision',s->'scopeRevision')), '[]'::jsonb) FROM jsonb_array_elements(first.sources) s) AS sources
+        FROM "RagConversation" c
+        JOIN LATERAL (SELECT t."createdAt" FROM "RagTurn" t
+          WHERE t."installationId"=c."installationId" AND t."ownerAdministratorId"=c."ownerAdministratorId" AND t."conversationId"=c.id AND t."expiresAt">${now}
+          ORDER BY t."createdAt" DESC,t."requestId" DESC LIMIT 1) latest ON true
+        JOIN LATERAL (SELECT t.question,t.sources FROM "RagTurn" t
+          WHERE t."installationId"=c."installationId" AND t."ownerAdministratorId"=c."ownerAdministratorId" AND t."conversationId"=c.id AND t."expiresAt">${now}
+          ORDER BY t."createdAt" ASC,t."requestId" ASC LIMIT 1) first ON true
+        WHERE c."installationId"=${fresh.installationId} AND c."ownerAdministratorId"=${fresh.administratorId}
+        ${after ? Prisma.sql`AND (latest."createdAt",c.id)<(${after}::timestamp,${cursor!.toLowerCase()}::uuid)` : Prisma.empty}
+        ORDER BY latest."createdAt" DESC,c.id DESC LIMIT 21
+      `);
+      const conversations = [];
+      for (const row of rows.slice(0, 20)) {
+        let title = [...row.question].slice(0, 60).join("");
+        try {
+          await this.sourcesCurrent(
+            tx,
+            fresh,
+            row.sources as unknown as FileSource[],
+          );
+        } catch (e) {
+          if (e instanceof ModelCallError && e.code === "source_changed")
+            title = "근거가 변경된 대화";
+          else throw e;
+        }
+        conversations.push({
+          id: row.id,
+          title,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        });
+      }
       return {
-        conversations: rows.slice(0, 20).map(({ id, createdAt }) => ({
-          id,
-          createdAt: createdAt.toISOString(),
-        })),
+        conversations,
         nextCursor: rows.length > 20 ? rows[19]!.id : null,
       };
     });
@@ -530,6 +626,7 @@ export class RagStore {
     c: Context,
     conversationId: string,
     cursor?: string,
+    latest = false,
   ) {
     if (
       !validRequestId(conversationId) ||
@@ -563,23 +660,32 @@ export class RagStore {
           ...(anchor
             ? {
                 OR: [
-                  { createdAt: { gt: anchor.createdAt } },
+                  {
+                    createdAt: latest
+                      ? { lt: anchor.createdAt }
+                      : { gt: anchor.createdAt },
+                  },
                   {
                     createdAt: anchor.createdAt,
-                    requestId: { gt: anchor.requestId },
+                    requestId: latest
+                      ? { lt: anchor.requestId }
+                      : { gt: anchor.requestId },
                   },
                 ],
               }
             : {}),
         },
-        orderBy: [{ createdAt: "asc" }, { requestId: "asc" }],
+        orderBy: [
+          { createdAt: latest ? "desc" : "asc" },
+          { requestId: latest ? "desc" : "asc" },
+        ],
         take: 21,
       });
       const turns = [];
       for (const row of rows.slice(0, 20))
         turns.push(await this.turnView(tx, fresh, row, now));
       return {
-        turns,
+        turns: latest ? turns.reverse() : turns,
         nextCursor: rows.length > 20 ? rows[19]!.requestId : null,
       };
     });
@@ -618,15 +724,15 @@ export class RagStore {
       return { gaps, nextCursor: rows.length > 20 ? rows[19]!.id : null };
     });
   }
-  removeGap(token: string | undefined, c: Context, id: string) {
+  async removeGap(token: string | undefined, c: Context, id: string) {
     if (!validRequestId(id)) throw new ModelCallError("invalid_request_id");
-    return this.scoped(token, c, async (tx, fresh) => {
-      const removed = await tx.ragGap.deleteMany({
-        where: { ...this.scope(fresh), id: id.toLowerCase() },
-      });
-      if (!removed.count) throw new NotFoundException();
-      return { deleted: true };
-    });
+    await this.journal.accept(token, c, "gap", id.toLowerCase());
+    return { deleted: true };
+  }
+  async removeConversation(token: string | undefined, c: Context, id: string) {
+    if (!validRequestId(id)) throw new ModelCallError("invalid_request_id");
+    await this.journal.accept(token, c, "conversation", id.toLowerCase());
+    return { deleted: true };
   }
   async maintenance(restarted = false) {
     await this.db.prisma.$transaction(async (tx) => {

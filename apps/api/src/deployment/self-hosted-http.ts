@@ -1,9 +1,16 @@
 import { HttpException } from "@nestjs/common";
 import { AccessService, type AccessRequest } from "../access/access.service";
+import {
+  isAttachmentUpload,
+  isAttachmentQuestion,
+} from "../attachments/attachment-policy";
 import { isRagQuestion } from "../rag/rag-http";
 import { isFileUpload } from "../files/file-upload";
 import path from "node:path";
 import type { NestExpressApplication } from "@nestjs/platform-express";
+
+const isQuestionBody = (req: Parameters<typeof isRagQuestion>[0]) =>
+  isRagQuestion(req) || isAttachmentQuestion(req);
 
 // Shared by the real entrypoint and HTTP regression tests. Headers must precede
 // parsing so even rejected credential payloads receive the same protections.
@@ -43,7 +50,9 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
       },
       next: () => void,
     ) => {
-      if (!isFileUpload(req) && !isRagQuestion(req)) return next();
+      const questionBody = isQuestionBody(req);
+      if (!isFileUpload(req) && !isAttachmentUpload(req) && !questionBody)
+        return next();
       void app
         .get(AccessService)
         .authenticate(req)
@@ -56,8 +65,8 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
           else {
             if (req.destroyed || res.destroyed) return;
             if (uploading) {
-              res.status(isRagQuestion(req) ? 429 : 409).json({
-                code: isRagQuestion(req)
+              res.status(questionBody ? 429 : 409).json({
+                code: questionBody
                   ? "question_body_busy"
                   : "file_operation_busy",
               });
@@ -77,7 +86,7 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
             res.once("close", release);
             req.once("end", () => {
               clearTimeout(deadline);
-              if (isRagQuestion(req)) release();
+              if (questionBody) release();
             });
             next();
           }
@@ -95,15 +104,20 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
     type: isFileUpload,
   });
   app.useBodyParser("json", {
+    limit: "14mb",
+    strict: true,
+    type: isAttachmentUpload,
+  });
+  app.useBodyParser("json", {
     limit: "64kb",
     strict: true,
-    type: isRagQuestion,
+    type: isQuestionBody,
   });
   app.useBodyParser("json", { limit: "8kb", strict: true });
   app.use(
     (
       error: unknown,
-      _request: unknown,
+      request: Parameters<typeof isAttachmentUpload>[0],
       response: { status(code: number): { json(body: unknown): void } },
       next: (error: unknown) => void,
     ) => {
@@ -118,7 +132,13 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
         "encoding.unsupported": 415,
       };
       if (typeof type === "string" && Object.hasOwn(statuses, type))
-        response.status(statuses[type]!).json({ code: "invalid_json" });
+        response.status(statuses[type]!).json({
+          code:
+            type === "entity.too.large" &&
+            (isAttachmentUpload(request) || isFileUpload(request))
+              ? "file_too_large"
+              : "invalid_json",
+        });
       else next(error);
     },
   );

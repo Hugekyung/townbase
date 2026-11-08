@@ -246,3 +246,35 @@
 - migration 20261107000000_document_agent와 새3테이블 SELECT/INSERT/보관·Gap DELETE, RagTurn 결과/상태7열 UPDATE만 추가했다. 식별/입력/소유/설정·보관/호출 ID UPDATE·REFERENCES/DDL은 거절한다. legacy 기본 factory도 DB/Key/fallback 생성 전에 프로필을 검사한다.
 - DB suite는 TOWNBASE_RAG_TEST=1·정확한 postgres/townbase_e02_test·owner URL/runtime secret을 요구한다. compiled API·실제 업로드/파서/색인·합성 공급자만 사용하며 일반 시험은 opt-in을 건너뛴다. [계약·884개 검증·환경/한계](docs/implementation/v0.2-document-agent.md)를 따른다. 이번 요약 후 전달 승인을 받는다.
 - PR #47 보완은 입력 설정 최소4,096(기본16,000 유지), answered 모델 필수·refused만 null, Gap 출처 최대20 후속 migration을 적용한다. 옛 낮은 입력 설정은 자동 변경하지 않으며 새 RAG 접수 전에 invalid_model_settings409로 차단한다. 관리자가 execution 설정을 명시 변경해야 한다. 기존512 이상 설정의 임베딩은 계속 허용하며 C의 가격 미확인 오류가 용도별 설정 검사보다 먼저다. 재조회는 설정 revision/digest가 아니라 최신 인증·출처 유효성을 검사한다. [리뷰 보완·회귀 범위](docs/implementation/v0.2-document-agent.md)를 따른다.
+
+## F/G/I/J 최종 기본 묶음 및 채팅 UI (2026-11-08, 로컬)
+
+- PR #47은 main `808d507`로 병합했다. 현재 `codex/v02-final-basic-release`의 로컬 구현과 전달 상태는 [최종 기록](docs/implementation/v0.2-final-basic-release.md)을 따른다. 위 단계별 “후속/아직 없다”는 당시 상태이며 현재 F/G/I 구현에 대한 설명으로 재사용하지 않는다. 2026-11-08 사용자가 요약 확인 후 commit/push/main PR 생성을 승인했다.
+- Attachment/AttachmentTask는 전용 raw/작업/결과 경계다. POST/GET/DELETE /attachments, POST/GET/DELETE /attachment-tasks·:id/stop을 제공한다. 10MiB×최대3개/총20MiB·문맥8,000 UTF-8 bytes·원문60분/종료 차단/삭제·결과30일, 실제 파서와 최신 신원·정책·Agent/문서 범위를 유지한다. RAG와 실행 동시1/분당10개를 공유한다. 첨부/파생 질의는 공용 임베딩/Gap/draft/평가로 자동 전파하지 않고 별도 입력한 검색 질문만 임베딩한다.
+- 채팅 홈은 메시지/하단 입력, 햄버거 메뉴의 새 채팅·목록·문서·첨부·설정이다. #/chat/:id 및 #/attachment/:id는 소유자 내역을 진입 시 읽는다. #/settings의 모델/Agent·계정·이력·Gap·운영과 문서 관리를 분리한다. Enter 전송/Shift+Enter 줄바꿈·실제 생성 중지·번호 출처·이전 메시지 조회를 제공한다. 같은 RAG 대화의 최근3개 유효 결과를 문맥으로 쓰며 끌 수 있다. 첨부는 별도 작업이고 새 작업에 원문 재첨부가 필요하다. 토큰 스트리밍/무제한 문맥을 완료로 표시하지 않는다.
+- GET /rag/conversations는 최초 유효 질문의 최대60자 제목·최근 활동 순 metadata만 반환하고 자료가 무효한 제목도 가린다. /turns?order=latest는 최신20개를 화면 순서로 반환하고 cursor로 더 이전을 읽는다. 기본 기존 정방향 조회는 유지한다. GET /attachment-tasks?view=summary도 본문 없이 제목/상태만 제공한다. POST /rag/questions/:id/stop은 소유/만료 검사와 running CAS 후 AbortSignal을 전달한다. 이미 전송된 호출의 unknown 예약은0원으로 만들지 않는다.
+- 출처 prompt의 S1/S2와 저장 UUID를 구분한다. promptLabel은 해당 요청의 소스 순번 metadata로만 보존/표시하며 소유·출처 ID/권한이 아니다. strict JSON schema는 rag_answer/attachment_answer에만 고정 적용하고 schema도 입력 예산에 포함한다. 저장 결과는 실제 UUID/원문 구절을 재검사한다. 정확 항목 구절/어휘 근거의 진입 보완과 실제 합성 품질/제한은 평가 기록을 따른다.
+- 별도 operations volume의 fsync 삭제 의도를 DB 변경 전에 기록하고 시작 때 재적용한다. 대화/개인 결과 삭제·문서/제외·Gap 의도를 포함한다. 오류가 삭제 취소를 의미하지 않는다. 보관 정리·허용 진단 코드·파일 실행 소유권과 operations 경로 readiness, 암호화 snapshot/빈 대상 복원·분리 master/백업 key·최신 삭제 기록·복원 표식/과금 대조는 [운영 안내](docs/backup-and-restore.md)를 따른다.
+- 새 migrations는 `20261108010000_private_attachments`, `20261108020000_chat_navigation`이다. 후자는 최근 첨부 metadata 조회 인덱스이며 권한을 넓히지 않는다. runtime은 새 두 테이블 SELECT/INSERT/정리 DELETE와 명시 상태/결과 열 UPDATE, 감사/만료 세션 정리 DELETE만 추가한다. 식별/소유/보관/REFERENCES·PUBLIC 변경은 여전히 거절한다.
+- 실제 첨부/운영/채팅 통합 시험은 TOWNBASE_FINAL_BASIC_TEST=1·정확한 postgres/townbase_final_test·owner URL/runtime secret·최신 build를 요구한다. 기존 자료가 있으면 자동 reset하지 않는다. 일반 API 시험에서는 건너뛴다. 수동 합성 브라우저 fixture는 apps/api/test/browser-fixture.ts이며 production 또는 postgres/townbase_browser_test 외 DB에서는 연결/파일 작업 전에 거절한다. 운영 runtime 이미지에는 test/scripts/개발 도구를 넣지 않는다.
+- 실계정 합성 평가는 사용자가 기존 프로젝트 Key/계정·공개용 합성 입력·총 US$1을 승인했다. 전용 postgres/townbase_live_ops_test·townbase_live_shop_test·townbase_live_diagnostic_test의 비용 이력을 유지하고 합산 예약 상한0.95USD로 제한한다. evaluate-basic.ts·evaluate-attachments.ts·measure-retrieval.ts는 명시 live 플래그/전용 DB를 요구하고 기존 비용 행을 reset하지 않는다. deployment/evaluate-live.mjs는 migration/개발 이미지용이며 운영 시작 경로가 아니다. 일반 시험은 실제 Key/네트워크/유료 호출을 사용하지 않는다. 결과·장비·미확정 비용·비독립 평가 한계는 [실측 기록](docs/evaluation/v0.2/final-2026-11-08.md)을 따른다.
+
+## PR48 리뷰 보완 경계
+
+- 삭제 의도는 fsync 뒤 현재 프로세스에서 즉시 DB에 적용한다. 기록/적용이 불확실하면 DeploymentDatabase.operationsBlocked를 유지해 인증 transaction과 readiness를 차단하며, 정상 startup replay 뒤 새 인스턴스로 복구한다. 이미 삭제된 파일의 반복 DELETE는 journal/감사를 늘리지 않는다.
+- 백업 생성/복원은 동일 manifest 한도(20,000개·개별40GiB)를 검사한다. 복원 전에 모든 별도 삭제 기록을 검증한다. 기존 파일과 이름이 충돌하면 지우지 않는다. backup-process.mjs는 stdin EPIPE/자식 종료를 처리해 평문 stage 정리를 finally로 연결한다.
+- 웹 pending은 미확인 요청의 종류/UUID 목록이며 성공 또는 저장 조회 확인 뒤 해당 ID만 지운다. 자동 유료 재전송은 없다. 일시 인증 확인 장애는 편집기를 유지하되 inert로 차단하고 확정401에서 로그인으로 돌아간다.
+- 공개 합성 평가의 과거 manifest/원자료는 당시 상태로 유지한다. 수정 후 runner는 corpus/series 경로·resume 계약·현재 파일 hash를 확인하며 TOWNBASE_EVAL_SOURCE_COMMIT을 요구한다. 과거 미커밋 실측은 hash/보관 commit/차이를 별도 provenance로 설명하며 새 commit을 소급 기입하지 않는다. 새 유료 평가는 별도 승인 없이 실행하지 않는다.
+
+## PR48 2차 리뷰 보완 경계
+
+- backup-process.mjs가 일반 Docker 명령과 streamOut/streamIn을 함께 소유한다. 일반2분·파일 전송30분 deadline, SIGKILL3회/3초 종료 관측을 적용한다. 미종료 확인은 BackupChildUnconfirmed로 전달해 CLI가 private staging을 보존하고 고정 코드로 진단한다. 로컬 CLI 종료를 daemon 내부 exec 종료 증명으로 설명하지 않는다.
+- 평가 scripts의 finally는 자원 정리만 수행하고 app.close 실패에도 owner disconnect를 시도한다. 성공·작업 실패·정리 실패는 실제 script를 합성 의존성으로 구동하는 evaluation-lifecycle.spec.ts로 검증한다. 기존 series 잠금 충돌은 lock 경로/수동 확인 안내를 남기고 타 실행의 lock을 자동 삭제하지 않는다.
+- RAG 화면에서 전송한 첨부 요청도 실패한 kind/id로 재조회한다. ChatPanel의 실패 상태를 pending 진행 표시와 별도로 유지한다. 서버 성공 응답은 로컬 sessionStorage bookkeeping 실패로 뒤집지 않는다.
+- TOWNBASE_EVAL_SOURCE_COMMIT은 운영자 확인값이며 checkout/build 자동 검증값이 아니다. 새 manifest는 operator-attested 표기를 함께 기록하고, 과거 여러 컴포넌트 hash가 없는 실행은 rag-policy 단일 hash의 범위와 구분한다.
+
+## PR48 3차 리뷰 보완 경계
+
+- 기본 평가기도 앱 종료/owner disconnect를 각각 시도한다. 자기 잠금은 앱·owner·핸들 정리 확인 후만 제거하고, 실패 시 파일을 보존한다. evaluation-lifecycle의 basic post-create 실패/close 실패/disconnect 실패가 이 경계를 검증한다.
+- resume 비교는 알려진 설명용 provenance만 분리한다. source SHA·자료/질문/compiled hash·반복 범위와 별도의 Agent/모델 runtime 계약은 계속 검사하고, 과거 manifest를 소급 수정하지 않는다.
+- 대량 문서/삭제 기록 cp는 dump/restore와 같은30분 상한을 명시하며 일반 Docker 상태/제어 명령의2분 상한은 유지한다.

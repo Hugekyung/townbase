@@ -1,0 +1,13 @@
+{
+  "ready": true,
+  "authenticatedReadback": true,
+  "documents": 1,
+  "searchableDocument": true,
+  "rawDownload": true,
+  "conversations": 2,
+  "historyReadback": true,
+  "privateResults": 1,
+  "privateReadback": true,
+  "paidCallsBlocked": true,
+  "actualModelCalls": 0
+}

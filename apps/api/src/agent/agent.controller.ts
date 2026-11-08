@@ -11,7 +11,6 @@ import {
 import { AccessService, type AccessRequest } from "../access/access.service";
 import { readSessionCookie } from "../auth/auth-transport";
 import { fields } from "../auth/auth-policy";
-import { databaseFailureCode } from "../diagnostics/database-failure";
 import { AGENT_FIELDS, validAgentConfiguration } from "./agent-policy";
 import { AgentService } from "./agent.service";
 
@@ -26,8 +25,7 @@ export class AgentController {
       return await work();
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      const reason = databaseFailureCode(error) ?? "unexpected_error";
-      Logger.error(`TOWNBASE_AGENT_SETTINGS_FAILED [${reason}]`);
+      Logger.error("TOWNBASE_AGENT_SETTINGS_FAILED");
       throw new HttpException({ code: "agent_unavailable" }, 503);
     }
   }

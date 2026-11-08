@@ -1,0 +1,102 @@
+{
+  "runtimeImage": true,
+  "ready": true,
+  "login": true,
+  "searchableDocumentRestored": true,
+  "rawDownload": true,
+  "validStoredAnswer": 1,
+  "hiddenDeletedAnswer": 1,
+  "privateResultRestored": true,
+  "paidCallsBlockedUntilReconciled": true,
+  "settings": {
+    "settings": {
+      "answerModel": "gpt-6-luna",
+      "reasoning": "low",
+      "inputTokenLimit": 16000,
+      "outputTokenLimit": 4096,
+      "priceVersion": null,
+      "monthlyBudgetUsd": "1.00"
+    },
+    "priceVersion": "openai-global-standard-2026-10-26",
+    "pricing": [
+      {
+        "model": "gpt-6-luna",
+        "usdPerMillionTokens": {
+          "input": "0.100000000",
+          "cached": "0.010000000",
+          "write30": "0.125000000",
+          "write12": "0.250000000",
+          "output": "0.500000000"
+        }
+      },
+      {
+        "model": "gpt-6.1-sol",
+        "usdPerMillionTokens": {
+          "input": "2.000000000",
+          "cached": "0.100000000",
+          "write30": "2.500000000",
+          "write12": "5.000000000",
+          "output": "10.000000000"
+        }
+      },
+      {
+        "model": "text-embedding-3-small",
+        "usdPerMillionTokens": {
+          "input": "0.020000000",
+          "cached": "0.020000000",
+          "write30": "0.020000000",
+          "write12": "0.020000000",
+          "output": "0.000000000"
+        }
+      }
+    ],
+    "period": "UTC calendar month",
+    "chargedUsd": "0.000067600",
+    "heldUsd": "0.000000000",
+    "warning80": false,
+    "blocked": true
+  },
+  "ops": {
+    "ok": true,
+    "counts": {
+      "documents": 1,
+      "ragConversations": 2,
+      "privateResults": 1,
+      "temporaryAttachments": 0,
+      "pendingAttachmentDeletion": 0,
+      "knowledgeGaps": 0
+    },
+    "database": "ready",
+    "schema": "ready",
+    "version": "0.2.0-local",
+    "lastBackupAt": "2026-11-08T07:32:28.160Z",
+    "storage": {
+      "documents": {
+        "availableBytes": 929394081792,
+        "capacityBytes": 1081100128256
+      },
+      "attachments": {
+        "availableBytes": 929394081792,
+        "capacityBytes": 1081100128256
+      },
+      "operations": {
+        "availableBytes": 929394081792,
+        "capacityBytes": 1081100128256
+      }
+    },
+    "retention": {
+      "conversationDays": 30,
+      "privateResultDays": 30,
+      "runAndAuditDays": 90,
+      "diagnosticDays": 7,
+      "temporaryAttachmentMinutes": 60,
+      "physicalCleanupMinutes": 5,
+      "backupCopies": 7,
+      "backupDays": 7
+    },
+    "deletionJournal": {
+      "records": 1,
+      "requiredForRestore": true
+    }
+  }
+}

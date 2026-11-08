@@ -1,0 +1,156 @@
+[
+  {
+    "corpus": "ops",
+    "round": 1,
+    "reviewer": "implementation agent; not independent/blind",
+    "method": "정답표·구조화 답변·실제 인용 source body 대조. 정확 문자열 검사와 의미 검토 구분. 추가 상태 인용/단일 값 주장에 연결된 불충분 인용은 보수적으로 오답 처리. 본문과 반환 인용 전체를 내용 채점에 사용.",
+    "citationPairExceptions": [
+      {
+        "question": "OPS-Q48",
+        "group": "conflicts",
+        "claim": 0,
+        "evidence": 1,
+        "text": "보안 훈련 시간은 30분과 60분으로 상충하며, 우선 적용 문서는 미정입니다.",
+        "quote": "## OPS-D12 — 동시 승인 예외 안내 상태: 현행 승인 / 시행일: 2026-10-01 / 버전: 2. D06~D10의 F4와 동일 대상·조건에 적용한다.",
+        "document": "OPS-D12",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      },
+      {
+        "question": "OPS-Q50",
+        "group": "conflicts",
+        "claim": 0,
+        "evidence": 1,
+        "text": "OPS-D10은 출장 일비를 2만 원으로 정합니다.",
+        "quote": "어느 문서가 우선인지와 상호 폐기 관계는 미정이다.",
+        "document": "OPS-D12",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      },
+      {
+        "question": "OPS-Q50",
+        "group": "conflicts",
+        "claim": 1,
+        "evidence": 1,
+        "text": "OPS-D12는 출장 일비를 4만 원으로 정합니다.",
+        "quote": "별도 예외/우선순위/상호 폐기 관계는 정하지 않았다.",
+        "document": "OPS-D10",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      }
+    ],
+    "knownDecisionError": []
+  },
+  {
+    "corpus": "ops",
+    "round": 2,
+    "reviewer": "implementation agent; not independent/blind",
+    "method": "정답표·구조화 답변·실제 인용 source body 대조. 정확 문자열 검사와 의미 검토 구분. 추가 상태 인용/단일 값 주장에 연결된 불충분 인용은 보수적으로 오답 처리. 본문과 반환 인용 전체를 내용 채점에 사용.",
+    "citationPairExceptions": [
+      {
+        "question": "OPS-Q13",
+        "group": "claims",
+        "claim": 0,
+        "evidence": 1,
+        "text": "노트북 교체 주기는 36개월입니다.",
+        "quote": "상태: 현행 승인 / 시행일: 2026-10-01 / 버전: 2",
+        "document": "OPS-D05",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      },
+      {
+        "question": "OPS-Q48",
+        "group": "conflicts",
+        "claim": 0,
+        "evidence": 1,
+        "text": "OPS-D08은 보안 훈련 시간을 30분으로 정합니다.",
+        "quote": "상태: 현행 승인 / 시행일: 2026-10-01 / 버전: 2",
+        "document": "OPS-D12",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      },
+      {
+        "question": "OPS-Q48",
+        "group": "conflicts",
+        "claim": 1,
+        "evidence": 2,
+        "text": "OPS-D12는 보안 훈련 시간을 60분으로 정하며, 어느 문서가 우선인지 미정이라고 명시합니다.",
+        "quote": "상태: 현행 승인 / 시행일: 2026-10-01 / 버전: 2",
+        "document": "OPS-D08",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      }
+    ],
+    "knownDecisionError": []
+  },
+  {
+    "corpus": "ops",
+    "round": 3,
+    "reviewer": "implementation agent; not independent/blind",
+    "method": "정답표·구조화 답변·실제 인용 source body 대조. 정확 문자열 검사와 의미 검토 구분. 추가 상태 인용/단일 값 주장에 연결된 불충분 인용은 보수적으로 오답 처리. 본문과 반환 인용 전체를 내용 채점에 사용.",
+    "citationPairExceptions": [
+      {
+        "question": "OPS-Q46",
+        "group": "conflicts",
+        "claim": 0,
+        "evidence": 0,
+        "text": "점심 행사 예산 기준이 3만 원과 2만 원으로 충돌하며, 문서 간 우선순위는 정해지지 않았습니다.",
+        "quote": "## OPS-D12 — 동시 승인 예외 안내 상태: 현행 승인 / 시행일: 2026-10-01 / 버전: 2. D06~D10의 F4와 동일 대상·조건에 적용한다.",
+        "document": "OPS-D12",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      },
+      {
+        "question": "OPS-Q49",
+        "group": "conflicts",
+        "claim": 0,
+        "evidence": 1,
+        "text": "퇴사 기념품 금액은 3만 원이다.",
+        "quote": "C4 퇴사 기념품 금액: 5만 원.",
+        "document": "OPS-D12",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      }
+    ],
+    "knownDecisionError": []
+  },
+  {
+    "corpus": "shop",
+    "round": 1,
+    "reviewer": "implementation agent; not independent/blind",
+    "method": "정답표·구조화 답변·실제 인용 source body 대조. 정확 문자열 검사와 의미 검토 구분. 추가 상태 인용/단일 값 주장에 연결된 불충분 인용은 보수적으로 오답 처리. 본문과 반환 인용 전체를 내용 채점에 사용.",
+    "citationPairExceptions": [],
+    "knownDecisionError": []
+  },
+  {
+    "corpus": "shop",
+    "round": 2,
+    "reviewer": "implementation agent; not independent/blind",
+    "method": "정답표·구조화 답변·실제 인용 source body 대조. 정확 문자열 검사와 의미 검토 구분. 추가 상태 인용/단일 값 주장에 연결된 불충분 인용은 보수적으로 오답 처리. 본문과 반환 인용 전체를 내용 채점에 사용.",
+    "citationPairExceptions": [],
+    "knownDecisionError": []
+  },
+  {
+    "corpus": "shop",
+    "round": 3,
+    "reviewer": "implementation agent; not independent/blind",
+    "method": "정답표·구조화 답변·실제 인용 source body 대조. 정확 문자열 검사와 의미 검토 구분. 추가 상태 인용/단일 값 주장에 연결된 불충분 인용은 보수적으로 오답 처리. 본문과 반환 인용 전체를 내용 채점에 사용.",
+    "citationPairExceptions": [
+      {
+        "question": "SHOP-Q46",
+        "group": "conflicts",
+        "claim": 0,
+        "evidence": 3,
+        "text": "제주 추가 배송비가 3,000원과 5,000원으로 상충합니다.",
+        "quote": "상태: 현행 승인 / 시행일: 2026-10-01 / 버전: 2",
+        "document": "SHOP-D06",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      },
+      {
+        "question": "SHOP-Q49",
+        "group": "conflicts",
+        "claim": 0,
+        "evidence": 0,
+        "text": "등급 쿠폰 할인율이 5%와 3%로 상충합니다.",
+        "quote": "## SHOP-D12 — 동시 승인 예외 안내 상태: 현행 승인 / 시행일: 2026-10-01 / 버전: 2. D06~D10의 F4와 동일 대상·조건에 적용한다. 어느 문서가 우선인지와 상호 폐기 관계는 미정이다.",
+        "document": "SHOP-D12",
+        "reason": "보수적 오답: 직접 주장하는 값의 뒷받침이 아닌 추가 상태/우선순위 인용 또는 상반된 값 인용"
+      }
+    ],
+    "knownDecisionError": [
+      "SHOP-Q21"
+    ]
+  }
+]

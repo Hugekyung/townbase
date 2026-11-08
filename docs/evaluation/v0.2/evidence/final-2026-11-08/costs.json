@@ -1,0 +1,30 @@
+{
+  "authorizationUsd": "1.00",
+  "databaseCombinedReservationCeilingUsd": "0.95",
+  "ledgers": [
+    {
+      "corpus": "ops",
+      "chargedNanoUsd": "84364250",
+      "heldNanoUsd": "5351680",
+      "unknownCalls": 3,
+      "calls": 1416
+    },
+    {
+      "corpus": "shop",
+      "chargedNanoUsd": "86577060",
+      "heldNanoUsd": "5024000",
+      "unknownCalls": 1,
+      "calls": 1403
+    },
+    {
+      "corpus": "diagnostic_and_attachments_all",
+      "chargedNanoUsd": "3628690",
+      "heldNanoUsd": "0",
+      "unknownCalls": 0,
+      "calls": 27
+    }
+  ],
+  "chargedNanoUsd": "174570000",
+  "heldNanoUsd": "10375680",
+  "billingReconciled": false
+}

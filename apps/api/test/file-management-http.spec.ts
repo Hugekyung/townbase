@@ -191,6 +191,25 @@ describe("D02 real HTTP body/guard boundary", () => {
       .send("bad gzip")
       .expect(415);
   });
+  test.each(["post", "put"] as const)(
+    "%s persistent upload envelope overflow reports file_too_large",
+    async (method) => {
+      const url =
+        method === "post"
+          ? "/FILES/"
+          : "/files/11111111-1111-4111-8111-111111111111";
+      const result = await request(app.getHttpServer())
+        [method](url)
+        .set(headers)
+        .send({
+          name: "oversized.txt",
+          contentBase64: "a".repeat(28 * 1024 * 1024),
+        })
+        .expect(413);
+      expect(result.body.code).toBe("file_too_large");
+      expect(files.register).not.toHaveBeenCalled();
+    },
+  );
   test("keeps small request cap for unrelated routes", async () => {
     await request(app.getHttpServer())
       .post("/auth/login")

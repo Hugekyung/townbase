@@ -57,6 +57,7 @@ services:
       - attachments:/var/lib/townbase/attachments
       - bootstrap:/var/lib/townbase/bootstrap
       - recovery:/var/lib/townbase/recovery
+      - operations:/var/lib/townbase/operations
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,6 +75,8 @@ services:
       timeout: 8s
       retries: 6
       start_period: 10s
+    logging:
+      driver: none
     init: true
     read_only: true
     tmpfs: [/tmp]
@@ -87,6 +90,7 @@ volumes:
   attachments:
   bootstrap:
   recovery:
+  operations:
 
 secrets:
   postgres_password:

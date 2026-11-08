@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { OperationalLogger } from "./operations/operational-logger";
 
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
@@ -13,7 +14,7 @@ import {
 } from "./deployment/self-hosted-http";
 import { parsePort } from "./port";
 import { resolveRuntimeProfile } from "./runtime-profile";
-import { startupFailure, type StartupStage } from "./startup-failure";
+import { startupDiagnostic, type StartupStage } from "./startup-failure";
 
 let startupStage: StartupStage = "runtime-profile";
 
@@ -26,7 +27,10 @@ async function bootstrap(): Promise<void> {
       : (await import("./app.module")).AppModule;
   startupStage = "application";
   const app = await NestFactory.create<NestExpressApplication>(rootModule, {
-    logger: ["error", "warn", "log"],
+    logger:
+      profile === "self_hosted"
+        ? new OperationalLogger()
+        : ["error", "warn", "log"],
     bodyParser: profile !== "self_hosted",
   });
   app.enableShutdownHooks();
@@ -48,6 +52,6 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap().catch((error: unknown) => {
-  Logger.error(startupFailure(startupStage, error));
+  Logger.error(startupDiagnostic(startupStage, error));
   process.exit(1);
 });

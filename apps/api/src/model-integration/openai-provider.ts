@@ -1,3 +1,4 @@
+import { GROUNDED_FORMAT } from "./grounded-format";
 import { Injectable } from "@nestjs/common";
 import { ModelCallError, type Usage, type Reasoning } from "./model-policy";
 import { OPENAI_ENDPOINTS, FIXED_EMBEDDING } from "./transfer-policy";
@@ -8,6 +9,7 @@ export type ProviderRequest = {
   outputLimit: number;
   reasoning: Reasoning;
   instructions?: string;
+  grounded?: true;
 };
 export type ProviderResult = {
   usage: Usage;
@@ -159,6 +161,9 @@ export class OpenAIProvider {
                 ...(request.instructions == null
                   ? {}
                   : { instructions: request.instructions }),
+                ...(request.grounded
+                  ? { text: { format: GROUNDED_FORMAT } }
+                  : {}),
                 max_output_tokens: request.outputLimit,
                 reasoning: { effort: request.reasoning },
                 store: false,

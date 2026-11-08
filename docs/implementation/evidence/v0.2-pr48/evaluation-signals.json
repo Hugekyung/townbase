@@ -1,0 +1,20 @@
+[
+  {
+    "signal": "SIGINT",
+    "forwarded": true,
+    "externalNetwork": false,
+    "paidCalls": 0
+  },
+  {
+    "signal": "SIGTERM",
+    "forwarded": true,
+    "externalNetwork": false,
+    "paidCalls": 0
+  },
+  {
+    "signal": "SIGHUP",
+    "forwarded": true,
+    "externalNetwork": false,
+    "paidCalls": 0
+  }
+]

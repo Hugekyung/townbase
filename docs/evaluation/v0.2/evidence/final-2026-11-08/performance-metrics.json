@@ -1,0 +1,62 @@
+[
+  {
+    "corpus": "ops",
+    "pass": 1,
+    "samples": 60,
+    "p95Ms": 55.87225000000035,
+    "maxMs": 246.39075000000048,
+    "embeddingExcluded": true,
+    "answerModelCalls": 0,
+    "actualQuestionEmbeddingReusedForThreePasses": true
+  },
+  {
+    "corpus": "ops",
+    "pass": 2,
+    "samples": 60,
+    "p95Ms": 37.517250000004424,
+    "maxMs": 108.44683400000031,
+    "embeddingExcluded": true,
+    "answerModelCalls": 0,
+    "actualQuestionEmbeddingReusedForThreePasses": true
+  },
+  {
+    "corpus": "ops",
+    "pass": 3,
+    "samples": 60,
+    "p95Ms": 47.93300099999942,
+    "maxMs": 54.779790999993565,
+    "embeddingExcluded": true,
+    "answerModelCalls": 0,
+    "actualQuestionEmbeddingReusedForThreePasses": true
+  },
+  {
+    "corpus": "shop",
+    "pass": 1,
+    "samples": 60,
+    "p95Ms": 45.0254999999961,
+    "maxMs": 85.67799999999988,
+    "embeddingExcluded": true,
+    "answerModelCalls": 0,
+    "actualQuestionEmbeddingReusedForThreePasses": true
+  },
+  {
+    "corpus": "shop",
+    "pass": 2,
+    "samples": 60,
+    "p95Ms": 40.899499999999534,
+    "maxMs": 78.60808299999917,
+    "embeddingExcluded": true,
+    "answerModelCalls": 0,
+    "actualQuestionEmbeddingReusedForThreePasses": true
+  },
+  {
+    "corpus": "shop",
+    "pass": 3,
+    "samples": 60,
+    "p95Ms": 43.70920800004387,
+    "maxMs": 54.12820899998769,
+    "embeddingExcluded": true,
+    "answerModelCalls": 0,
+    "actualQuestionEmbeddingReusedForThreePasses": true
+  }
+]

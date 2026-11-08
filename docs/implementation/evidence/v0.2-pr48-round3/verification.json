@@ -1,0 +1,97 @@
+{
+  "dateKst": "2026-11-09",
+  "reviewedBaseline": "7522c827f2cc4a4b9617b72c4196b12846287384",
+  "branch": "codex/v02-final-basic-release",
+  "status": "historical_local_verification_snapshot",
+  "checks": [
+    {
+      "name": "build",
+      "passed": true,
+      "count": null,
+      "logSha256": "146f5fdc09fbb36c2d85b20dd1bd9bb7b6ebbed7b26f7a635eee49cb1090a6e8",
+      "summary": [
+        "✓ built in 72ms"
+      ]
+    },
+    {
+      "name": "lint",
+      "passed": true,
+      "count": null,
+      "logSha256": "c4744e2ffe16dfcd87b4eacbca0d9ecbe401ecd2db62f32f2981bf4c45def518",
+      "summary": []
+    },
+    {
+      "name": "api",
+      "passed": true,
+      "count": 587,
+      "logSha256": "ab787711f4b6e40b7909fb7d15052789b22b7302f0f9f84cf1dd6117da1db474",
+      "summary": [
+        "Test Suites: 12 skipped, 58 passed, 58 of 70 total",
+        "Tests:       323 skipped, 587 passed, 910 total"
+      ]
+    },
+    {
+      "name": "deployment",
+      "passed": true,
+      "count": 40,
+      "logSha256": "783e8c008bf60ba925b3ce2af919497d3ac1435281e8c281633c2b1a748d9806",
+      "summary": [
+        "ℹ tests 40",
+        "ℹ pass 40",
+        "ℹ fail 0"
+      ]
+    },
+    {
+      "name": "evaluation_cleanup_and_resume_subset",
+      "passed": true,
+      "count": 27,
+      "logSha256": "a905d78820df088b85fba2264c7f4336a5d67b13fe15e01de2343e14f9086544",
+      "summary": [
+        "Test Suites: 2 passed, 2 total",
+        "Tests:       27 passed, 27 total"
+      ]
+    },
+    {
+      "name": "backup_process_subset",
+      "passed": true,
+      "count": 9,
+      "logSha256": "7b35abebc7d46a2aa6962a9fdf53304f5387ceddd207409eb6cc773586b51436",
+      "summary": [
+        "ℹ tests 9",
+        "ℹ pass 9",
+        "ℹ fail 0"
+      ]
+    }
+  ],
+  "sourceArtifactsSha256": {
+    "apps/api/scripts/evaluate-basic.ts": "de307a262de1b9eef7635d3276b581a3292338d80acf4974f7121355c7d866df",
+    "apps/api/scripts/evaluation-resume.ts": "4a9a9fb34a02115db4e8a9b6fa8c303b4cff223b3e650363d61670cdca504850",
+    "apps/api/test/evaluation-lifecycle.spec.ts": "eba984d9c0ea667a9f6696851e0a5c5443d5bbf5c3c8515b1087ff4ab5ff3a50",
+    "apps/api/test/evaluation-resume.spec.ts": "9fd23257b3c2c605aba3336083588dbf99afa8003ad61837596ee52aacfacddc",
+    "deployment/backup-process.mjs": "0847ae8d2631295feecfb841a52ff26c205f24b72705ff9aac3a2b62548f929c",
+    "deployment/backup.mjs": "e9faf3cae4efab01ed771926692027a1cb906ead08b1e4460e8063a9566a0b69",
+    "deployment/test/backup-process.test.mjs": "3bf7667ce008c5ecda34402693e01b2b287bd07367ca7627e4bd2df413ae6f1c"
+  },
+  "authenticatedObservation": "restored-model-settings.json",
+  "actualPaidCalls": 0,
+  "notes": [
+    "Five valid new reviews addressed; non-valid output-directory test comment excluded.",
+    "API587 includes lifecycle11 and resume16; subsets are not additional tests. Default skipped323 opt-in DB tests.",
+    "Deployment40 includes backup-process9; copy test runs actual CLI with synthetic Docker and scaled parent deadlines.",
+    "No new claim of actual large-volume benchmark or full database backup/restore rerun.",
+    "Authenticated priceVersion=null/paidCallsBlocked=true was observed afresh on the existing isolated restore target; old JSON was not retroactively changed.",
+    "Raw historical evaluation manifests and actual-model results unchanged.",
+    "At verification capture, commit/push/comment/resolve had not been performed. Subsequent delivery is recorded separately in delivery; this historical test evidence is not a new test run."
+  ],
+  "reviewedBaselineMeaning": "Commit reviewed before round3 fixes; not the tested source revision.",
+  "testedSource": {
+    "stateAtTest": "uncommitted_worktree_after_round3_fixes",
+    "identity": "sourceArtifactsSha256",
+    "archiveCommit": "eeeaa4ca4933145eeab7dcfbe0dcd0cdee1bd0ab",
+    "scope": "The listed source artifact hashes identify the tested files, archived unchanged in this commit. This is not a claim that tests ran on that already-created commit or that the entire worktree was hashed."
+  },
+  "delivery": {
+    "commit": "eeeaa4ca4933145eeab7dcfbe0dcd0cdee1bd0ab",
+    "comment": "https://github.com/Hugekyung/townbase/pull/48#issuecomment-6723871566"
+  }
+}

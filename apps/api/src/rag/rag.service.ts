@@ -87,6 +87,11 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
       clearTimeout(timer);
     }
   }
+  async stop(token: string | undefined, c: AdministratorContext, id: string) {
+    await this.store.stop(token, c, id);
+    this.active.get(id.toLowerCase())?.controller.abort();
+    return this.store.read(token, c, id);
+  }
   async ask(token: string | undefined, c: AdministratorContext, body: unknown) {
     const input = questionInput(body);
     inspectTransfer(
@@ -218,7 +223,7 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
         requestedMode: a.turn.requestedMode,
         resolvedMode: mode,
       }));
-      const selection = selectSources(mode, candidates);
+      const selection = selectSources(mode, candidates, a.turn.question);
       protectedSources = await this.store.recordSources(
         token,
         c,
@@ -258,6 +263,7 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
       const result = parseGroundedResult(
         callResult(response).text,
         selection.sources,
+        "prompt",
       );
       if (signal.aborted) throw new ModelCallError("question_timeout", 504);
       await this.store.complete(

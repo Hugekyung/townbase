@@ -1,0 +1,138 @@
+{
+  "reviewBaseCommit": "2a3003885dd0354c7fe6fd5f927fca60cd586bc2",
+  "actualRunSourceCommit": null,
+  "reason": "Runs executed in an uncommitted worktree based on808d507; no exact historical source commit existed. The later archival commit is not proof of executed source identity. Every listed run records a rag-policy hash, but only candidate4 records the full listed compiledArtifacts set. Earlier runs cannot be attributed to exact compiled identities for the other components.",
+  "schemaTiming": "candidate4 answer runs predate20261108020000_chat_navigation. Later packet benchmark and UI/DB checks include it. No historical migration list was edited.",
+  "latencyTiming": "Historical latencyMs includes evaluator turn/model-ledger readback after ask; it is a measured combined upper bound, not pure service/HTTP latency. New runner captures immediately after ask.",
+  "manifests": [
+    {
+      "path": "ops/baseline/manifest.json",
+      "sha256": "462c04240155b515a33f93c86c9246add407ad0a2d02705160b1a79ff59e3650",
+      "recordedCompiledArtifacts": null,
+      "recordedPolicyHash": "847fddbe656ced52682324bf2a88a3d305b9ee4cde634ed24fc961e323215489",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
+    },
+    {
+      "path": "ops/calibrated/manifest.json",
+      "sha256": "9b5acd9cd390881cb13bcd817b98b31119148b51569f087e54ee88d1df98e561",
+      "recordedCompiledArtifacts": null,
+      "recordedPolicyHash": "145ebbe2266509f2e61d9307a9ac2de421d74904438e83a00738645e713f9f8f",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
+    },
+    {
+      "path": "ops/candidate2/manifest.json",
+      "sha256": "3b1b69707d25e0a4e74a4858ecd3e961b57f805e6ab87471930ebf9e8d6bdd2e",
+      "recordedCompiledArtifacts": null,
+      "recordedPolicyHash": "d4cf365ce1013316d7dad1d431c937e55ff34c13d7d5b84038f996f3f8c891d7",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
+    },
+    {
+      "path": "ops/candidate3/manifest.json",
+      "sha256": "e5c8bd72fec5e1ab39791391111065da1741ffc0456a00b3140f0c8f92c689eb",
+      "recordedCompiledArtifacts": null,
+      "recordedPolicyHash": "d774d76223f72fa0748614dd594b47c246ed8ac64d28672e78b01c888e940197",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
+    },
+    {
+      "path": "ops/candidate4/manifest.json",
+      "sha256": "2e047e7d9a96dea1c97780c631e0c7d6337c3acc318bf382f4f8c2a611da3d15",
+      "recordedCompiledArtifacts": {
+        "rag/rag-policy": "0c83357aa3619d35b32f3078819b2398f189e0b484e05914ba54d4c1921d777e",
+        "rag/rag.service": "5235155ac0b59457d849f3feb8993fac3247bc976b7f3debc939846f7847c130",
+        "model-integration/openai-provider": "2d46fc4c753cc168f159a373f07784b353d52cc2da487450c8ad781490edc63b",
+        "model-integration/model-execution.service": "3e6ef029996d05fdf2ad0e00e523a2a946dd925ce9f6579c2f8a498ecbdd930f",
+        "model-integration/grounded-format": "6d5fbcddf9c770f80afa74d515fcee79c62da40345ba89a14f81d333cc654f90"
+      },
+      "recordedPolicyHash": "0c83357aa3619d35b32f3078819b2398f189e0b484e05914ba54d4c1921d777e",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "listed_component_set"
+    },
+    {
+      "path": "shop/calibrated/manifest.json",
+      "sha256": "2cf76ce5482c3403bac7bc8fc67c1b75ddea9cd82d1c29e263a39eadbf6546b8",
+      "recordedCompiledArtifacts": null,
+      "recordedPolicyHash": "145ebbe2266509f2e61d9307a9ac2de421d74904438e83a00738645e713f9f8f",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
+    },
+    {
+      "path": "shop/candidate2/manifest.json",
+      "sha256": "b86535f7c95f4d82a33c37a27035a54a5f2e1366123383fcb20d904ed3ead2a1",
+      "recordedCompiledArtifacts": null,
+      "recordedPolicyHash": "d4cf365ce1013316d7dad1d431c937e55ff34c13d7d5b84038f996f3f8c891d7",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
+    },
+    {
+      "path": "shop/candidate3/manifest.json",
+      "sha256": "6c01ef72669a3e6abfb9c70d35fcc01025301f945a4930a96122699f39546b4f",
+      "recordedCompiledArtifacts": null,
+      "recordedPolicyHash": "d774d76223f72fa0748614dd594b47c246ed8ac64d28672e78b01c888e940197",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
+    },
+    {
+      "path": "shop/candidate4/manifest.json",
+      "sha256": "9b6b7c2bdc883f1065ee75a4e063fc172087990c7c666c0db5720773eecda234",
+      "recordedCompiledArtifacts": {
+        "rag/rag-policy": "0c83357aa3619d35b32f3078819b2398f189e0b484e05914ba54d4c1921d777e",
+        "rag/rag.service": "5235155ac0b59457d849f3feb8993fac3247bc976b7f3debc939846f7847c130",
+        "model-integration/openai-provider": "2d46fc4c753cc168f159a373f07784b353d52cc2da487450c8ad781490edc63b",
+        "model-integration/model-execution.service": "3e6ef029996d05fdf2ad0e00e523a2a946dd925ce9f6579c2f8a498ecbdd930f",
+        "model-integration/grounded-format": "6d5fbcddf9c770f80afa74d515fcee79c62da40345ba89a14f81d333cc654f90"
+      },
+      "recordedPolicyHash": "0c83357aa3619d35b32f3078819b2398f189e0b484e05914ba54d4c1921d777e",
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "listed_component_set"
+    }
+  ],
+  "attachments": {
+    "attachments": {
+      "rawSha256": "a6bc85c0cc20285bcf42410f9113278b440c28a9a899d286cb6943beab9c7977",
+      "uploadedCases": 12,
+      "ownerScopedResultReadbacks": 12,
+      "answeredCases": 12,
+      "rawDeletedCases": 12,
+      "requestIds": [
+        "c114ebaa-e505-4388-87d5-e530ec682021",
+        "010b1312-9346-412f-b0ca-158aebd580b9",
+        "4e0ade3b-fd5f-4eba-92f5-26b863007761",
+        "26bce334-d13f-4213-bddf-873ee211b6cf",
+        "eed37892-522e-4151-bab8-12a9a900f943",
+        "e72d2b0e-5cf4-4772-90fc-6e471b4f4d1c",
+        "0ce35bd8-7ebc-4c4b-9447-ad9b96f77b1d",
+        "ec8e9afc-a193-4da9-bd86-f0401b03ba68",
+        "99602f00-ade2-4282-946a-a4463785daaa",
+        "1f6f7379-cbef-4726-9e81-98f5175570f2",
+        "b4ad3f26-b33c-47ba-a8ad-a0616c02f75b",
+        "7d7ca4c0-dd32-408e-97bb-77a99155270b"
+      ]
+    },
+    "attachments-structured": {
+      "rawSha256": "b2b0f54f56af2936626d0dc968bf3eff82d4a46aa6e27043a4f7672986d52765",
+      "uploadedCases": 12,
+      "ownerScopedResultReadbacks": 12,
+      "answeredCases": 12,
+      "rawDeletedCases": 12,
+      "requestIds": [
+        "d6aef2e5-4462-4a60-aa8e-c292e9e82d10",
+        "2a421aa6-e728-4f14-87f3-843153b278cc",
+        "a5a88438-4da3-4193-acf3-ad4119ede728",
+        "1eec452c-ee34-4085-b3e8-ae94b34d0e5c",
+        "dddead28-6172-42f5-a036-7573bfcf786e",
+        "54098709-44d2-44b4-872a-c8404d36ecca",
+        "fce6bf74-2d2d-46d3-af7a-9dc82abf0341",
+        "2656ea12-b0dd-4d71-aa30-78d2db1cd8e0",
+        "be97d725-d5de-4d62-a82e-70ca1a87dec2",
+        "78cae78a-9def-4ba5-8032-6359ff85437c",
+        "ef64612b-1e60-41a6-87ec-d376c8db691e",
+        "04fc8246-1938-4c63-8c0d-d76755c3f688"
+      ]
+    }
+  },
+  "attachmentRunsAreDistinct": true
+}

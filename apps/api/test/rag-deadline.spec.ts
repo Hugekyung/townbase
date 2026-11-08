@@ -142,7 +142,7 @@ describe("whole-question deadline", () => {
               claims: [
                 {
                   text: "기록된 답변",
-                  evidence: [{ sourceId: requestId, quote: "기록된 답변" }],
+                  evidence: [{ sourceId: "S1", quote: "기록된 답변" }],
                 },
               ],
             }),
