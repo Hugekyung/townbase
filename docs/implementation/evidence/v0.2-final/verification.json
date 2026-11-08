@@ -1,0 +1,130 @@
+{
+  "date": "2026-11-08",
+  "branch": "codex/v02-final-basic-release",
+  "checks": [
+    {
+      "check": "build",
+      "passed": true,
+      "testCount": null,
+      "logSha256": "4db719894ecd04f9daa83523cb2878da1ec2f3010837876234b8e323b026adba",
+      "summary": [
+        "✓ built in 73ms"
+      ]
+    },
+    {
+      "check": "lint",
+      "passed": true,
+      "testCount": null,
+      "logSha256": "c4744e2ffe16dfcd87b4eacbca0d9ecbe401ecd2db62f32f2981bf4c45def518",
+      "summary": []
+    },
+    {
+      "check": "schema",
+      "passed": true,
+      "testCount": null,
+      "logSha256": "163174762bbec03808b40bcd4a6c41b5455d967bbdd9c3713e33647e1a769ef4",
+      "summary": [
+        "The schema at prisma/schema.prisma is valid 🚀"
+      ]
+    },
+    {
+      "check": "api",
+      "passed": true,
+      "testCount": 533,
+      "logSha256": "c888c57bcd15e312a84440ecd1ddb2576af7f752a41674797034d7fb1db42e68",
+      "summary": [
+        "Test Suites: 12 skipped, 53 passed, 53 of 65 total",
+        "Tests:       320 skipped, 533 passed, 853 total"
+      ]
+    },
+    {
+      "check": "database_without_integration",
+      "passed": true,
+      "testCount": 20,
+      "logSha256": "afead256bfb69437ac4202af66759c4c541fed077b6ce311d28f9b7dc5a75c90",
+      "summary": [
+        "Test Suites: 5 passed, 5 total",
+        "Tests:       20 passed, 20 total"
+      ]
+    },
+    {
+      "check": "connectors_without_integration",
+      "passed": true,
+      "testCount": 72,
+      "logSha256": "38d067483669066fe08f2b5f5867c75cd81f13e785ede5c953e6a4942b76e346",
+      "summary": [
+        "Test Suites: 24 passed, 24 total",
+        "Tests:       72 passed, 72 total"
+      ]
+    },
+    {
+      "check": "http_order_followup",
+      "passed": true,
+      "testCount": 30,
+      "logSha256": "8f83d10bf3b6d1e0cb242927584f7774a18fa77d9480433ba727eead6fc41885",
+      "summary": [
+        "Test Suites: 3 passed, 3 total",
+        "Tests:       30 passed, 30 total"
+      ]
+    },
+    {
+      "check": "chat_attachment_integration",
+      "passed": true,
+      "testCount": 20,
+      "logSha256": "1e5a7f40c4839db721cf4124d1cf706dd2de3ba490ffe6bb923359a53c84307a",
+      "summary": [
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       20 passed, 20 total"
+      ]
+    },
+    {
+      "check": "runtime_acl",
+      "passed": true,
+      "testCount": 82,
+      "logSha256": "25278ea215dfdb4c7add46ff3fa0aaaaeeb8863f954ca34dc48f9762ed9afd2f",
+      "summary": [
+        "ℹ tests 82",
+        "ℹ pass 82",
+        "ℹ fail 0"
+      ]
+    },
+    {
+      "check": "rag_integration",
+      "passed": true,
+      "testCount": 27,
+      "logSha256": "d08a0a65b66a4d08b5b72e98ca071bd96b6d7628e181b1334694f4f4e97326dd",
+      "summary": [
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       27 passed, 27 total"
+      ]
+    },
+    {
+      "check": "model_integration",
+      "passed": true,
+      "testCount": 45,
+      "logSha256": "ace0720abfcc76790bf2dcb0acb54fc35331a7e4e6f769a6be3fbaea532d84ac",
+      "summary": [
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       45 passed, 45 total"
+      ]
+    },
+    {
+      "check": "deployment",
+      "passed": true,
+      "testCount": 28,
+      "logSha256": "5cdd2bb1d22bc60975b0514130000ec3e27ed67e4ee11699bab88d26d30d723d",
+      "summary": [
+        "ℹ tests 28",
+        "ℹ pass 28",
+        "ℹ fail 0"
+      ]
+    }
+  ],
+  "notes": [
+    "API 320 opt-in tests skipped in default suite; explicit integration counts listed separately.",
+    "HTTP follow-up 30 tests overlap API 533; do not add them.",
+    "One auth/session 404 in a preceding full run was not reproduced by standalone 17, full 533, or grouped HTTP 30; root cause remains unconfirmed.",
+    "Browser used explicit synthetic provider; live quality evidence is separate.",
+    "Own temporary servers stopped; user services untouched; temporary actual API key copy removed."
+  ]
+}

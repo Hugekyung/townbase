@@ -161,6 +161,8 @@ model Installation {
   ragConversations RagConversation[]
   ragTurns RagTurn[]
   ragGaps RagGap[]
+  attachments Attachment[]
+  attachmentTasks AttachmentTask[]
 }
 
 model Administrator {
@@ -181,6 +183,8 @@ model Administrator {
   ragConversations RagConversation[]
   ragTurns RagTurn[]
   ragGaps RagGap[]
+  attachments Attachment[]
+  attachmentTasks AttachmentTask[]
 
   @@unique([installationId, id])
 }
@@ -739,4 +743,60 @@ model RagGap {
   owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict)
   @@unique([installationId,turnRequestId])
   @@index([installationId,ownerAdministratorId,id])
+}
+
+
+// Temporary attachment files are never Document/Chunk or shared Gap provenance.
+model Attachment {
+ id String @id @db.Uuid
+ installationId String
+ ownerAdministratorId String
+ taskRequestId String? @db.Uuid
+ fileName String
+ format String @db.VarChar(8)
+ byteSize Int
+ contentHash String @db.VarChar(64)
+ storageKey String
+ createdAt DateTime @default(now())
+ expiresAt DateTime
+ blockedAt DateTime?
+ rawDeletedAt DateTime?
+ installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict)
+ owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict)
+ task AttachmentTask? @relation(fields:[installationId,ownerAdministratorId,taskRequestId],references:[installationId,ownerAdministratorId,requestId],onDelete:Restrict)
+ @@index([installationId,ownerAdministratorId,expiresAt])
+}
+model AttachmentTask {
+ installationId String
+ requestId String @db.Uuid
+ ownerAdministratorId String
+ fingerprint String @db.VarChar(64)
+ agentId String @db.Uuid
+ agentRevision Int
+ executionDigest String @db.VarChar(64)
+ operation String @db.VarChar(16)
+ question String
+ ragQuestion String?
+ requestedMode RetrievalMode
+ resolvedMode RetrievalMode
+ attachmentIds String[] @db.Uuid
+ historyRequestIds String[] @db.Uuid
+ status String @db.VarChar(16)
+ errorCode String? @db.VarChar(64)
+ ragSources Json @default("[]")
+ attachmentSources Json @default("[]")
+ result Json?
+ answer String?
+ model String? @db.VarChar(64)
+ createdAt DateTime @default(now())
+ deadlineAt DateTime
+ completedAt DateTime?
+ expiresAt DateTime
+ installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict)
+ owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict)
+ attachments Attachment[]
+ @@id([installationId,requestId])
+ @@unique([installationId,ownerAdministratorId,requestId])
+ @@index([expiresAt])
+ @@index([installationId,ownerAdministratorId,createdAt,requestId],map:"AttachmentTask_owner_recent_idx")
 }

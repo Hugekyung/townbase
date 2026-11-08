@@ -1,3 +1,4 @@
+import type { DeletionJournal } from "../src/operations/deletion-journal";
 import { createHash } from "node:crypto";
 import { FileManagementService } from "../src/files/file-management.service";
 import { FileError } from "../src/files/file-contract";
@@ -56,6 +57,7 @@ function fixture(next: unknown, bytes?: Buffer, revoked = false) {
     { authorizedOperation } as unknown as AuthService,
     { read } as unknown as FileStorage,
     {} as FileExtractor,
+    {} as DeletionJournal,
   );
   return { service, read, error, authorizedOperation, findFirst };
 }

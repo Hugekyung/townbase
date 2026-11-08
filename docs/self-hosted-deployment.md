@@ -1,6 +1,6 @@
-# v0.2 초기 배포 실행 안내
+# v0.2 기본 배포 실행 안내
 
-현재 제공: API·상태 웹·최초 관리자 등록·로그인/세션/비밀번호 변경/로컬 복구·Key 암호화/전송 정책 설정 API·PostgreSQL/pgvector·migration·분리된 파일 volume. 모델/예산 설정과 합성 연결 검사 API도 제공한다. 실제 OpenAI 계정의 합성 연결 검사3회는 성공했다. 설정 웹·실제 RAG 품질 평가는 후속 범위다. Key·예산·가격표 확인·전송 허용을 모두 갖추면 연결 검사도 유료 호출을 수행한다. 보호된 문서 등록·관리·실행 API는 D02/D03/D04로 제공한다. 명시 색인 API와 파일 벡터 저장·내부 검색을 제공하며 문서 웹·채팅은 후속이다. 상태 확인 성공은 제품 전체 준비 완료를 뜻하지 않는다.
+현재 제공: Docker API/웹·단일 관리자 인증/복구·Key/모델/전송/비용/Agent 설정·파일 등록/실행/명시 색인·출처 채팅/거절/Gap·일회성 첨부·보관 정리·수동 암호화 백업/빈 환경 복원. 아래 단계별 기록의 “후속”은 당시 상태이며 현재 계약은 각 최신 절과 [최종 검증 기록](implementation/v0.2-final-basic-release.md)을 따른다. Key·예산·가격표 확인·전송 허용을 모두 갖추면 연결 검사와 질문/색인은 유료 호출이다. 상태 확인 성공은 모델 연결/품질 검증 성공을 뜻하지 않는다.
 
 ## 1. 첫 실행
 
@@ -197,7 +197,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase exec -T api cat /
 
 로그인과 복구는 각각15분 동안 실패10회부터1~60초 지연한다. DB에 보관하므로 재시작으로 우회되지 않는다. 서버 로컬 재발급으로 복구 제한을 초기화할 수 있다. HTTP로 복구 토큰을 발급하거나 읽는 경로는 없다.
 
-recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한다. 소비 직후/기동/60초 주기로 파일을 삭제하며 중단·삭제 장애 중에는 물리 정리가 늦어진다. 파일/DB 불일치 시 인증은 거절하고 로컬 재발급한다. 파일이 있다고 유효한 토큰이라는 뜻은 아니다. 세션/감사 기록의 전체 보관 정리는 I 단계이며 자동 백업/복원 기능은 아직 없다.
+recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한다. 소비 직후/기동/60초 주기로 파일을 삭제하며 중단·삭제 장애 중에는 물리 정리가 늦어진다. 파일/DB 불일치 시 인증은 거절하고 로컬 재발급한다. 파일이 있다고 유효한 토큰이라는 뜻은 아니다. 세션/감사 보관 정리와 운영자 명시 백업/복원은 [현재 운영 절차](backup-and-restore.md)를 따른다.
 
 인증 요청은 같은 origin의 웹을 사용한다. API 직접 호출 시 JSON·`X-Townbase-Auth: 1`·정확한 Origin/Host·허용된 전송이 필요하다. 공개 HTTPS 설정 시 cookie는 Secure이고 로컬 HTTP 예외가 닫힌다. 발급값을 URL/로그/브라우저 저장소에 넣지 않는다. [구현·시험 기록](implementation/v0.2-b04-authentication.md)을 참고한다.
 
@@ -207,7 +207,7 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 등록된 self-hosted HTTP 처리 경로는 기본적으로 관리자 세션을 요구한다. 공개 예외는 정적 웹·health/readyz·초기 상태/등록·로그인·로그아웃·복구 소비뿐이다. 공개 예외에도 기존 Origin·전송·JSON·비밀번호/토큰·시도 제한을 적용한다. 세션 조회·비밀번호 변경은 공통 검사 대상이다. 요청의 workspaceId/installationId/administratorId 또는 x-*-id 헤더는 신원 증명이 아니며, 저장된 세션의 설치/자료 범위와 다르면403이다. 검증 불가 상태는503으로 차단한다.
 
-기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서 관리·실행 API는 아래 D02/D03/D04 경로로 제공하며 채팅은 아직 제공하지 않는다. Key/모델/예산·전송 설정과 합성 연결 검사를10~11절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
+기존 수집·Gap/draft·HTTP MCP는 등록하지 않으며 로그인해도404다. 문서 관리·실행 API는 아래 D02/D03/D04 경로로 제공하며 채팅/첨부 웹과 보호된 /rag·/attachments·/attachment-tasks API도 제공한다. Key/모델/예산·전송 설정과 합성 연결 검사를10~11절의 보호 경로로 제공한다. 기존 MCP는 stdio 계약이며 운영 프로필에서 bootstrap/transport 생성을 거절한다. 수집 CLI·runner·개발 seed·구 평가 명령도 self_hosted/production에서 DB/소스/모델 작업 전에 거절한다. production에 legacy_development를 강제하거나 알 수 없는 프로필을 지정해도 열리지 않는다. 프로필 미설정은 NODE_ENV와 무관하게 self_hosted다. 기존 개발 기능은 비production에서 TOWNBASE_RUNTIME_PROFILE=legacy_development를 명시해야 한다.
 
 운영 runtime에는 connectors 패키지와 평가/seed 개발 소스·도구가 포함되지 않는다. 빌드/migration 환경에는 있으므로 그 환경에서도 프로필 보호가 필요하다. 유지보수 migration/bootstrap/recovery는 기존 서버 로컬 secret/토큰 절차를 따른다. 일반 데이터 기능을 활성화하는 CLI는 아니다. 설치 운영자의 임의 코드 실행/DB 소유자 권한을 격리하는 sandbox로 설명하지 않는다.
 
@@ -216,7 +216,7 @@ recovery volume은 문서·첨부·DB 백업과 분리해 백업에서 제외한
 
 ## 10. Key·외부 전송 설정 API (C02/C03 기반)
 
-설정 웹은 아직 없으며 관리자 세션을 사용하는 API만 제공한다. production은 API와 동일 origin·기존 TLS/Origin 보호를 적용한다. 개발 Vite도 /settings를 Host/Origin·cookie·본문을 보존해 전달한다. 모든 설정 응답은 no-store이며 원문 Key·암호문·master 식별자를 반환하지 않는다. 저장소 오류는503의 integration_unavailable과 master_key_unavailable/credential_unavailable/database_unavailable 등 고정 reason으로 구분하며 원문 예외를 노출하지 않는다.
+설정 웹과 관리자 세션을 사용하는 API를 제공한다. production은 API와 동일 origin·기존 TLS/Origin 보호를 적용한다. 개발 Vite도 /settings를 Host/Origin·cookie·본문을 보존해 전달한다. 모든 설정 응답은 no-store이며 원문 Key·암호문·master 식별자를 반환하지 않는다. 저장소 오류는503의 integration_unavailable과 master_key_unavailable/credential_unavailable/database_unavailable 등 고정 reason으로 구분하며 원문 예외를 노출하지 않는다.
 
 | 경로 | 본문/응답 |
 | --- | --- |
@@ -237,7 +237,7 @@ self-hosted가 공급자 미전송을 뜻하지는 않는다. 연결 검사도 �
 
 ## 11. 모델·예산·연결 검사 API (C01/C04)
 
-설정 웹은 후속 G 범위이며 아래 API도10절의 세션·JSON·동일 Origin 보호를 사용한다. GET 외 변경/연결 검사는 `currentPassword` 재확인을 요구한다. 모델 선택은 Luna 기본·Sol 선택으로 2026-10-26 승인했다. 2026-10-26 실제 계정에서 두 답변 모델·임베딩의 합성 호출과 usage 정산/재조회3회가 성공했다. 한국어 출처 답변 품질·공급자 최종 청구서 대조와는 구분한다.
+설정 웹은 아래 API를 사용하며 아래 API도10절의 세션·JSON·동일 Origin 보호를 사용한다. GET 외 변경/연결 검사는 `currentPassword` 재확인을 요구한다. 모델 선택은 Luna 기본·Sol 선택으로 2026-10-26 승인했다. 2026-10-26 실제 계정에서 두 답변 모델·임베딩의 합성 호출과 usage 정산/재조회3회가 성공했다. 한국어 출처 답변 품질·공급자 최종 청구서 대조와는 구분한다.
 
 | 경로 | 계약 |
 | --- | --- |
@@ -263,7 +263,7 @@ self-hosted가 공급자 미전송을 뜻하지는 않는다. 연결 검사도 �
 
 D01은 파일 업로드 웹/API를 공개하지 않는다. API 이미지에 고정 PDF.js/Mammoth/ZIP 검사를 포함하고 별도 로컬 프로세스로 본문과 위치를 추출하는 기반이다. FileOriginal/FileVersion/FileExtractionRun의 SELECT/INSERT만 runtime 계정에 추가했으며 UPDATE/DELETE는 없다. sourceType의 uploaded_file enum migration을 먼저 commit한 뒤 파일 테이블 migration을 적용한다. 기존 문서/벡터는 유지한다.
 
-Linux 파서에는 DATA512 MiB·V8 heap128 MiB·RSS512 MiB 감시/30초 종료가 적용된다. RSS 감시의 짧은 간격과 전체 메모리의 cgroup 보장은 다르다. 실제 runtime 이미지의 read-only root·비특권·network none에서 4형식을 검증했지만 HTTP 업로드/파일 관리는 아래 D02/D03에서 documents volume과 연결해 제공한다. 파일 벡터 색인과 내부 검색은 아래 D04를 따르며 질문/답변 흐름은 E 후속이다. [D01 구현·시험 범위](implementation/v0.2-d01-file-extraction.md)를 따른다.
+Linux 파서에는 DATA512 MiB·V8 heap128 MiB·RSS512 MiB 감시/30초 종료가 적용된다. RSS 감시의 짧은 간격과 전체 메모리의 cgroup 보장은 다르다. 실제 runtime 이미지의 read-only root·비특권·network none에서 4형식을 검증했지만 HTTP 업로드/파일 관리는 아래 D02/D03에서 documents volume과 연결해 제공한다. 파일 벡터 색인과 내부 검색은 아래 D04를 따르며 독립 질문/답변은 아래 E의 보호 API를 따른다. [D01 구현·시험 범위](implementation/v0.2-d01-file-extraction.md)를 따른다.
 
 ### D01 파일 제약 업그레이드의 사전 검사
 
@@ -273,7 +273,7 @@ migration 컨테이너는 `db:deploy`를 시작하기 전에 기존 FileVersion�
 
 조치 순서:
 
-1. 기존 업그레이드 절차대로 API 쓰기와 외부 노출을 중단하고 DB·원본 documents volume·별도 암호화 키를 보호된 위치에 백업한다. 자동 백업/복구 도구는 아직 없다.
+1. 기존 업그레이드 절차대로 API 쓰기와 외부 노출을 중단하고 DB·원본 documents volume·별도 암호화 키를 보호된 위치에 백업한다. [수동 암호화 백업/복원 도구](backup-and-restore.md)를 사용한다.
 2. 표시된 version UUID를 기준으로 해당 버전·원본 관계와 보관 원본을 서버 로컬에서 확인한다. 숫자 문자열, 빈 segments, 형식/글자 수 불일치 등을 조사한다. 진단은 최대20개 표본이므로 수정 후 다시 검사해 남은 개수를 확인한다.
 3. 정상 백업으로 복구하거나, 보존된 실제 원문에서 파서를 통해 본문·위치를 다시 확인한 결과로 운영자가 명시적으로 정정한다. 원본 ID/버전/hash 관계와 삭제·보관 정책을 유지한다. 호환시키기 위한 가짜 segments·임의 숫자 변환·자동 삭제는 하지 않는다. 이 사전 검사는 새 API가 기동하기 전 수행되므로 업그레이드 후 제공되는 D03 재처리 API로 배포 차단을 우회하지 않는다. 확인 가능한 원문·정상 백업이 없으면 배포를 중단하고 유지보수 담당자와 복구 방안을 결정한다.
 4. 같은 설치 설정으로 migration을 다시 실행한다. 새 제약·기존 자료 재조회와 준비 상태를 확인한 후에만 API/외부 노출을 재개한다. 사전 검사 실패 자체는 CLI를 시작하지 않으므로 실패한 migration 행을 만들지 않는다. 이미 다른 원인으로 migration이 실패했다면 별도 이력/복구 확인이 필요하다.
@@ -298,7 +298,7 @@ docker compose --env-file .townbase/compose.env -p my-townbase logs --tail=60 ap
 
 `TOWNBASE_DOCUMENTS_PATH/originals`는 지속 raw 전용0700 디렉터리이며 다른 자료/첨부/백업을 넣지 않는다. 시작 시 DB에 없는 UUID 파일과 삭제된 원본의 남은 파일을 정리한다. 알 수 없는 파일/하위 디렉터리/symlink 또는 DB/파일 오류면 시작을 거절하므로 경로와 로그 코드부터 확인한다. 동작 중 삭제 정리는1분마다 재시도하며 실패하면 cleanup=pending이다. API 삭제는 접근을 먼저 차단하고 추출문을 제거한다. 실패한 물리 삭제를 완료로 표시하지 않는다. 원본 다운로드는 현재 버전만 제공하며 HTML을 직접 렌더하지 않는다.
 
-새 migration은 tombstone/물리 정리 상태·감사 enum과 최소 열 권한을 추가한다. 배포 전 DB/원본 백업 절차를 유지한다. 비동기 실행 ID/재시도는 아래 D03으로 제공한다. 파일 웹·과거 파생 참조·백업 복구 시 삭제 기록 반영은 후속 단계다. 추출만 완료하면 searchable=false이며 D04 색인 완료 뒤 true로 반환한다. 실제 실행 조건·현재 한계는 [D02 기록](implementation/v0.2-d02-file-management.md)을 따른다.
+새 migration은 tombstone/물리 정리 상태·감사 enum과 최소 열 권한을 추가한다. 배포 전 DB/원본 백업 절차를 유지한다. 비동기 실행 ID/재시도는 아래 D03으로 제공한다. 파일 웹·과거 답변 비노출·별도 삭제 기록을 적용하며 현재 복원 절차는 [운영 안내](backup-and-restore.md)를 따른다. 추출만 완료하면 searchable=false이며 D04 색인 완료 뒤 true로 반환한다. 실제 실행 조건·현재 한계는 [D02 기록](implementation/v0.2-d02-file-management.md)을 따른다.
 
 
 ## 파일 실행 관리 (D03, PR #43 전달)
@@ -327,9 +327,9 @@ Run/요청 별칭의90일 보관 만료 후 UUID 재전송 보장은 종료한�
 
 파일 목록/상세의 searchable=true·indexStatus=indexed는 현재 버전의 모든 조각/1536차원 벡터가 저장됐음을 뜻한다. indexStatus=not_indexed/stale이면 검색에 사용하지 않는다. 동일 버전·추출·설정은 재사용하고 같은 원본의 동일 bytes/hash 교체도 새 버전에 벡터를 연결한다. 별도 원본끼리는 자동 병합하지 않는다.
 
-원본 위치/metadata와 벡터는 DB의 FileIndex/FileIndexChunk에 저장한다. DB 백업 대상이며 첨부와 구분한다. 두 테이블의 runtime 권한은 SELECT/INSERT/DELETE뿐이며 UPDATE/REFERENCES/DDL은 없다. 외부 file-search/vector-store를 만들지 않는다. 질문 임베딩/검색 API·답변·문서 웹은 E/G 후속이다.
+원본 위치/metadata와 벡터는 DB의 FileIndex/FileIndexChunk에 저장한다. DB 백업 대상이며 첨부와 구분한다. 두 테이블의 runtime 권한은 SELECT/INSERT/DELETE뿐이며 UPDATE/REFERENCES/DDL은 없다. 외부 file-search/vector-store를 만들지 않는다. 질문 임베딩/검색·답변·문서 웹은 E/G 경로를 사용한다.
 
-중단/재시작은 D03의 실행 상태를 따른다. 전송 후 불확실한 비용은 예약을 유지하며 새 실행으로 명시 retry하면 앞서 처리한 조각도 다시 과금될 수 있다. 입력 파일 작업이 진행 중일 때 삭제/교체가409 file_operation_busy이면 실행을 중단하고 종료 후 다시 요청한다. 삭제/교체/재처리 변경 자료는 내부 검색에서 제외하지만 과거 벡터 물리 정리·파생 답변 참조·백업 복원 보호 전체는 D05/I에서 마무리한다. [D04 계약·검증](implementation/v0.2-d04-file-indexing.md)을 따른다.
+중단/재시작은 D03의 실행 상태를 따른다. 전송 후 불확실한 비용은 예약을 유지하며 새 실행으로 명시 retry하면 앞서 처리한 조각도 다시 과금될 수 있다. 입력 파일 작업이 진행 중일 때 삭제/교체가409 file_operation_busy이면 실행을 중단하고 종료 후 다시 요청한다. 삭제/교체/재처리 변경 자료는 내부 검색에서 제외하지만 과거 벡터 정리·파생 답변 차단은 D05/E, 별도 삭제 기록 복원은 I의 현재 절차를 따른다. [D04 계약·검증](implementation/v0.2-d04-file-indexing.md)을 따른다.
 
 
 ## 파일 범위·삭제·과거 출처 (D05)
@@ -338,7 +338,7 @@ PUT `/files/:id/scope`에 JSON `{ "included": false }`를 보내면 검색 범�
 
 파일/검색/실행 이력이 반환하는 reference의 versionId/scopeRevision 쿼리를 그대로 사용한다. 교체/삭제/제외 뒤 과거 참조는404이며, 과거 링크로 최신 파일의 다른 내용을 반환하지 않는다. 쿼리 없는 `/files/:id/reference`는 관리자 자료 관리의 현재 raw 다운로드다. 파일 실행의 sourceState는 available/deleted/replaced/excluded/unavailable이며 비노출 상태에는 참조/자료 링크를 제공하지 않는다. 실행 당시 결과 ID·파일명·시각·비용 이력은 문서 삭제와 별도로 보존한다.
 
-삭제는 즉시 접근을 막고 원본/추출문/벡터를 정리한다. cleanup=pending이면 정리 실패 상태이며 시작/1분 주기로 재시도한다. 제외는 raw/추출문을 보존하고 벡터만 정리한다. 교체 전 자료는 즉시 검색에서 제외하고 동일 내용 재사용을 위해24시간 유예 뒤 다음 정리 주기에 raw/추출문/벡터를 제거한다. 장애가 계속되거나 API가 중단됐는데도 물리 삭제가 성공했다고 간주하지 않는다. 백업 복구와 E/F의 실제 대화·Gap·첨부 결과 처리는 후속이며 DB tombstone만으로 백업까지 삭제되는 것은 아니다. 자세한 경계는 [D05 기록](implementation/v0.2-d05-file-lifecycle.md)을 따른다.
+삭제는 즉시 접근을 막고 원본/추출문/벡터를 정리한다. cleanup=pending이면 정리 실패 상태이며 시작/1분 주기로 재시도한다. 제외는 raw/추출문을 보존하고 벡터만 정리한다. 교체 전 자료는 즉시 검색에서 제외하고 동일 내용 재사용을 위해24시간 유예 뒤 다음 정리 주기에 raw/추출문/벡터를 제거한다. 장애가 계속되거나 API가 중단됐는데도 물리 삭제가 성공했다고 간주하지 않는다. 대화/Gap/첨부 결과 비노출과 별도 삭제 기록 복원을 적용한다. DB tombstone만으로 외부 백업까지 삭제되는 것은 아니다. 자세한 경계는 [D05 기록](implementation/v0.2-d05-file-lifecycle.md)을 따른다.
 
 
 ## 기본 Agent 설정 (E01, 로컬 검증)
@@ -347,7 +347,7 @@ PUT `/files/:id/scope`에 JSON `{ "included": false }`를 보내면 검색 범�
 
 답변 모델은 기존 `/settings/model-integration/execution`의 지원 목록/재인증/전체 설정 계약으로 변경한다. Agent GET의 answerModel/modelSettingsPath가 그 단일 값을 반영한다. Agent PUT은 모델·임베딩·Key 필드를 받지 않는다. 소스 선택은 접근 허용을 대체하지 않으며 삭제/제외 자료는 새 사용에서 차단한다.
 
-후속 migration은 BasicAgent 및 감사 action을 추가하고 runtime SELECT/INSERT·내용/revision/updatedAt 열 UPDATE만 허용한다. 식별/소유/생성 시각 UPDATE·DELETE·REFERENCES/DDL은 차단한다. 실제 답변·대화/Gap·웹은 후속이며 [E01 저장/한도/검증](implementation/v0.2-e01-agent-settings.md)을 따른다.
+후속 migration은 BasicAgent 및 감사 action을 추가하고 runtime SELECT/INSERT·내용/revision/updatedAt 열 UPDATE만 허용한다. 식별/소유/생성 시각 UPDATE·DELETE·REFERENCES/DDL은 차단한다. 실제 답변·대화/Gap·웹은 후속 E/F/G 구현을 사용하며 [E01 저장/한도/검증](implementation/v0.2-e01-agent-settings.md)을 따른다.
 
 
 ## 문서 Agent API (E02~E05·H01, 로컬 검증)
@@ -358,4 +358,23 @@ PR #47 보완 후 execution의 inputTokenLimit은4,096~16,000이며 기본16,000
 
 새 대화는 conversationId를 생략하고 후속 질문은 같은 대화 ID와 historyRequestIds 최대3개를 지정한다. 같은 UUID는 기존 상태, 바뀐 입력은409다. 진행 중 중복은202, 완료 상태는200이다. failed의 errorCode와 calls의 usage/예약/실제 비용을 확인하고 새 UUID 재시도의 비용을 고려한다. refused는 저장 Gap을 조회한다.
 
-자료가 삭제/제외/교체되어 출처가 무효해지면 과거 답변과 관련 Gap 본문을 가린다. 대화/결과30일·Gap 명시 삭제 보관을 적용하며 백업/복원은 I 후속이다. 질문은 선인증 JSON64KB·4,000 code points, 모델 문맥은 C와 근거 예산을 함께 적용한다. 다른 일반 JSON은8KB다. [전체 계약·설정값·명령·검증](implementation/v0.2-document-agent.md)을 따른다.
+자료가 삭제/제외/교체되어 출처가 무효해지면 과거 답변과 관련 Gap 본문을 가린다. 대화/결과30일·Gap 명시 삭제 보관을 적용하며 백업/복원은 [현재 운영 절차](backup-and-restore.md)를 따른다. 질문은 선인증 JSON64KB·4,000 code points, 모델 문맥은 C와 근거 예산을 함께 적용한다. 다른 일반 JSON은8KB다. [전체 계약·설정값·명령·검증](implementation/v0.2-document-agent.md)을 따른다.
+
+
+## 현재 기본 웹·첨부·운영 (2026-11-08)
+
+로그인 뒤 설정에서 Key/용도별 전송 허용·모델/가격/예산·Agent를 저장한다. Key 저장과 실제 연결 확인은 별개다. 문서 탭에서 등록→실행 결과 확인→명시 색인을 수행하고 검색 가능 여부를 확인한다. 채팅은 근거/위치·과거 대화·usage를, 일회성 첨부는 별도 작업과 소유자 전용 결과를 보여 준다. 공개 회원가입은 없다. 기존 MCP/수집 연동은 비활성 상태다.
+
+일회성 첨부는 /attachments 업로드(한 파일10MiB), /attachment-tasks 실행(최대3개·총20MiB)이다. 4형식은 지속 문서와 같지만 저장/색인 경로는 분리한다. 원문/추출문을 공용 RAG·Gap·draft에 저장하지 않는다. 등록 문서 혼합 시 별도로 입력한 검색 질문만 임베딩한다. 첨부나 그 결과로 만든 후속 질문은 첨부 전용 흐름을 사용하며 공용 RAG 대화에 자동 연결하지 않는다. 첨부에 대한 공급자 전송 허용을 실행 직전에 다시 확인한다. 공급자 보관 정책과 제품 내부의 미색인/삭제는 서로 다르다.
+
+첨부 작업 종료/실패 시 원문 접근 차단·즉시 삭제 시도, 미사용은60분 만료, 시작/1분 정리를 적용한다. 파일시스템 장애나 API 중지 중에는 물리 정리가 늦어지므로 운영 화면의 pending 삭제 상태를 확인한다. 결과는30일 보관/재조회하며 원문이 다시 필요하면 재첨부한다. 결과/대화/Gap 삭제 API와 웹은 별도 삭제 의도를 남겨 옛 백업 복원에서도 재노출을 막는다. 대화/첨부 결과30일·실행/중요 감사90일·비밀 없는 진단7일이다. Gap은 명시 삭제 전 보존한다.
+
+웹 요청이 끊기면 최근 UUID의 상태부터 조회한다. 본문/파일/Key를 브라우저 저장소에 넣지 않고 종류와 요청 UUID만 sessionStorage에 둔다. UUID를 복구할 수 없는 업로드는 목록/실행 이력부터 확인한다. 자동 유료 재시도를 하지 않는다. /operations는 관리자로만 저장 공간·보관·마지막 성공 백업·삭제 기록 수를 조회한다. /readyz는 operations 저장 공간과 파일 실행 소유권도 확인하며 단독 실행 권한을 잃으면503이다. /health200은 준비 완료가 아니다. 이런 경우 원인을 확인하고 단일 API를 재시작하며, 소유권을 임의 재획득해 다른 API와 동시에 실행하지 않는다.
+
+운영 API의 진단은 operations/diagnostics에 허용 코드만 기록하고 컨테이너 stdout 로그 중복 보관은 끈다. 문서/질문/답변/Key/원문 예외를 진단에 넣지 않는다. PostgreSQL/외부 TLS proxy 및 외부 보관본의 로그/만료는 해당 운영자가 관리한다. 수동 백업·업그레이드 snapshot·빈 환경 복원·별도 master key·삭제 기록·과금 대조는 [백업/복원 안내](backup-and-restore.md)를 반드시 따른다. 실제 실행 증거·품질/장비 조건은 [최종 검증 기록](implementation/v0.2-final-basic-release.md)에 한정한다.
+
+### 저장 채팅과 화면 이동
+
+로그인 후 기본 화면은 채팅이다. 햄버거 메뉴에서 새 채팅·저장 대화·별도 첨부 작업·문서·설정을 연다. 설정 내부에 모델/전송/예산·계정·실행·Gap·운영을 둔다. `#/chat/:id` 진입마다 최신20개 메시지를 서버에서 불러오며 이전 메시지는 추가 조회한다. 대화30일 보관 및 최신 자료 접근 검사는 유지한다. 목록에는 본문 대신 제목/시각만 포함한다. 브라우저 저장소에 답변/Key를 보관하지 않는다.
+
+일반 RAG의 최근 정상 응답 최대3개를 후속 문맥으로 선택하며 끌 수 있다. 첨부 작업은 별도 private 목록/결과로 남는다. 실제 중지 API는 진행 결과의 늦은 게시를 차단한다. 이미 전송된 모델 요청의 과금 취소나 토큰 스트리밍을 보장하지 않는다. 새 채팅 인덱스 migration은 `20261108020000_chat_navigation`이다. 기존 설치도 snapshot 이후 정상 migration 경로로 갱신한다.

@@ -1,0 +1,378 @@
+{
+  "at": "2026-11-07T19:29:36.498Z",
+  "series": "baseline",
+  "compiledPolicyHash": "847fddbe656ced52682324bf2a88a3d305b9ee4cde634ed24fc961e323215489",
+  "image": "townbase-final-quality",
+  "corpus": "ops",
+  "node": "v24.19.0",
+  "arch": "x64",
+  "platform": "linux",
+  "cpu": "VirtualApple @ 2.50GHz",
+  "cpuCount": 10,
+  "memoryBytes": 8319504384,
+  "cgroupCpu": "150000 100000\n",
+  "cgroupMemory": "3221225472\n",
+  "settings": {
+    "answerModel": "gpt-6-luna",
+    "reasoning": "low",
+    "inputTokenLimit": 16000,
+    "outputTokenLimit": 2048,
+    "priceVersion": "openai-global-standard-2026-10-26",
+    "monthlyBudgetUsd": "0.45"
+  },
+  "priceVersion": "openai-global-standard-2026-10-26",
+  "embedding": {
+    "model": "text-embedding-3-small",
+    "dimensions": 1536
+  },
+  "questionHash": "691a0977e02586d19ec390558d72ed5e402a74a3d3c4bfcec75a35af68906ebd",
+  "corpusHash": "120416ee9ffaccfed5f7e8ca89b5606b11eefde9548d10dd6159b33865eb7503",
+  "documents": [
+    {
+      "id": "OPS-D01",
+      "originalId": "0dda7647-25b0-4ee8-be06-0e5de43efb0a",
+      "name": "OPS-D01.pdf",
+      "sha256": "731d595e2ac9e85777a1cabc82f933536edc9b4eb27fc3b396e7c177f1211888",
+      "textHash": "e22f100308bdc631c0f2b97b35ca7364fff50a07925263e282456f1a520237e4",
+      "format": "pdf",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "공통 출근 시간: 10시."
+        },
+        {
+          "heading": "F2",
+          "text": "출근 기록 도구: 출근표."
+        },
+        {
+          "heading": "F3",
+          "text": "지각 연락 대상: 운영 담당."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D02",
+      "originalId": "48539020-899e-4fe3-bb0b-2ce671fb3389",
+      "name": "OPS-D02.pdf",
+      "sha256": "ec4541dbcd55a868d6cfaf34673dd4fcfb4f5002d87609ba0864d041c2800949",
+      "textHash": "c1d4cb75624e5f98663c2b3c6a8c32425b9b500323726f1d7a1e31dcf3d166c6",
+      "format": "pdf",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "휴가 신청 기한: 3영업일 전."
+        },
+        {
+          "heading": "F2",
+          "text": "휴가 승인자: 팀장."
+        },
+        {
+          "heading": "F3",
+          "text": "휴가 신청 도구: 휴가표."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D03",
+      "originalId": "58c366ae-10d4-42ea-a318-31fe146b362f",
+      "name": "OPS-D03.pdf",
+      "sha256": "68b1cc789b2a30e36c29579d03c5b9388503115dcbf88f139affde1ca4e3751b",
+      "textHash": "b3f43bfb11dd865ff10d2a4ccd8df0ca3252cd61894a1ef8eec8e211ed1bbf9e",
+      "format": "pdf",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "주간 재택 허용 횟수: 2회."
+        },
+        {
+          "heading": "F2",
+          "text": "재택 신청 마감: 전날 17시."
+        },
+        {
+          "heading": "F3",
+          "text": "재택 신청 승인자: 팀장."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D04",
+      "originalId": "abc963e4-ce2d-4e54-a798-27ec7890e9a9",
+      "name": "OPS-D04.docx",
+      "sha256": "4022c66ebe098eab7b6b30d37bae7957a9779c31f60b6dfebfc196aeb30e9251",
+      "textHash": "6279408da9129649f31c75e5260bdc994f7c2de1cc7580336b66a163ff2269cb",
+      "format": "docx",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "경비 제출 마감: 다음 달 5일."
+        },
+        {
+          "heading": "F2",
+          "text": "경비 증빙: 영수증 원본."
+        },
+        {
+          "heading": "F3",
+          "text": "경비 제출 도구: 경비함."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D05",
+      "originalId": "d0c9a5a4-0605-476d-b5b4-f0a9ede1f57c",
+      "name": "OPS-D05.docx",
+      "sha256": "a69bc7b0489a76d73a6d44a66f26ead902827d18d5d1f993fbf6d3f2601342bc",
+      "textHash": "780afe86fd05c80dc8df0028ed63109ff13806dfb60da71570178e5d61fe5695",
+      "format": "docx",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "노트북 교체 주기: 36개월."
+        },
+        {
+          "heading": "F2",
+          "text": "장비 고장 접수 대상: 운영 담당."
+        },
+        {
+          "heading": "F3",
+          "text": "분실 신고 기한: 발견 즉시."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D06",
+      "originalId": "70afef68-ad3c-4647-8e0d-d469459b5a52",
+      "name": "OPS-D06.docx",
+      "sha256": "def96fa1c260f2d1e9d1f7b30ec15bd4f9220a4c4c62a27af2a7a7c6e82e644d",
+      "textHash": "14ef6c82264a9f613e339d18edd7b17f4de0b00b80bf07fdbbe14fff494a2cd8",
+      "format": "docx",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "정기 회의 요일: 화요일."
+        },
+        {
+          "heading": "F2",
+          "text": "회의록 저장 위치: 회의 문서함."
+        },
+        {
+          "heading": "F3",
+          "text": "회의록 작성 담당: 진행자."
+        },
+        {
+          "heading": "F4",
+          "text": "점심 행사 예산: 2만 원. 별도 예외/우선순위/상호 폐기 관계는 정하지 않았다."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D07",
+      "originalId": "1b50d38c-4742-41c8-b6fe-f62bc60c093a",
+      "name": "OPS-D07.md",
+      "sha256": "4426767bd9922e68add0bbc8392f2909d54e55eda2f59b2f89bcbc9a160dfb46",
+      "textHash": "4426767bd9922e68add0bbc8392f2909d54e55eda2f59b2f89bcbc9a160dfb46",
+      "format": "md",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "월 교육비 상한: 8만 원."
+        },
+        {
+          "heading": "F2",
+          "text": "교육 신청 승인자: 팀장."
+        },
+        {
+          "heading": "F3",
+          "text": "교육 증빙: 수료증."
+        },
+        {
+          "heading": "F4",
+          "text": "연간 자격증 지원금: 10만 원. 별도 예외/우선순위/상호 폐기 관계는 정하지 않았다."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D08",
+      "originalId": "bdacb28b-62d6-4184-a9dd-cb98fa6da39d",
+      "name": "OPS-D08.md",
+      "sha256": "bb733a06c13d99be589c53b0f4a3f55a6775e4673f89cc55971d61f750cf9f03",
+      "textHash": "bb733a06c13d99be589c53b0f4a3f55a6775e4673f89cc55971d61f750cf9f03",
+      "format": "md",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "화면 잠금 대기 시간: 5분."
+        },
+        {
+          "heading": "F2",
+          "text": "보안 사고 연락 대상: 보안 담당."
+        },
+        {
+          "heading": "F3",
+          "text": "외부 공유 승인자: 문서 소유자."
+        },
+        {
+          "heading": "F4",
+          "text": "보안 훈련 시간: 30분. 별도 예외/우선순위/상호 폐기 관계는 정하지 않았다."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D09",
+      "originalId": "205bd4be-4bbd-4e6d-8e6e-61c381cabcf6",
+      "name": "OPS-D09.md",
+      "sha256": "9a33ff11d1ed348f21f4c119a5725fd8ac2e0b84ae8405c44445d5257104a31a",
+      "textHash": "9a33ff11d1ed348f21f4c119a5725fd8ac2e0b84ae8405c44445d5257104a31a",
+      "format": "md",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "인수인계 제출 기한: 마지막 근무 5영업일 전."
+        },
+        {
+          "heading": "F2",
+          "text": "장비 반납 대상: 운영 담당."
+        },
+        {
+          "heading": "F3",
+          "text": "계정 폐쇄 시각: 마지막 근무일 18시."
+        },
+        {
+          "heading": "F4",
+          "text": "퇴사 기념품 금액: 3만 원. 별도 예외/우선순위/상호 폐기 관계는 정하지 않았다."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D10",
+      "originalId": "609897f3-db76-4138-8869-1ed840f24709",
+      "name": "OPS-D10.txt",
+      "sha256": "db010c4f19344435d87215f431fd463792fa333335cee12024d3525d5a233919",
+      "textHash": "db010c4f19344435d87215f431fd463792fa333335cee12024d3525d5a233919",
+      "format": "txt",
+      "facts": [
+        {
+          "heading": "F1",
+          "text": "숙박비 1박 상한: 12만 원."
+        },
+        {
+          "heading": "F2",
+          "text": "출장 사전 승인자: 팀장."
+        },
+        {
+          "heading": "F3",
+          "text": "출장 보고 기한: 복귀 후 3영업일."
+        },
+        {
+          "heading": "F4",
+          "text": "출장 일비: 2만 원. 별도 예외/우선순위/상호 폐기 관계는 정하지 않았다."
+        }
+      ]
+    },
+    {
+      "id": "OPS-D11",
+      "originalId": "e3ca72a2-5595-4804-ad77-5c0058bc4c10",
+      "name": "OPS-D11.txt",
+      "sha256": "b65c4a5910fd4350dd1ee29be2c7a487eb31e08ae72a70aa4b0b94a7963898a2",
+      "textHash": "b65c4a5910fd4350dd1ee29be2c7a487eb31e08ae72a70aa4b0b94a7963898a2",
+      "format": "txt",
+      "facts": []
+    },
+    {
+      "id": "OPS-D12",
+      "originalId": "62193697-1012-4cda-8f73-54733fc45f5a",
+      "name": "OPS-D12.txt",
+      "sha256": "0d083f5528c007025eda45d77556b6b1dafbe2a6cf8723d417e8e962b41cfd37",
+      "textHash": "0d083f5528c007025eda45d77556b6b1dafbe2a6cf8723d417e8e962b41cfd37",
+      "format": "txt",
+      "facts": []
+    }
+  ],
+  "chunkCount": 12,
+  "migrations": [
+    {
+      "migration_name": "20260611153120_init"
+    },
+    {
+      "migration_name": "20260611170000_tighten_relations"
+    },
+    {
+      "migration_name": "20260618180000_document_content_hash_index_status"
+    },
+    {
+      "migration_name": "20260618193000_document_chunking_fields"
+    },
+    {
+      "migration_name": "20260618195500_document_chunk_embedding"
+    },
+    {
+      "migration_name": "20260619133000_action_draft_unique_upsert"
+    },
+    {
+      "migration_name": "20260823120000_document_chunk_embedding_model"
+    },
+    {
+      "migration_name": "20261023090000_installation_foundation"
+    },
+    {
+      "migration_name": "20261023230000_bootstrap_registration"
+    },
+    {
+      "migration_name": "20261024120000_administrator_auth"
+    },
+    {
+      "migration_name": "20261024130000_session_revoke_index"
+    },
+    {
+      "migration_name": "20261025010000_model_integration_settings"
+    },
+    {
+      "migration_name": "20261026010000_model_execution"
+    },
+    {
+      "migration_name": "20261027000000_file_source_type"
+    },
+    {
+      "migration_name": "20261027010000_file_extraction"
+    },
+    {
+      "migration_name": "20261028010000_file_extraction_contract"
+    },
+    {
+      "migration_name": "20261029000000_file_audit_actions"
+    },
+    {
+      "migration_name": "20261029010000_file_management"
+    },
+    {
+      "migration_name": "20261031000000_file_runs"
+    },
+    {
+      "migration_name": "20261031010000_file_run_contracts"
+    },
+    {
+      "migration_name": "20261101000000_file_indexes"
+    },
+    {
+      "migration_name": "20261101010000_file_index_review"
+    },
+    {
+      "migration_name": "20261101020000_file_lifecycle"
+    },
+    {
+      "migration_name": "20261101030000_file_run_source_scope"
+    },
+    {
+      "migration_name": "20261104000000_basic_agent"
+    },
+    {
+      "migration_name": "20261107000000_document_agent"
+    },
+    {
+      "migration_name": "20261108000000_rag_gap_reference_limit"
+    },
+    {
+      "migration_name": "20261108010000_private_attachments"
+    }
+  ],
+  "rounds": 3
+}

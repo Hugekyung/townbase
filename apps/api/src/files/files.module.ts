@@ -1,3 +1,5 @@
+import { OperationsModule } from "../operations/operations.module";
+import { DeletionJournal } from "../operations/deletion-journal";
 import path from "node:path";
 import { ModelIntegrationModule } from "../model-integration/model-integration.module";
 import { FileIndexService } from "./file-index.service";
@@ -13,8 +15,8 @@ import { FileManagementService } from "./file-management.service";
 import { FileManagementController } from "./file-management.controller";
 
 @Module({
-  imports: [AuthModule, ModelIntegrationModule],
-  exports: [FileIndexService],
+  imports: [AuthModule, ModelIntegrationModule, OperationsModule],
+  exports: [FileIndexService, FileExtractor, FileRunService],
   controllers: [FileManagementController, FileRunController],
   providers: [
     {
@@ -38,8 +40,15 @@ import { FileManagementController } from "./file-management.controller";
         auth: AuthService,
         storage: FileStorage,
         extractor: FileExtractor,
-      ) => new FileManagementService(db, auth, storage, extractor),
-      inject: [DeploymentDatabase, AuthService, FileStorage, FileExtractor],
+        journal: DeletionJournal,
+      ) => new FileManagementService(db, auth, storage, extractor, journal),
+      inject: [
+        DeploymentDatabase,
+        AuthService,
+        FileStorage,
+        FileExtractor,
+        DeletionJournal,
+      ],
     },
   ],
 })

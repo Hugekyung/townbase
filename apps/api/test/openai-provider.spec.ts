@@ -1,3 +1,4 @@
+import { GROUNDED_FORMAT } from "../src/model-integration/grounded-format";
 import {
   OpenAIProvider,
   parseProvider,
@@ -148,6 +149,20 @@ describe("fixed OpenAI provider protocol", () => {
       store: false,
       tools: [],
     });
+  });
+  test("sends the fixed strict schema for grounded answers without tools or provider storage", async () => {
+    const spy = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(responseFixture())));
+    await new OpenAIProvider().call(
+      "synthetic-key",
+      { ...request, grounded: true },
+      AbortSignal.timeout(5000),
+    );
+    const body = JSON.parse(spy.mock.calls[0]![1]!.body as string);
+    expect(body.text).toEqual({ format: GROUNDED_FORMAT });
+    expect(body.store).toBe(false);
+    expect(body.tools).toEqual([]);
   });
   test("uses fixed embedding route/dimensions without an external vector store", async () => {
     const spy = jest.spyOn(globalThis, "fetch").mockResolvedValue(

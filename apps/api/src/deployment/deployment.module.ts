@@ -1,3 +1,4 @@
+import { AttachmentsModule } from "../attachments/attachments.module";
 import { Module } from "@nestjs/common";
 import { HealthController } from "../health.controller";
 import { ReadinessController } from "./readiness.controller";
@@ -12,7 +13,14 @@ import { AgentModule } from "../agent/agent.module";
 
 // Intentionally excludes the legacy ingestion, MCP, gap and draft modules.
 @Module({
-  imports: [AuthModule, ModelIntegrationModule, FilesModule, AgentModule, RagModule],
+  imports: [
+    AuthModule,
+    ModelIntegrationModule,
+    FilesModule,
+    AgentModule,
+    RagModule,
+    AttachmentsModule,
+  ],
   controllers: [HealthController, ReadinessController, SetupController],
   providers: [SetupService],
 })

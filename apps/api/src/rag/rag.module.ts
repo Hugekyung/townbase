@@ -1,3 +1,4 @@
+import { OperationsModule } from "../operations/operations.module";
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module";
 import { AgentModule } from "../agent/agent.module";
@@ -7,7 +8,13 @@ import { RagController } from "./rag.controller";
 import { RagStore } from "./rag-store";
 import { RagService } from "./rag.service";
 @Module({
-  imports: [AuthModule, AgentModule, FilesModule, ModelIntegrationModule],
+  imports: [
+    AuthModule,
+    AgentModule,
+    FilesModule,
+    ModelIntegrationModule,
+    OperationsModule,
+  ],
   controllers: [RagController],
   providers: [RagStore, RagService],
 })

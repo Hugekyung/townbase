@@ -18,7 +18,6 @@ import { fields } from "../auth/auth-policy";
 import { AgentContractError } from "@townbase/agent-core";
 import { ModelCallError } from "../model-integration/model-policy";
 import { TransferDenied } from "../model-integration/transfer-policy";
-import { databaseFailureCode } from "../diagnostics/database-failure";
 import { RagService } from "./rag.service";
 import { RagStore } from "./rag-store";
 
@@ -40,9 +39,7 @@ export class RagController {
         throw new HttpException({ code: error.code }, 403);
       if (error instanceof AgentContractError)
         throw new HttpException({ code: error.code }, 400);
-      Logger.error(
-        `TOWNBASE_RAG_FAILED [${databaseFailureCode(error) ?? "unexpected_error"}]`,
-      );
+      Logger.error("TOWNBASE_RAG_FAILED");
       throw new HttpException({ code: "question_unavailable" }, 503);
     }
   }
@@ -78,6 +75,22 @@ export class RagController {
       this.store.read(readSessionCookie(req), this.access.requester(req), id),
     );
   }
+  @Post("questions/:id/stop")
+  @Header("Cache-Control", "no-store")
+  stop(
+    @Req() req: AccessRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return this.handle(() => {
+      if (!fields(body, [])) throw new ModelCallError("invalid_request");
+      return this.rag.stop(
+        readSessionCookie(req),
+        this.access.requester(req),
+        id,
+      );
+    });
+  }
   @Get("conversations")
   @Header("Cache-Control", "no-store")
   conversations(
@@ -99,15 +112,20 @@ export class RagController {
     @Param("id") id: string,
     @Query() query: Record<string, unknown>,
   ) {
-    return this.handle(() =>
-      this.store.turns(
+    return this.handle(() => {
+      const { order, ...rest } = query;
+      if (order != null && order !== "latest")
+        throw new ModelCallError("invalid_request");
+      return this.store.turns(
         readSessionCookie(req),
         this.access.requester(req),
         id,
-        this.cursor(query),
-      ),
-    );
+        this.cursor(rest),
+        order === "latest",
+      );
+    });
   }
+
   @Get("gaps")
   @Header("Cache-Control", "no-store")
   gaps(@Req() req: AccessRequest, @Query() query: Record<string, unknown>) {
@@ -118,6 +136,28 @@ export class RagController {
         this.cursor(query),
       ),
     );
+  }
+  @Delete("conversations/:id")
+  @Header("Cache-Control", "no-store")
+  removeConversation(
+    @Req() req: AccessRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return this.handle(() => {
+      if (
+        body == null ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).length
+      )
+        throw new ModelCallError("invalid_request");
+      return this.store.removeConversation(
+        readSessionCookie(req),
+        this.access.requester(req),
+        id,
+      );
+    });
   }
   @Delete("gaps/:id")
   @Header("Cache-Control", "no-store")

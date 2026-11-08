@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   questionInput,
+  lexicalEvidence,
+  exactExcerpts,
   resolvedMode,
   selectSources,
   promptFor,
@@ -61,6 +63,47 @@ const valid = {
   ],
   conflicts: [],
 };
+test("short Korean field names can retrieve direct textual evidence without lowering the raw semantic gate", () => {
+  const explicit = source({
+    content: "지각 연락 대상: 운영 담당.",
+    score: 0.33,
+  });
+  expect(selectSources("onboarding", [explicit]).answerable).toBe(false);
+  expect(
+    selectSources("onboarding", [explicit], "지각 연락 대상 알려줘.")
+      .answerable,
+  ).toBe(true);
+  expect(lexicalEvidence("연말 보너스 지급일 알려줘.", explicit)).toBe(false);
+  expect(
+    lexicalEvidence("지각 연락 대상 알려줘.", { ...explicit, score: 0.24 }),
+  ).toBe(true);
+  expect(
+    lexicalEvidence(
+      "지각 연락 대상 알려줘.",
+      source({
+        content: "지각 문제와 연락 방법을 확인합니다. 대상은 운영팀입니다.",
+        score: 0.24,
+      }),
+    ),
+  ).toBe(false);
+  expect(lexicalEvidence("알려줘 주세요", explicit)).toBe(false);
+});
+test("nonadjacent evidence is rendered as exact ordered excerpts without inventing or dropping facts", () => {
+  const content =
+    "현행 문서의 상태입니다. 중간 문단은 그대로 보존합니다. 비용은 3,000원입니다.";
+  expect(
+    exactExcerpts("현행 문서의 상태입니다. 비용은 3,000원입니다.", content),
+  ).toEqual(["현행 문서의 상태입니다.", "비용은 3,000원입니다."]);
+  expect(
+    exactExcerpts("현행 문서의 상태입니다. 비용은 5,000원입니다.", content),
+  ).toBeNull();
+  expect(
+    exactExcerpts("비용은 3,000원입니다. 현행 문서의 상태입니다.", content),
+  ).toBeNull();
+  expect(
+    exactExcerpts("문서에 없는 주장입니다. 비용은 3,000원입니다.", content),
+  ).toBeNull();
+});
 describe("RAG question and grounded evidence contracts", () => {
   test.each(["onboarding", "product_history", "documentation_gap"] as const)(
     "minimum configured input budget admits a short sourced %s prompt without truncation",
@@ -247,6 +290,46 @@ describe("RAG question and grounded evidence contracts", () => {
       ).toThrow("invalid_grounded_response");
     },
   );
+  test("short prompt references map only to current sources and stored results keep UUIDs", () => {
+    const s = source();
+    const value = {
+      ...valid,
+      claims: [
+        { text: "사실", evidence: [{ sourceId: "S1", quote: s.content }] },
+      ],
+    };
+    expect(
+      parseGroundedResult(JSON.stringify(value), [s], "prompt").claims[0]!
+        .evidence[0]!.sourceId,
+    ).toBe(s.id);
+    expect(() => parseGroundedResult(JSON.stringify(value), [s])).toThrow();
+    expect(() =>
+      parseGroundedResult(JSON.stringify(valid), [s], "prompt"),
+    ).toThrow();
+    value.claims[0]!.evidence[0]!.sourceId = "S2";
+    expect(() =>
+      parseGroundedResult(JSON.stringify(value), [s], "prompt"),
+    ).toThrow();
+    expect(
+      JSON.parse(
+        promptFor(
+          {
+            name: "도우미",
+            purpose: "안내",
+            instructions: "",
+            terminology: [],
+            sourceSelection: "all",
+            sourceOriginalIds: [],
+          },
+          "질문",
+          "onboarding",
+          [s],
+          [],
+          16000,
+        ).input,
+      ).sources[0].id,
+    ).toBe("S1");
+  });
   test("call identities remain stable across retries and differ by purpose", () => {
     expect(callId(id, "embedding")).toBe(callId(id, "embedding"));
     expect(callId(id, "embedding")).not.toBe(callId(id, "answer"));

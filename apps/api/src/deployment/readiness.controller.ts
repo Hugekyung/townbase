@@ -1,3 +1,5 @@
+import { FileRunService } from "../files/file-run.service";
+import { operationsPath } from "../operations/deletion-journal";
 import { PublicEndpoint } from "../access/public-endpoint";
 import { Controller, Get, Header, Res } from "@nestjs/common";
 import {
@@ -18,6 +20,7 @@ export class ReadinessController {
   constructor(
     private readonly database: DeploymentDatabase,
     private readonly setupService: SetupService,
+    private readonly fileRuns: FileRunService,
   ) {}
 
   @PublicEndpoint()
@@ -32,6 +35,7 @@ export class ReadinessController {
       const locations = [
         process.env.TOWNBASE_DOCUMENTS_PATH,
         process.env.TOWNBASE_ATTACHMENTS_PATH,
+        operationsPath(),
       ];
       if (
         locations.some(
@@ -49,7 +53,6 @@ export class ReadinessController {
       const resolved = await Promise.all(
         locations.map((location) => realpath(location!)),
       );
-      const [documents, attachments] = resolved as [string, string];
       const nested = (parent: string, child: string) => {
         const relative = path.relative(parent, child);
         return (
@@ -59,7 +62,11 @@ export class ReadinessController {
             !path.isAbsolute(relative))
         );
       };
-      if (nested(documents, attachments) || nested(attachments, documents))
+      if (
+        resolved.some((a, i) =>
+          resolved.some((b, j) => i !== j && nested(a, b)),
+        )
+      )
         throw new Error("Overlapping storage");
       const stats = await Promise.all(
         resolved.map((location) => stat(location)),
@@ -103,7 +110,8 @@ export class ReadinessController {
       setup !== "unavailable" &&
       result.database === "ready" &&
       result.schema === "ready" &&
-      storage === "ready";
+      storage === "ready" &&
+      (await this.fileRuns.ready());
     response.status(ready ? 200 : 503);
     return {
       ...result,
@@ -111,7 +119,7 @@ export class ReadinessController {
       setup,
       capabilities: {
         administratorSetup: ready && setup === "required",
-        chat: false,
+        chat: ready && setup === "complete",
       },
     };
   }

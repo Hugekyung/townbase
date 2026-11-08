@@ -1,7 +1,7 @@
 export function isRagQuestion(request: {
-  method?: string;
-  originalUrl?: string;
-  url?: string;
+  method?: string | undefined;
+  originalUrl?: string | undefined;
+  url?: string | undefined;
 }) {
   const path = (request.originalUrl ?? request.url ?? "")
     .split("?", 1)[0]

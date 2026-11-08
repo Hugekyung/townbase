@@ -99,7 +99,7 @@ export class FileStorage {
       throw new FileError("storage_unavailable");
     }
   }
-  async read(key: string): Promise<Buffer> {
+  async read(key: string, maxBytes = FILE_LIMITS.bytes): Promise<Buffer> {
     return this.safe(async () => {
       this.validKey(key);
       const handle = await open(
@@ -111,7 +111,7 @@ export class FileStorage {
         if (
           !info.isFile() ||
           info.size < 1 ||
-          info.size > FILE_LIMITS.bytes ||
+          info.size > maxBytes ||
           info.nlink !== 1 ||
           (info.mode & 0o077) !== 0
         )

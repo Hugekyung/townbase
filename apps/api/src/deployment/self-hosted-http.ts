@@ -1,5 +1,9 @@
 import { HttpException } from "@nestjs/common";
 import { AccessService, type AccessRequest } from "../access/access.service";
+import {
+  isAttachmentUpload,
+  isAttachmentQuestion,
+} from "../attachments/attachment-policy";
 import { isRagQuestion } from "../rag/rag-http";
 import { isFileUpload } from "../files/file-upload";
 import path from "node:path";
@@ -43,7 +47,9 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
       },
       next: () => void,
     ) => {
-      if (!isFileUpload(req) && !isRagQuestion(req)) return next();
+      const questionBody = isRagQuestion(req) || isAttachmentQuestion(req);
+      if (!isFileUpload(req) && !isAttachmentUpload(req) && !questionBody)
+        return next();
       void app
         .get(AccessService)
         .authenticate(req)
@@ -56,8 +62,8 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
           else {
             if (req.destroyed || res.destroyed) return;
             if (uploading) {
-              res.status(isRagQuestion(req) ? 429 : 409).json({
-                code: isRagQuestion(req)
+              res.status(questionBody ? 429 : 409).json({
+                code: questionBody
                   ? "question_body_busy"
                   : "file_operation_busy",
               });
@@ -77,7 +83,7 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
             res.once("close", release);
             req.once("end", () => {
               clearTimeout(deadline);
-              if (isRagQuestion(req)) release();
+              if (questionBody) release();
             });
             next();
           }
@@ -95,9 +101,14 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
     type: isFileUpload,
   });
   app.useBodyParser("json", {
+    limit: "14mb",
+    strict: true,
+    type: isAttachmentUpload,
+  });
+  app.useBodyParser("json", {
     limit: "64kb",
     strict: true,
-    type: isRagQuestion,
+    type: (req) => isRagQuestion(req) || isAttachmentQuestion(req),
   });
   app.useBodyParser("json", { limit: "8kb", strict: true });
   app.use(

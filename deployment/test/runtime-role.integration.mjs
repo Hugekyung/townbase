@@ -371,7 +371,14 @@ test("C02 grants only credential/policy writes and no identity mutations or poli
 });
 
 test("C02 refuses PUBLIC DELETE on a policy or audit table", async () => {
-  for (const table of ["ModelTransferPolicy", "InstallationAuditEvent", "BasicAgent"]) {
+  for (const table of [
+    "ModelTransferPolicy",
+    "InstallationAuditEvent",
+    "AdministratorSession",
+    "Attachment",
+    "AttachmentTask",
+    "BasicAgent",
+  ]) {
     await db.$executeRawUnsafe(`GRANT DELETE ON public."${table}" TO PUBLIC`);
     try {
       await assert.rejects(configure, {
@@ -431,11 +438,35 @@ test("C01 grants only enumerated execution columns and no call deletion", async 
 
 test("E01 grants only Agent content/revision updates and no delete, identity change or delegation", async () => {
   await configure();
-  const columns = await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname='BasicAgent' AND a.attnum>0 AND NOT a.attisdropped`;
+  const columns =
+    await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname='BasicAgent' AND a.attnum>0 AND NOT a.attisdropped`;
   assert.equal(columns.length, 12);
-  assert.deepEqual(columns.filter(c => c.writable).map(c => c.attname).sort(), ["name", "purpose", "instructions", "terminology", "sourceSelection", "sourceOriginalIds", "revision", "updatedAt"].sort());
-  const [rights] = await db.$queryRaw`SELECT has_table_privilege('townbase_runtime','"BasicAgent"','SELECT') AS readable, has_table_privilege('townbase_runtime','"BasicAgent"','INSERT') AS insertable, has_table_privilege('townbase_runtime','"BasicAgent"','UPDATE') AS table_update, has_table_privilege('townbase_runtime','"BasicAgent"','DELETE') AS deletable, has_any_column_privilege('townbase_runtime','"BasicAgent"','REFERENCES') AS referenceable, has_any_column_privilege('townbase_runtime','"BasicAgent"','UPDATE WITH GRANT OPTION') AS delegation`;
-  assert.deepEqual(rights, { readable: true, insertable: true, table_update: false, deletable: false, referenceable: false, delegation: false });
+  assert.deepEqual(
+    columns
+      .filter((c) => c.writable)
+      .map((c) => c.attname)
+      .sort(),
+    [
+      "name",
+      "purpose",
+      "instructions",
+      "terminology",
+      "sourceSelection",
+      "sourceOriginalIds",
+      "revision",
+      "updatedAt",
+    ].sort(),
+  );
+  const [rights] =
+    await db.$queryRaw`SELECT has_table_privilege('townbase_runtime','"BasicAgent"','SELECT') AS readable, has_table_privilege('townbase_runtime','"BasicAgent"','INSERT') AS insertable, has_table_privilege('townbase_runtime','"BasicAgent"','UPDATE') AS table_update, has_table_privilege('townbase_runtime','"BasicAgent"','DELETE') AS deletable, has_any_column_privilege('townbase_runtime','"BasicAgent"','REFERENCES') AS referenceable, has_any_column_privilege('townbase_runtime','"BasicAgent"','UPDATE WITH GRANT OPTION') AS delegation`;
+  assert.deepEqual(rights, {
+    readable: true,
+    insertable: true,
+    table_update: false,
+    deletable: false,
+    referenceable: false,
+    delegation: false,
+  });
 });
 
 test("C01 refuses PUBLIC deletion of execution settings or calls", async () => {
@@ -612,14 +643,52 @@ test("E02 grants only terminal RAG result updates and denies identity, provenanc
   await configure();
   for (const [table, allowed] of [
     ["RagConversation", []],
-    ["RagTurn", ["status","errorCode","sources","result","answer","model","completedAt"]],
+    [
+      "RagTurn",
+      [
+        "status",
+        "errorCode",
+        "sources",
+        "result",
+        "answer",
+        "model",
+        "completedAt",
+      ],
+    ],
     ["RagGap", []],
+    ["Attachment", ["taskRequestId", "blockedAt", "rawDeletedAt"]],
+    [
+      "AttachmentTask",
+      [
+        "status",
+        "errorCode",
+        "ragSources",
+        "attachmentSources",
+        "result",
+        "answer",
+        "model",
+        "completedAt",
+      ],
+    ],
   ]) {
-    const columns=await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable, has_column_privilege('townbase_runtime',c.oid,a.attnum,'REFERENCES') AS referenceable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname=${table} AND a.attnum>0 AND NOT a.attisdropped`;
-    assert.ok(columns.length>allowed.length);
-    assert.deepEqual(columns.filter(c=>c.writable).map(c=>c.attname).sort(),allowed.toSorted());
-    assert.ok(columns.every(c=>!c.referenceable));
-    const [rights]=await db.$queryRaw`SELECT has_table_privilege('townbase_runtime',format('public.%I',${table}),'SELECT') AS readable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'INSERT') AS insertable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'DELETE') AS deletable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'UPDATE') AS table_update`;
-    assert.deepEqual(rights,{readable:true,insertable:true,deletable:true,table_update:false});
+    const columns =
+      await db.$queryRaw`SELECT a.attname, has_column_privilege('townbase_runtime',c.oid,a.attnum,'UPDATE') AS writable, has_column_privilege('townbase_runtime',c.oid,a.attnum,'REFERENCES') AS referenceable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid WHERE n.nspname='public' AND c.relname=${table} AND a.attnum>0 AND NOT a.attisdropped`;
+    assert.ok(columns.length > allowed.length);
+    assert.deepEqual(
+      columns
+        .filter((c) => c.writable)
+        .map((c) => c.attname)
+        .sort(),
+      allowed.toSorted(),
+    );
+    assert.ok(columns.every((c) => !c.referenceable));
+    const [rights] =
+      await db.$queryRaw`SELECT has_table_privilege('townbase_runtime',format('public.%I',${table}),'SELECT') AS readable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'INSERT') AS insertable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'DELETE') AS deletable, has_table_privilege('townbase_runtime',format('public.%I',${table}),'UPDATE') AS table_update`;
+    assert.deepEqual(rights, {
+      readable: true,
+      insertable: true,
+      deletable: true,
+      table_update: false,
+    });
   }
 });

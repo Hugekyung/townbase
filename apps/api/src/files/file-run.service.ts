@@ -121,6 +121,14 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
       throw error;
     }
   }
+  async ready() {
+    try {
+      await this.checkOwner();
+      return true;
+    } catch {
+      return false;
+    }
+  }
   private async checkOwner() {
     if (!this.owner || this.closing)
       throw new HttpException({ code: "api_stopping" }, 503);

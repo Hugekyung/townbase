@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { OperationalLogger } from "./operations/operational-logger";
 
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
@@ -26,7 +27,10 @@ async function bootstrap(): Promise<void> {
       : (await import("./app.module")).AppModule;
   startupStage = "application";
   const app = await NestFactory.create<NestExpressApplication>(rootModule, {
-    logger: ["error", "warn", "log"],
+    logger:
+      profile === "self_hosted"
+        ? new OperationalLogger()
+        : ["error", "warn", "log"],
     bodyParser: profile !== "self_hosted",
   });
   app.enableShutdownHooks();

@@ -5,6 +5,7 @@ import { AuthPanel } from "./AuthPanel";
 import { SetupForm } from "./SetupForm";
 
 type Readiness = {
+  httpReady: boolean;
   setup: "required" | "complete" | "unavailable";
   database: "ready" | "unavailable";
   schema: "ready" | "unavailable";
@@ -26,6 +27,7 @@ function parseReadiness(value: unknown): Readiness {
 }
 
 function App() {
+  const [authenticated, setAuthenticated] = useState(false);
   const [status, setStatus] = useState<Readiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -42,7 +44,10 @@ function App() {
       .then(async (response) => {
         if (response.status !== 200 && response.status !== 503)
           throw new Error("Status unavailable");
-        return parseReadiness(await response.json());
+        return {
+          ...parseReadiness(await response.json()),
+          httpReady: response.status === 200,
+        };
       })
       .then((next) => {
         if (active) setStatus(next);
@@ -62,7 +67,8 @@ function App() {
   }, [attempt]);
 
   const ready =
-    status?.database === "ready" &&
+    status?.httpReady === true &&
+    status.database === "ready" &&
     status.schema === "ready" &&
     status.storage === "ready" &&
     status.setup !== "unavailable";
@@ -85,7 +91,7 @@ function App() {
   ];
 
   return (
-    <div className="shell">
+    <div className={authenticated ? "shell authenticated" : "shell"}>
       <header className="topbar">
         <a className="brand" href="/" aria-label="Townbase 설치 상태">
           <span className="brand-mark">t</span>townbase
@@ -156,7 +162,10 @@ function App() {
                     : "연결되지 않은 항목이 있어요. 운영자가 서비스 상태를 확인해 주세요."}
           </div>
         </section>
-        <section className="next-panel" aria-labelledby="next-title">
+        <section
+          className="next-panel"
+          aria-labelledby={authenticated ? undefined : "next-title"}
+        >
           <div className="next-icon" aria-hidden="true">
             →
           </div>
@@ -177,6 +186,7 @@ function App() {
               <AuthPanel
                 blocked={loading || failed || !ready}
                 onBusyChange={setRegistering}
+                onAuthenticatedChange={setAuthenticated}
               />
             ) : (
               <p>

@@ -1,12 +1,15 @@
+import { Workspace } from "./Workspace";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 type Session = { username: string };
 export function AuthPanel({
   blocked,
   onBusyChange,
+  onAuthenticatedChange,
 }: {
   blocked: boolean;
   onBusyChange(busy: boolean): void;
+  onAuthenticatedChange(authenticated: boolean): void;
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
@@ -117,7 +120,10 @@ export function AuthPanel({
       });
       if (response.ok) {
         setMode("login");
-        if (action !== "login") setSession(null);
+        if (action !== "login") {
+          setSession(null);
+          sessionStorage.removeItem("townbase.pending");
+        }
         setMessage(
           action === "login"
             ? ""
@@ -150,7 +156,11 @@ export function AuthPanel({
       setAttempt((value) => value + 1);
     }
   }
-  return (
+  const authenticated = session != null && !unavailable && !blocked;
+  useEffect(() => {
+    onAuthenticatedChange(authenticated);
+  }, [authenticated, onAuthenticatedChange]);
+  const account = (
     <div className="auth-panel">
       <p role="status">
         {blocked
@@ -160,7 +170,7 @@ export function AuthPanel({
             : unavailable
               ? "로그인 상태를 확인하지 못했어요."
               : session
-                ? `${session.username} 님으로 로그인했어요. 문서 등록과 채팅은 다음 단계에서 제공해요.`
+                ? `${session.username} 님으로 로그인했어요.`
                 : "관리자 계정으로 로그인해 주세요."}
       </p>
       <button
@@ -291,5 +301,19 @@ export function AuthPanel({
       )}
       {message && <p role="status">{message}</p>}
     </div>
+  );
+  return authenticated ? (
+    <Workspace
+      username={session.username}
+      account={account}
+      onExpired={() => {
+        setSession(null);
+        setMode("login");
+        clearSecrets();
+        setAttempt((n) => n + 1);
+      }}
+    />
+  ) : (
+    account
   );
 }

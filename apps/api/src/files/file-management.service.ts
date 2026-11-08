@@ -1,3 +1,4 @@
+import { DeletionJournal } from "../operations/deletion-journal";
 import { createHash } from "node:crypto";
 import {
   ConflictException,
@@ -39,6 +40,7 @@ export class FileManagementService implements OnApplicationShutdown {
     private readonly auth: AuthService,
     readonly storage: FileStorage,
     extractor: FileExtractor,
+    private readonly journal: DeletionJournal,
   ) {
     this.foundation = new FileFoundation(auth, extractor, storage);
   }
@@ -326,6 +328,15 @@ export class FileManagementService implements OnApplicationShutdown {
   ) {
     id = originalId(id);
     return this.locked(async () => {
+      if (
+        !included &&
+        (await this.scoped(
+          token,
+          context,
+          async (tx, c) => (await this.current(tx, c, id)).excludedAt == null,
+        ))
+      )
+        await this.journal.accept(token, context, "file_scope", id);
       await this.scoped(token, context, async (tx, c) => {
         const current = await this.current(tx, c, id);
         if ((current.excludedAt == null) === included) return {};
@@ -365,6 +376,7 @@ export class FileManagementService implements OnApplicationShutdown {
   ) {
     id = originalId(id);
     return this.locked(async () => {
+      await this.journal.accept(token, context, "file", id);
       await this.scoped(token, context, async (tx, c) => {
         const found = await tx.fileOriginal.findFirst({
           where: {

@@ -37,9 +37,9 @@ WORKDIR /app
 COPY --from=build --chown=node:node /out/api /app/api
 COPY --from=build --chown=node:node /workspace/apps/web/dist /app/web/dist
 COPY --from=build /workspace/packages/database/prisma/migrations /app/migrations
-COPY --chown=node:node deployment/start.mjs deployment/bootstrap.mjs deployment/recovery.mjs deployment/database-env.mjs /app/deployment/
+COPY --chown=node:node deployment/start.mjs deployment/bootstrap.mjs deployment/recovery.mjs deployment/database-env.mjs deployment/backup-format.mjs deployment/restore-agent.mjs /app/deployment/
 RUN install -d -o node -g node -m 0700 /var/lib/townbase/documents /var/lib/townbase/attachments
-RUN install -d -o node -g node -m 0700 /var/lib/townbase/bootstrap /var/lib/townbase/recovery
+RUN install -d -o node -g node -m 0700 /var/lib/townbase/bootstrap /var/lib/townbase/recovery /var/lib/townbase/operations
 USER node
 EXPOSE 3000
 CMD ["node", "deployment/start.mjs"]

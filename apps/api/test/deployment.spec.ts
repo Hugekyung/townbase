@@ -6,6 +6,9 @@ import os from "node:os";
 import path from "node:path";
 import request from "supertest";
 
+import { DeletionJournal } from "../src/operations/deletion-journal";
+import { OperationsService } from "../src/operations/operations.service";
+import { AttachmentService } from "../src/attachments/attachment.service";
 import { RagService } from "../src/rag/rag.service";
 import { FileRunService } from "../src/files/file-run.service";
 import { FileManagementService } from "../src/files/file-management.service";
@@ -45,6 +48,7 @@ describe("self-hosted deployment surface", () => {
   };
   const check = jest.fn();
   const setupStatus = jest.fn();
+  const fileReady = jest.fn();
 
   beforeEach(async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), "townbase-deployment-"));
@@ -52,15 +56,23 @@ describe("self-hosted deployment surface", () => {
     process.env.TOWNBASE_ATTACHMENTS_PATH = path.join(directory, "attachments");
     await mkdir(process.env.TOWNBASE_DOCUMENTS_PATH);
     await mkdir(process.env.TOWNBASE_ATTACHMENTS_PATH);
+    await mkdir(path.join(directory, "operations"));
     check.mockResolvedValue({ database: "ready", schema: "ready" });
     setupStatus.mockResolvedValue({ state: "required" });
+    fileReady.mockResolvedValue(true);
     const module = await Test.createTestingModule({
       imports: [DeploymentModule],
     })
+      .overrideProvider(DeletionJournal)
+      .useValue({})
+      .overrideProvider(OperationsService)
+      .useValue({})
+      .overrideProvider(AttachmentService)
+      .useValue({})
       .overrideProvider(RagService)
       .useValue({})
       .overrideProvider(FileRunService)
-      .useValue({})
+      .useValue({ ready: fileReady })
       .overrideProvider(FileManagementService)
       .useValue({})
       .overrideProvider(DeploymentDatabase)
@@ -99,6 +111,24 @@ describe("self-hosted deployment surface", () => {
       });
   });
 
+  it("reports chat after setup and fails readiness when execution ownership is lost", async () => {
+    setupStatus.mockResolvedValue({ state: "complete" });
+    const ready = await request(app.getHttpServer()).get("/readyz").expect(200);
+    expect(ready.body.capabilities.chat).toBe(true);
+    fileReady.mockResolvedValue(false);
+    const unavailable = await request(app.getHttpServer())
+      .get("/readyz")
+      .expect(503);
+    expect(unavailable.body.capabilities.chat).toBe(false);
+    await request(app.getHttpServer()).get("/health").expect(200);
+  });
+  it("requires the separate operational storage to be writable", async () => {
+    await rm(path.join(directory, "operations"), { recursive: true });
+    const response = await request(app.getHttpServer())
+      .get("/readyz")
+      .expect(503);
+    expect(response.body.storage).toBe("unavailable");
+  });
   it("returns 503 for database and migration failures", async () => {
     check.mockResolvedValue({ database: "unavailable", schema: "unavailable" });
     await request(app.getHttpServer()).get("/readyz").expect(503);
