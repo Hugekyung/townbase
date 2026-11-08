@@ -212,3 +212,57 @@ for (const failurePoint of ["dump", "backup-import"])
       );
     });
   });
+
+test("backup CLI gives document and journal copies the transfer deadline, while metadata keeps its shorter bound", async () => {
+  const fixture = `const fs=require('node:fs');const args=process.argv.slice(2),api='a'.repeat(24),pg='b'.repeat(24);if(args.includes('run')){process.stdin.resume();}else if(args[0]==='compose'){console.log(args.at(-1)==='api'?api:pg);}else if(args[0]==='inspect'){const isApi=args[1]===api;console.log(JSON.stringify([{Config:{Labels:{'com.docker.compose.project':'townbase-copy-deadline-test','com.docker.compose.service':isApi?'api':'postgres'}},State:{Running:!isApi}}]));}else if(args[0]==='cp'){fs.mkdirSync(args.at(-1),{recursive:true});fs.appendFileSync(process.env.COPY_PROBE,args[1]+'\\n');setTimeout(()=>{},750);}else if(args.includes('pg_dump')){process.stdout.write('SYNTHETIC_DUMP');}else{process.stdin.resume();process.stdin.on('end',()=>console.log(JSON.stringify({installationId:'primary',workspaceId:'synthetic-workspace',initialized:true,migrations:[]})));}`;
+  await withFakeDocker(fixture, async (root) => {
+    const workspace = path.join(root, "workspace"),
+      dot = path.join(workspace, ".townbase"),
+      archive = path.join(root, "archives"),
+      key = path.join(root, "key"),
+      probe = path.join(root, "copies");
+    await mkdir(dot, { recursive: true, mode: 0o700 });
+    await chmod(dot, 0o700);
+    await writeFile(path.join(dot, "compose.env"), "SYNTHETIC_FIXTURE=1\n", {
+      mode: 0o600,
+    });
+    await mkdir(archive, { mode: 0o700 });
+    await writeFile(key, Buffer.alloc(32, 7).toString("base64url"), {
+      mode: 0o600,
+    });
+    const preload = path.join(root, "clock.mjs");
+    // Scale only the parent's deadlines, never the fake cp's750ms work. A
+    // mistaken metadata deadline500ms must fail; a transfer deadline5s must pass.
+    await writeFile(
+      preload,
+      `const timeout=globalThis.setTimeout;globalThis.setTimeout=(fn,ms,...args)=>timeout(fn,ms===120000?500:ms===1800000?5000:ms,...args);`,
+    );
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        preload,
+        path.resolve("deployment/backup.mjs"),
+        "create",
+        "--project=townbase-copy-deadline-test",
+        "--key-file=" + key,
+        "--directory=" + archive,
+      ],
+      {
+        cwd: workspace,
+        env: { ...process.env, COPY_PROBE: probe },
+        encoding: "utf8",
+        timeout: 10000,
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const copies = (await readFile(probe, "utf8")).trim().split("\n");
+    assert.equal(copies.length, 2);
+    assert(copies.some((v) => v.endsWith("/documents/.")));
+    assert(copies.some((v) => v.endsWith("/operations/deletions/.")));
+    assert.equal(
+      JSON.parse(result.stdout).temporaryAttachmentBodiesIncluded,
+      false,
+    );
+  });
+});

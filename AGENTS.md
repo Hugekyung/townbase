@@ -272,3 +272,9 @@
 - 평가 scripts의 finally는 자원 정리만 수행하고 app.close 실패에도 owner disconnect를 시도한다. 성공·작업 실패·정리 실패는 실제 script를 합성 의존성으로 구동하는 evaluation-lifecycle.spec.ts로 검증한다. 기존 series 잠금 충돌은 lock 경로/수동 확인 안내를 남기고 타 실행의 lock을 자동 삭제하지 않는다.
 - RAG 화면에서 전송한 첨부 요청도 실패한 kind/id로 재조회한다. ChatPanel의 실패 상태를 pending 진행 표시와 별도로 유지한다. 서버 성공 응답은 로컬 sessionStorage bookkeeping 실패로 뒤집지 않는다.
 - TOWNBASE_EVAL_SOURCE_COMMIT은 운영자 확인값이며 checkout/build 자동 검증값이 아니다. 새 manifest는 operator-attested 표기를 함께 기록하고, 과거 여러 컴포넌트 hash가 없는 실행은 rag-policy 단일 hash의 범위와 구분한다.
+
+## PR48 3차 리뷰 보완 경계
+
+- 기본 평가기도 앱 종료/owner disconnect를 각각 시도한다. 자기 잠금은 앱·owner·핸들 정리 확인 후만 제거하고, 실패 시 파일을 보존한다. evaluation-lifecycle의 basic post-create 실패/close 실패/disconnect 실패가 이 경계를 검증한다.
+- resume 비교는 알려진 설명용 provenance만 분리한다. source SHA·자료/질문/compiled hash·반복 범위와 별도의 Agent/모델 runtime 계약은 계속 검사하고, 과거 manifest를 소급 수정하지 않는다.
+- 대량 문서/삭제 기록 cp는 dump/restore와 같은30분 상한을 명시하며 일반 Docker 상태/제어 명령의2분 상한은 유지한다.

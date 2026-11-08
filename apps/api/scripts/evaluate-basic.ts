@@ -1,4 +1,8 @@
 import "reflect-metadata";
+import {
+  OPERATOR_ATTESTED_PROVENANCE,
+  sameResumeContract,
+} from "./evaluation-resume";
 import { createRequire } from "node:module";
 import {
   readFile,
@@ -85,7 +89,6 @@ async function main() {
     rounds,
     limit,
     sourceCommit,
-    sourceCommitProvenance: "operator_attested_not_verified_against_checkout",
     questionHash: hash(fixture.questionText),
     corpusHash: hash(fixture.original),
     fixtureHashes: fixture.documents.map((d) => [d.id, hash(d.bytes)]),
@@ -109,10 +112,7 @@ async function main() {
       if (e.code === "ENOENT") return null;
       throw e;
     });
-  if (
-    previous &&
-    JSON.stringify(previous.resumeContract) !== JSON.stringify(resumeContract)
-  )
+  if (previous && !sameResumeContract(previous.resumeContract, resumeContract))
     throw Error("Evaluation resume contract changed");
   if (previous == null) {
     const hasRows = await readFile(
@@ -334,7 +334,7 @@ async function main() {
   const settings = await app.get(ModelExecutionService).snapshot(c);
   const manifest = {
     sourceCommit,
-    sourceCommitProvenance: "operator_attested_not_verified_against_checkout",
+    sourceCommitProvenance: OPERATOR_ATTESTED_PROVENANCE,
     resumeContract,
     at: new Date().toISOString(),
     series,
@@ -606,13 +606,23 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    let appClosed = false,
+      ownerDisconnected = false;
     try {
-      await app?.close();
-      await owner.$disconnect();
+      try {
+        await app?.close();
+        appClosed = true;
+      } finally {
+        await owner.$disconnect();
+        ownerDisconnected = true;
+      }
     } finally {
       if (runLock) {
         await runLock.close();
-        await unlink(path.join(evidence, ".run.lock"));
+        // A failed cleanup is not proof that the previous evaluation stopped.
+        // Retain its lock for operator reconciliation instead of enabling retry.
+        if (appClosed && ownerDisconnected)
+          await unlink(path.join(evidence, ".run.lock"));
       }
     }
   });

@@ -3,6 +3,8 @@ import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 
+export const BACKUP_TRANSFER_DEADLINE_MS = 30 * 60_000;
+
 export class BackupChildUnconfirmed extends Error {
   constructor() {
     super("Backup child termination unconfirmed");
@@ -64,7 +66,11 @@ export function observeDockerChild(child, deadlineMs, abortIO = () => {}) {
 }
 function checkedDeadline(value, fallback) {
   const deadline = value ?? fallback;
-  if (!Number.isSafeInteger(deadline) || deadline < 1 || deadline > 30 * 60_000)
+  if (
+    !Number.isSafeInteger(deadline) ||
+    deadline < 1 ||
+    deadline > BACKUP_TRANSFER_DEADLINE_MS
+  )
     throw Error("Invalid Docker operation deadline");
   return deadline;
 }
@@ -96,7 +102,7 @@ async function streamed(argv, stream, direction, deadlineMs) {
   });
   const life = observeDockerChild(
     child,
-    checkedDeadline(deadlineMs, 30 * 60_000),
+    checkedDeadline(deadlineMs, BACKUP_TRANSFER_DEADLINE_MS),
     () => controller.abort(),
   );
   const io = (
@@ -113,7 +119,7 @@ async function streamed(argv, stream, direction, deadlineMs) {
   if (transfer.status === "rejected") throw transfer.reason;
 }
 export async function streamOut(argv, filename, { deadlineMs } = {}) {
-  checkedDeadline(deadlineMs, 30 * 60_000);
+  checkedDeadline(deadlineMs, BACKUP_TRANSFER_DEADLINE_MS);
   const handle = await open(filename, "wx", 0o600);
   const stream = handle.createWriteStream();
   try {
@@ -124,7 +130,7 @@ export async function streamOut(argv, filename, { deadlineMs } = {}) {
   }
 }
 export async function streamIn(argv, filename, { deadlineMs } = {}) {
-  checkedDeadline(deadlineMs, 30 * 60_000);
+  checkedDeadline(deadlineMs, BACKUP_TRANSFER_DEADLINE_MS);
   const stream = createReadStream(filename);
   try {
     await streamed(argv, stream, "in", deadlineMs);

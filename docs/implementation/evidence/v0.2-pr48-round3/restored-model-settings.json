@@ -1,0 +1,10 @@
+{
+  "observedAtUtc": "2026-11-08T15:44:27.945Z",
+  "project": "townbase-pr48-r2-restore",
+  "authentication": "administrator_session",
+  "method": "GET",
+  "endpoint": "/settings/model-integration/execution",
+  "priceVersion": null,
+  "paidCallsBlocked": true,
+  "actualModelCallsInThisReadback": 0
+}

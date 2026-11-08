@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import ts from "typescript";
+import {
+  sameResumeContract,
+  OPERATOR_ATTESTED_PROVENANCE,
+} from "../scripts/evaluation-resume";
 import { randomUUID, createHash } from "node:crypto";
 
 // Execute the actual runner control flow, with only DB/model/filesystem effects
@@ -10,11 +14,15 @@ async function run(
   kind: "attachments" | "retrieval" | "basic",
   failWork = false,
   failClose = false,
+  options: { basicLock?: "exists" | "acquire"; failDisconnect?: boolean } = {},
 ) {
   const dirs = new Set<string>(),
     files = new Map<string, string>();
   const results = new Map<string, unknown>();
-  const disconnect = jest.fn(async () => {}),
+  const lockClose = jest.fn(async () => {});
+  const disconnect = jest.fn(async () => {
+      if (options.failDisconnect) throw Error("disconnect failed");
+    }),
     close = jest.fn(async () => {
       if (failClose) throw Error("close failed");
     });
@@ -23,6 +31,7 @@ async function run(
   const owner = {
     $disconnect: disconnect,
     installation: {
+      findFirst: async () => ({ name: "Synthetic ops" }),
       findUnique: async () => ({
         name: kind === "attachments" ? "Synthetic diagnostic" : "Synthetic ops",
       }),
@@ -108,6 +117,9 @@ async function run(
     index: { search: async () => [{ id: randomUUID() }] },
   };
   const app = {
+    init: async () => {
+      throw Error("synthetic init failure after app creation");
+    },
     close,
     get: (token: string) => {
       if (!(token in services)) throw Error("Unmocked service " + token);
@@ -118,10 +130,16 @@ async function run(
   const errors = jest.fn();
   const fakeFs = {
     open: async () => {
+      if (kind === "basic" && options.basicLock === "acquire")
+        return { close: lockClose };
       throw Object.assign(Error("exists"), { code: "EEXIST" });
     },
     unlink,
-    readFile: async () => "synthetic-secret-not-a-key",
+    readFile: async (name: string) => {
+      if (kind === "basic" && /(?:manifest\.json|questions\.jsonl)$/.test(name))
+        throw Object.assign(Error("missing"), { code: "ENOENT" });
+      return "synthetic-secret-not-a-key";
+    },
     mkdir: async (dir: string, options: { recursive?: boolean }) => {
       if (dirs.has(dir) && !options?.recursive)
         throw Object.assign(Error("exists"), { code: "EEXIST" });
@@ -146,6 +164,7 @@ async function run(
       TOWNBASE_LIVE_EVALUATION: "1",
       TOWNBASE_EVAL_CORPUS: "ops",
       TOWNBASE_EVAL_SERIES: "lifecycle",
+      TOWNBASE_EVAL_SOURCE_COMMIT: "a".repeat(40),
       DATABASE_URL:
         "postgresql://synthetic@postgres:5432/" +
         (kind === "attachments"
@@ -165,7 +184,12 @@ async function run(
         },
       };
     if (name === "@nestjs/core")
-      return { NestFactory: { createApplicationContext: async () => app } };
+      return {
+        NestFactory: {
+          createApplicationContext: async () => app,
+          create: async () => app,
+        },
+      };
     if (name.startsWith("../dist/")) return symbols;
     throw Error("Unmocked built require " + name);
   };
@@ -176,11 +200,16 @@ async function run(
     if (name === "node:crypto") return { randomUUID, createHash };
     if (name === "node:path") return path;
     if (name === "node:os") return {};
+    if (name === "./evaluation-resume")
+      return { sameResumeContract, OPERATOR_ATTESTED_PROVENANCE };
     if (name === "./evaluation-fixtures")
       return {
         unicodePdf: () => Buffer.from("pdf"),
         unicodeDocx: () => Buffer.from("docx"),
         corpusFixtures: async () => ({
+          documents: [],
+          original: "synthetic corpus",
+          questionText: "synthetic questions",
           questions: [{ id: "OPS-Q01", question: "synthetic" }],
         }),
       };
@@ -227,6 +256,7 @@ async function run(
   return {
     disconnect,
     close,
+    lockClose,
     cases,
     packets,
     environment,
@@ -276,4 +306,37 @@ test("an existing evaluation lock is diagnosed without deleting another run's lo
   expect(message.reason).toBe("Evaluation run lock exists");
   expect(message.lockFile).toBe("/data/evidence/ops/lifecycle/.run.lock");
   expect(message.recovery).toContain("Never automatically retry");
+});
+
+describe("basic evaluation cleanup after an acquired lock and created app", () => {
+  test("initialization failure still closes both resources and releases only its own lock", async () => {
+    const result = await run("basic", false, false, { basicLock: "acquire" });
+    expect(result.environment.exitCode).toBe(1);
+    expect(result.cleanupFailure).toBeUndefined();
+    expect(result.close).toHaveBeenCalledTimes(1);
+    expect(result.disconnect).toHaveBeenCalledTimes(1);
+    expect(result.lockClose).toHaveBeenCalledTimes(1);
+    expect(result.unlink).toHaveBeenCalledWith(
+      "/data/evidence/ops/lifecycle/.run.lock",
+    );
+    expect(result.cases + result.packets).toBe(0);
+  });
+  test.each([
+    { close: true, db: false },
+    { close: false, db: true },
+    { close: true, db: true },
+  ])("failed cleanup retains the owned lock: %p", async (failure) => {
+    const result = await run("basic", false, failure.close, {
+      basicLock: "acquire",
+      failDisconnect: failure.db,
+    });
+    expect(result.cleanupFailure).toMatchObject({
+      message: failure.db ? "disconnect failed" : "close failed",
+    });
+    expect(result.close).toHaveBeenCalledTimes(1);
+    expect(result.disconnect).toHaveBeenCalledTimes(1);
+    expect(result.lockClose).toHaveBeenCalledTimes(1);
+    expect(result.unlink).not.toHaveBeenCalled();
+    expect(result.cases + result.packets).toBe(0);
+  });
 });

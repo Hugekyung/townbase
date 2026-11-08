@@ -3,6 +3,7 @@ import {
   streamOut,
   streamIn,
   BackupChildUnconfirmed,
+  BACKUP_TRANSFER_DEADLINE_MS,
 } from "./backup-process.mjs";
 import {
   mkdtemp,
@@ -128,11 +129,11 @@ async function recordsFrom(directory) {
 async function copyJournal(api) {
   const directory = path.join(stage, "journal");
   await mkdir(directory, { mode: 0o700 });
-  await docker([
-    "cp",
-    api.id + ":/var/lib/townbase/operations/deletions/.",
-    directory,
-  ]);
+  await docker(
+    ["cp", api.id + ":/var/lib/townbase/operations/deletions/.", directory],
+    undefined,
+    { deadlineMs: BACKUP_TRANSFER_DEADLINE_MS },
+  );
   return recordsFrom(directory);
 }
 async function marker(action, stdin) {
@@ -205,11 +206,11 @@ try {
         const destination = await privateDirectory(options.directory);
         const documents = path.join(stage, "documents");
         await mkdir(documents, { mode: 0o700 });
-        await docker([
-          "cp",
-          api.id + ":/var/lib/townbase/documents/.",
-          documents,
-        ]);
+        await docker(
+          ["cp", api.id + ":/var/lib/townbase/documents/.", documents],
+          undefined,
+          { deadlineMs: BACKUP_TRANSFER_DEADLINE_MS },
+        );
         const records = await copyJournal(api);
         const raw = await sql(
           postgres.id,
@@ -395,11 +396,11 @@ try {
           throw Error("Backup requires newer/unknown migrations");
         const existingDocs = path.join(stage, "existing-documents");
         await mkdir(existingDocs, { mode: 0o700 });
-        await docker([
-          "cp",
-          api.id + ":/var/lib/townbase/documents/.",
-          existingDocs,
-        ]);
+        await docker(
+          ["cp", api.id + ":/var/lib/townbase/documents/.", existingDocs],
+          undefined,
+          { deadlineMs: BACKUP_TRANSFER_DEADLINE_MS },
+        );
         const entries = async (dir) => {
           for (const item of await readdir(dir, { withFileTypes: true })) {
             if (!item.isDirectory()) return true;

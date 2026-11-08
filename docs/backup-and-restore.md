@@ -73,6 +73,6 @@ rollback도 DB/image를 임의로 과거 버전으로 덮어쓰는 작업이 아
 
 ### Docker 명령 대기·종료 확인
 
-일반 Docker 명령은2분, dump/restore 파일 전송은30분을 넘기면 실패 처리한다. 로컬 Docker CLI에 SIGKILL을 최대3회 시도하고3초 내 종료를 관측한다. 종료가 확인돼야 일반 staging 정리를 진행한다. 종료 미확인은 `TOWNBASE_BACKUP_CHILD_TERMINATION_UNCONFIRMED`로 진단하며 `.townbase/backup-staging-*`의0700/0600 자료를 보존한다. 운영자가 해당 프로젝트와 남은 프로세스·DB 상태를 확인하기 전에는 재시도하거나 staging을 정리하지 않는다.
+일반 Docker 상태/제어 명령은2분, dump/restore 파일 전송과 문서 볼륨·삭제 기록의 `docker cp`는30분을 넘기면 실패 처리한다. 로컬 Docker CLI에 SIGKILL을 최대3회 시도하고3초 내 종료를 관측한다. 종료가 확인돼야 일반 staging 정리를 진행한다. 종료 미확인은 `TOWNBASE_BACKUP_CHILD_TERMINATION_UNCONFIRMED`로 진단하며 `.townbase/backup-staging-*`의0700/0600 자료를 보존한다. 운영자가 해당 프로젝트와 남은 프로세스·DB 상태를 확인하기 전에는 재시도하거나 staging을 정리하지 않는다.
 
 로컬 Docker CLI 종료는 daemon 내부의 pg_dump/psql 종료 증명이 아니다. 실패한 restore는 복원 표식을 유지한 채 API가 중지된 상태로 남으므로, DB 작업 종료와 대상 상태를 확인한 뒤 빈 대상 복구 절차를 다시 선택한다. 시간 초과를 복원 성공으로 취급하지 않는다.
