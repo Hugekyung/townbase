@@ -13,7 +13,13 @@ function identity(value: unknown): string | null {
     return null;
   const execution = { ...record };
   delete execution.sourceCommitProvenance;
-  return JSON.stringify(execution);
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.keys(execution)
+        .sort()
+        .map((key) => [key, execution[key]]),
+    ),
+  );
 }
 export function sameResumeContract(
   previous: unknown,

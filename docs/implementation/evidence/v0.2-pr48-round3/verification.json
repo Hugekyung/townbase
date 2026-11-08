@@ -2,7 +2,7 @@
   "dateKst": "2026-11-09",
   "reviewedBaseline": "7522c827f2cc4a4b9617b72c4196b12846287384",
   "branch": "codex/v02-final-basic-release",
-  "status": "local_pending_delivery_approval",
+  "status": "historical_local_verification_snapshot",
   "checks": [
     {
       "name": "build",
@@ -81,6 +81,17 @@
     "No new claim of actual large-volume benchmark or full database backup/restore rerun.",
     "Authenticated priceVersion=null/paidCallsBlocked=true was observed afresh on the existing isolated restore target; old JSON was not retroactively changed.",
     "Raw historical evaluation manifests and actual-model results unchanged.",
-    "No commit/push/comment/resolve performed for this revision."
-  ]
+    "At verification capture, commit/push/comment/resolve had not been performed. Subsequent delivery is recorded separately in delivery; this historical test evidence is not a new test run."
+  ],
+  "reviewedBaselineMeaning": "Commit reviewed before round3 fixes; not the tested source revision.",
+  "testedSource": {
+    "stateAtTest": "uncommitted_worktree_after_round3_fixes",
+    "identity": "sourceArtifactsSha256",
+    "archiveCommit": "eeeaa4ca4933145eeab7dcfbe0dcd0cdee1bd0ab",
+    "scope": "The listed source artifact hashes identify the tested files, archived unchanged in this commit. This is not a claim that tests ran on that already-created commit or that the entire worktree was hashed."
+  },
+  "delivery": {
+    "commit": "eeeaa4ca4933145eeab7dcfbe0dcd0cdee1bd0ab",
+    "comment": "https://github.com/Hugekyung/townbase/pull/48#issuecomment-6723871566"
+  }
 }

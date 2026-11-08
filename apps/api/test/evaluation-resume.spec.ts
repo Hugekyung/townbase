@@ -13,6 +13,44 @@ const contract = {
   fixtureHashes: [["OPS-D01", "fixture"]],
   compiledHashes: [["rag-policy", "compiled"]],
 };
+test("top-level key order does not change execution identity or mutate the manifest", () => {
+  const reordered = Object.fromEntries(Object.entries(contract).reverse());
+  const original = JSON.stringify(reordered);
+  expect(sameResumeContract(reordered, contract)).toBe(true);
+  expect(sameResumeContract(contract, reordered)).toBe(true);
+  expect(
+    sameResumeContract(
+      { sourceCommitProvenance: OPERATOR_ATTESTED_PROVENANCE, ...reordered },
+      contract,
+    ),
+  ).toBe(true);
+  expect(JSON.stringify(reordered)).toBe(original);
+  expect(sameResumeContract({ ...reordered, rounds: 2 }, contract)).toBe(false);
+  expect(sameResumeContract({ ...reordered, unexpected: true }, contract)).toBe(
+    false,
+  );
+});
+test("hash entry order and hash values remain part of execution identity", () => {
+  const baseline = {
+    ...contract,
+    compiledHashes: [
+      ["a", "hash-a"],
+      ["b", "hash-b"],
+    ],
+  };
+  expect(
+    sameResumeContract(
+      { ...baseline, compiledHashes: [...baseline.compiledHashes].reverse() },
+      baseline,
+    ),
+  ).toBe(false);
+  expect(
+    sameResumeContract(
+      { ...baseline, compiledHashes: [["a", "changed"], ["b", "hash-b"]] },
+      baseline,
+    ),
+  ).toBe(false);
+});
 test("legacy identity without metadata and intermediate identity with known metadata both resume", () => {
   const withMetadata = {
     ...contract,
