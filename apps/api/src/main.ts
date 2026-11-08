@@ -14,7 +14,7 @@ import {
 } from "./deployment/self-hosted-http";
 import { parsePort } from "./port";
 import { resolveRuntimeProfile } from "./runtime-profile";
-import { startupFailure, type StartupStage } from "./startup-failure";
+import { startupDiagnostic, type StartupStage } from "./startup-failure";
 
 let startupStage: StartupStage = "runtime-profile";
 
@@ -52,6 +52,6 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap().catch((error: unknown) => {
-  Logger.error(startupFailure(startupStage, error));
+  Logger.error(startupDiagnostic(startupStage, error));
   process.exit(1);
 });

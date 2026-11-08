@@ -200,15 +200,17 @@ export function ChatPanel({
     [mode, setMode] = useState("auto"),
     [files, setFiles] = useState<File[]>([]),
     [ids, setIds] = useState<string[]>([]),
-    [available, setAvailable] = useState<{ id: string; fileName: string }[]>(
-      [],
-    ),
+    [available, setAvailable] = useState<
+      { id: string; fileName: string; available: boolean }[]
+    >([]),
     [operation, setOperation] = useState("summary"),
     [mixed, setMixed] = useState(false),
     [searchQuestion, setSearchQuestion] = useState(""),
-    [pending, setPending] = useState<{ id: string; question: string } | null>(
-      null,
-    ),
+    [pending, setPending] = useState<{
+      id: string;
+      question: string;
+      kind: "rag" | "attachment";
+    } | null>(null),
     [uncertain, setUncertain] = useState(false),
     [stopping, setStopping] = useState(false),
     [referenceHistory, setReferenceHistory] = useState(true);
@@ -273,14 +275,17 @@ export function ChatPanel({
   useEffect(() => {
     if (!privateMode) return;
     const c = new AbortController();
-    void api<{ attachments: { id: string; fileName: string }[] }>(
-      "/attachments",
-      "GET",
-      undefined,
-      {},
-      c.signal,
-    )
-      .then((r) => setAvailable(r.attachments))
+    void api<{
+      attachments: { id: string; fileName: string; available: boolean }[];
+    }>("/attachments", "GET", undefined, {}, c.signal)
+      .then((r) => {
+        setAvailable(r.attachments);
+        setIds((old) =>
+          old.filter((id) =>
+            r.attachments.some((f) => f.id === id && f.available),
+          ),
+        );
+      })
       .catch((e) => {
         if (!c.signal.aborted) setLoadError(errorText(e));
       });
@@ -342,7 +347,7 @@ export function ChatPanel({
     setLoadError("");
   }
   async function readPending() {
-    const saved = pendingRequest();
+    const saved = pendingRequest(location.kind);
     if (!saved || !["rag", "attachment"].includes(saved.kind)) return;
     await work.run(async () => {
       const r = await api<Result>(
@@ -363,7 +368,11 @@ export function ChatPanel({
     setStopping(true);
     try {
       const r = await api<Result>(
-        (privateMode ? "/attachment-tasks/" : "/rag/questions/") + id + "/stop",
+        ((pending?.kind ?? location.kind) === "attachment"
+          ? "/attachment-tasks/"
+          : "/rag/questions/") +
+          id +
+          "/stop",
         "POST",
         {},
       );
@@ -394,6 +403,14 @@ export function ChatPanel({
             throw new ApiError(400, "attachment_count_limit");
           if (files.reduce((n, f) => n + f.size, 0) > 20 * 1024 * 1024)
             throw new ApiError(413, "file_too_large");
+          if (mixed && !searchQuestion.trim())
+            throw new ApiError(400, "invalid_request");
+          if (
+            attached.some((id) =>
+              available.some((f) => f.id === id && !f.available),
+            )
+          )
+            throw new ApiError(409, "reattach_required");
           for (const f of files) {
             if (!alive.current) return;
             const uploaded = await api<{ id: string }>(
@@ -407,13 +424,15 @@ export function ChatPanel({
               setFiles((old) => old.filter((x) => x !== f));
             }
           }
-          if (mixed && !searchQuestion.trim())
-            throw new ApiError(400, "invalid_request");
         }
         if (!alive.current) return;
         requestId = crypto.randomUUID();
         rememberRequest(privateMode ? "attachment" : "rag", requestId);
-        setPending({ id: requestId, question: q });
+        setPending({
+          id: requestId,
+          question: q,
+          kind: privateMode ? "attachment" : "rag",
+        });
         setUncertain(false);
         setQuestion("");
         const context = (referenceHistory ? results : [])
@@ -688,6 +707,7 @@ export function ChatPanel({
                       checked={ids.includes(f.id)}
                       disabled={
                         work.busy ||
+                        !f.available ||
                         (!ids.includes(f.id) && ids.length + files.length >= 3)
                       }
                       onChange={(e) =>
@@ -698,7 +718,8 @@ export function ChatPanel({
                         )
                       }
                     />
-                    {f.fileName} · 미사용
+                    {f.fileName} ·{" "}
+                    {f.available ? "미사용" : "사용됨·재첨부 필요"}
                   </label>
                 ))}
               </div>

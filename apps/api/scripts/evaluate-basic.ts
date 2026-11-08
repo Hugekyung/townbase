@@ -1,6 +1,13 @@
 import "reflect-metadata";
 import { createRequire } from "node:module";
-import { readFile, writeFile, mkdir, appendFile } from "node:fs/promises";
+import {
+  readFile,
+  writeFile,
+  mkdir,
+  appendFile,
+  open,
+  unlink,
+} from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
@@ -46,8 +53,9 @@ if (
 const owner = new PrismaClient(),
   base = "/data",
   password = "Synthetic evaluation password only!",
-  evidence = path.join(base, "evidence", series);
+  evidence = path.join(base, "evidence", kind, series);
 let app: Awaited<ReturnType<typeof NestFactory.create>>;
+let runLock: Awaited<ReturnType<typeof open>> | undefined;
 const hash = (v: string | Buffer) =>
   createHash("sha256").update(v).digest("hex");
 const normalize = (s: string) =>
@@ -57,10 +65,60 @@ const normalize = (s: string) =>
     .replace(/[\s,.:;、。]/g, "");
 async function main() {
   await mkdir(evidence, { recursive: true, mode: 0o700 });
+  runLock = await open(path.join(evidence, ".run.lock"), "wx", 0o600);
   const fixture = await corpusFixtures(
     path.resolve(__dirname, "../../../docs/evaluation/v0.2"),
     kind,
   );
+  const sourceCommit = process.env.TOWNBASE_EVAL_SOURCE_COMMIT;
+  if (!sourceCommit || !/^[0-9a-f]{40}$/.test(sourceCommit))
+    throw Error("Explicit evaluation source commit required");
+  const resumeContract = {
+    kind,
+    series,
+    rounds,
+    limit,
+    sourceCommit,
+    questionHash: hash(fixture.questionText),
+    corpusHash: hash(fixture.original),
+    fixtureHashes: fixture.documents.map((d) => [d.id, hash(d.bytes)]),
+    compiledHashes: await Promise.all(
+      [
+        "rag/rag-policy",
+        "rag/rag.service",
+        "model-integration/openai-provider",
+        "model-integration/model-execution.service",
+        "model-integration/grounded-format",
+      ].map(async (n) => [
+        n,
+        hash(await readFile(path.resolve(__dirname, "../dist/" + n + ".js"))),
+      ]),
+    ),
+  };
+  const manifestPath = path.join(evidence, "manifest.json");
+  const previous = await readFile(manifestPath, "utf8")
+    .then(JSON.parse)
+    .catch((e) => {
+      if (e.code === "ENOENT") return null;
+      throw e;
+    });
+  if (
+    previous &&
+    JSON.stringify(previous.resumeContract) !== JSON.stringify(resumeContract)
+  )
+    throw Error("Evaluation resume contract changed");
+  if (previous == null) {
+    const hasRows = await readFile(
+      path.join(evidence, "questions.jsonl"),
+      "utf8",
+    )
+      .then(() => true)
+      .catch((e) => {
+        if (e.code === "ENOENT") return false;
+        throw e;
+      });
+    if (hasRows) throw Error("Evaluation manifest missing for saved rows");
+  }
   const existing = await owner.installation.findFirst();
   if (existing == null) {
     if ((await owner.modelCall.count()) || (await owner.fileOriginal.count()))
@@ -182,12 +240,22 @@ async function main() {
         where: { id: result.resultOriginalId },
       });
     }
-    if (!(await owner.fileIndex.count({ where: { originalId: original.id } })))
-      await settled(await files.index(token, c, randomUUID(), original.id));
     const version = await owner.fileVersion.findFirstOrThrow({
       where: { originalId: original.id },
       orderBy: { version: "desc" },
     });
+    if (version.contentHash !== hash(document.bytes))
+      throw Error("Evaluation fixture hash mismatch");
+    if (
+      !(await owner.fileIndex.count({
+        where: {
+          originalId: original.id,
+          versionId: version.id,
+          scopeRevision: original.scopeRevision,
+        },
+      }))
+    )
+      await settled(await files.index(token, c, randomUUID(), original.id));
     const extracted = version.extraction as { segments: { text: string }[] };
     for (const fact of document.facts)
       if (
@@ -258,6 +326,8 @@ async function main() {
   };
   const settings = await app.get(ModelExecutionService).snapshot(c);
   const manifest = {
+    sourceCommit,
+    resumeContract,
     at: new Date().toISOString(),
     series,
     compiledArtifacts: Object.fromEntries(
@@ -305,12 +375,26 @@ async function main() {
     rounds,
     questionLimit: limit,
   };
-  await writeFile(
-    path.join(evidence, "manifest.json"),
-    JSON.stringify(manifest, null, 2),
-  );
+  const runtimeContract = {
+    agent: (await app.get(AgentService).snapshot(token, c)).agent,
+    settings: settings.settings,
+  };
+  if (
+    previous &&
+    JSON.stringify(previous.runtimeContract) !== JSON.stringify(runtimeContract)
+  )
+    throw Error("Evaluation runtime contract changed");
+  if (previous == null)
+    await writeFile(
+      manifestPath,
+      JSON.stringify({ ...manifest, runtimeContract }, null, 2),
+      { flag: "wx", mode: 0o600 },
+    );
   const resultPath = path.join(evidence, "questions.jsonl"),
-    saved = await readFile(resultPath, "utf8").catch(() => ""),
+    saved = await readFile(resultPath, "utf8").catch((e) => {
+      if (e.code === "ENOENT") return "";
+      throw e;
+    }),
     completed = new Set(
       saved
         .trim()
@@ -384,6 +468,7 @@ async function main() {
         errorCode =
           (e as { code?: string }).code ?? "evaluation_request_failed";
       }
+      const latencyMs = performance.now() - start;
       const stored = await owner.ragTurn.findUnique({
         where: {
           installationId_requestId: { installationId: "primary", requestId },
@@ -437,7 +522,7 @@ async function main() {
         requestId,
         result,
         errorCode,
-        latencyMs: performance.now() - start,
+        latencyMs,
         searchMs,
         hitAt5: gold.length ? hits.some(Boolean) : null,
         completeGoldRetrieval: gold.length ? hits.every(Boolean) : null,
@@ -478,11 +563,37 @@ async function main() {
   console.log("SYNTHETIC_EVALUATION_COMPLETED");
 }
 main()
-  .catch(() => {
-    console.error("TOWNBASE_SYNTHETIC_EVALUATION_FAILED");
+  .catch((error) => {
+    const allowed = [
+      "Evaluation resume contract changed",
+      "Evaluation runtime contract changed",
+      "Evaluation manifest missing for saved rows",
+      "Evaluation fixture hash mismatch",
+      "Explicit evaluation source commit required",
+      "Dedicated live evaluation DB required",
+      "Synthetic indexing failed",
+      "Synthetic transfer policy failed",
+      "Synthetic Agent configuration failed",
+    ];
+    const reason =
+      allowed.find(
+        (v) =>
+          error instanceof Error &&
+          (error.message === v || error.message.startsWith(v + ":")),
+      ) ?? "unexpected_failure";
+    console.error(
+      JSON.stringify({ code: "TOWNBASE_SYNTHETIC_EVALUATION_FAILED", reason }),
+    );
     process.exitCode = 1;
   })
   .finally(async () => {
-    await app?.close();
-    await owner.$disconnect();
+    try {
+      await app?.close();
+      await owner.$disconnect();
+    } finally {
+      if (runLock) {
+        await runLock.close();
+        await unlink(path.join(evidence, ".run.lock"));
+      }
+    }
   });

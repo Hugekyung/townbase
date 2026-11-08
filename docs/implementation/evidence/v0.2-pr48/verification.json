@@ -1,0 +1,145 @@
+{
+  "date": "2026-11-08",
+  "baseCommit": "2a3003885dd0354c7fe6fd5f927fca60cd586bc2",
+  "branch": "codex/v02-final-basic-release",
+  "status": "delivery_approved",
+  "checks": [
+    {
+      "name": "build",
+      "passed": true,
+      "count": null,
+      "logSha256": "e149bc5cef678ce773900eb7519b57710083571c3b313fabd661dc1285d23166",
+      "summary": [
+        "✓ built in 72ms"
+      ]
+    },
+    {
+      "name": "lint",
+      "passed": true,
+      "count": null,
+      "logSha256": "c4744e2ffe16dfcd87b4eacbca0d9ecbe401ecd2db62f32f2981bf4c45def518",
+      "summary": []
+    },
+    {
+      "name": "prisma_generate",
+      "passed": true,
+      "count": null,
+      "logSha256": "f1b6b45ad33421f6abbf7186532aed8aa0485c6faa7f145e658820307de144d9",
+      "summary": []
+    },
+    {
+      "name": "prisma_validate",
+      "passed": true,
+      "count": null,
+      "logSha256": "c1f27afb7f7ed8e03a3fd101774b8319bd58b293e46857d0193a99b2cedc0642",
+      "summary": [
+        "The schema at prisma/schema.prisma is valid 🚀"
+      ]
+    },
+    {
+      "name": "api",
+      "passed": true,
+      "count": 556,
+      "logSha256": "62d87b250d138af70a9667203382efd8d29cf3baae1d84eca5f8562b5b9783f5",
+      "summary": [
+        "Test Suites: 12 skipped, 55 passed, 55 of 67 total",
+        "Tests:       323 skipped, 556 passed, 879 total"
+      ]
+    },
+    {
+      "name": "database_without_integration",
+      "passed": true,
+      "count": 20,
+      "logSha256": "2523c9ccd25bba0185e753181b3877d5f422690d614dda2c5d2fda3233d516a2",
+      "summary": [
+        "Test Suites: 5 passed, 5 total",
+        "Tests:       20 passed, 20 total"
+      ]
+    },
+    {
+      "name": "connectors_without_integration",
+      "passed": true,
+      "count": 72,
+      "logSha256": "ef33268340a10f025cff1cd204b8c5716740e211a7846e5e43460087fe275f42",
+      "summary": [
+        "Test Suites: 24 passed, 24 total",
+        "Tests:       72 passed, 72 total"
+      ]
+    },
+    {
+      "name": "deployment_including_backup",
+      "passed": true,
+      "count": 33,
+      "logSha256": "22dd82540c8ca6d5dcaffaffc9a2cfc023bbabe1542ae2be92e6e2e02a0bec7a",
+      "summary": [
+        "ℹ tests 33",
+        "ℹ pass 33",
+        "ℹ fail 0"
+      ]
+    },
+    {
+      "name": "backup_subset",
+      "passed": true,
+      "count": 9,
+      "logSha256": "f1217717291d1bc39a6b18c1e645bf5915f5e89d5d2bd320922cc9ba48d88785",
+      "summary": [
+        "ℹ tests 9",
+        "ℹ pass 9",
+        "ℹ fail 0"
+      ]
+    },
+    {
+      "name": "restricted_db_attachments_chat_operations",
+      "passed": true,
+      "count": 23,
+      "logSha256": "a5e9f45a9436c97336204f748cb2955d1e5114bf231993818135fa282183ba4d",
+      "summary": [
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       23 passed, 23 total"
+      ]
+    },
+    {
+      "name": "restricted_db_rag",
+      "passed": true,
+      "count": 27,
+      "logSha256": "a7d49289871600de832c99438a8ccc78ed1de0ab1a5d39e42c537938da16bd14",
+      "summary": [
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       27 passed, 27 total"
+      ]
+    },
+    {
+      "name": "restricted_db_acl",
+      "passed": true,
+      "count": 82,
+      "logSha256": "4ae33cfd47000eaff2869cd58983bc234715d18b926e373775562bef601ab2a9",
+      "summary": [
+        "ℹ tests 82",
+        "ℹ pass 82",
+        "ℹ fail 0"
+      ]
+    }
+  ],
+  "artifactsSha256": {
+    "apps/api/dist/operations/deletion-journal.js": "ae0ed5c3a3275277e4c9ca7dbfc9d3f481aacc63f7d37feb05574a9c2877ed75",
+    "apps/api/dist/rag/rag-store.js": "f72e5f47134a5bf16307194ff34883308d5d09425c4f093a6d9285413b4c9ac2",
+    "apps/api/dist/attachments/attachment-store.js": "e7bba6b4c6e2fe44dd61495158f3e73d085e3678f4cc4a0c52c4999b4996e306",
+    "apps/api/dist/auth/auth.service.js": "1f0d2958269979161c8906ad2014a600c4954e15a944906dbf75e15c7b2f4437",
+    "deployment/backup-format.mjs": "60dba109dc5cd60351b4545fc248928889af551b70efdd167ff92979d672c1e2",
+    "deployment/backup-process.mjs": "f1dc5423a12e7863cd46551c96b7b0ae0a3b4db38cd4b8811e6d8776bd73f607",
+    "deployment/backup.mjs": "6c9e7a93bbe120667ecfad3956d0c0d9ec7185ae750c16cf616ac62a03ec19f7",
+    "deployment/restore-agent.mjs": "3e04ea05f711aea8ff598a1cbd2bcae012011500fa8298acabecb2dd6ab96d11",
+    "apps/api/scripts/evaluate-basic.ts": "9ea2e885a3c56a95a22510e71faef3d6bb718eddf402c97ed45fe502f20a7aa9"
+  },
+  "actualPaidCallsThisRevision": 0,
+  "notes": [
+    "Default API skips323 opt-in tests; DB suites explicitly run separately.",
+    "Backup9 is part of deployment33; do not add counts twice.",
+    "Signals SIGINT/SIGTERM/SIGHUP tested with actual wrapper and synthetic child, network disabled.",
+    "One intermediate integration failure was introduced by placing a repeated-delete assertion in the wrong fixture test. Corrected test position and reran full23 successfully.",
+    "Browser login/menu draft retention/settings rendering observed; DOM attribute selector timeout was not counted as successful validation.",
+    "Historical manifest/raw evidence unchanged; provenance sidecar is an interpretation correction.",
+    "At verification time commit/push/comment were pending; user subsequently approved delivery. Resolve is not automatic."
+  ],
+  "deliveryApproval": "User approved commit, push and PR summary comment after verification summary."
+}

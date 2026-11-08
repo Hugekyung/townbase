@@ -155,6 +155,10 @@ async function main() {
   stage = "bootstrap-token";
   if ((await app.get(SetupService).status()).state === "required")
     await app.get(SetupService).issue();
+  // This guarded fixture runs inside an isolated Docker network. The host browser
+  // reaches only the Compose loopback publication (127.0.0.1:3101). Binding this
+  // container socket to127.0.0.1 would prevent that connection; do not publish it
+  // on a host wildcard interface or run it against an ordinary installation.
   await app.listen(3000, "0.0.0.0");
   console.log("TOWNBASE_SYNTHETIC_BROWSER_READY");
 }

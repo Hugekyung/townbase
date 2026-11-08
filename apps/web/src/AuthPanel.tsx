@@ -156,7 +156,7 @@ export function AuthPanel({
       setAttempt((value) => value + 1);
     }
   }
-  const authenticated = session != null && !unavailable && !blocked;
+  const authenticated = session != null;
   useEffect(() => {
     onAuthenticatedChange(authenticated);
   }, [authenticated, onAuthenticatedChange]);
@@ -303,16 +303,31 @@ export function AuthPanel({
     </div>
   );
   return authenticated ? (
-    <Workspace
-      username={session.username}
-      account={account}
-      onExpired={() => {
-        setSession(null);
-        setMode("login");
-        clearSecrets();
-        setAttempt((n) => n + 1);
-      }}
-    />
+    <>
+      {(unavailable || blocked || checking) && (
+        <div role="alert" className="session-status">
+          로그인·서버 상태 확인 중. 입력 내용은 유지해요.{" "}
+          <button disabled={checking} onClick={() => setAttempt((v) => v + 1)}>
+            다시 확인
+          </button>
+        </div>
+      )}
+      <div
+        className="authenticated-workspace"
+        inert={unavailable || blocked || checking}
+      >
+        <Workspace
+          username={session.username}
+          account={account}
+          onExpired={() => {
+            setSession(null);
+            setMode("login");
+            clearSecrets();
+            setAttempt((n) => n + 1);
+          }}
+        />
+      </div>
+    </>
   ) : (
     account
   );

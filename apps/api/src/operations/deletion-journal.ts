@@ -142,7 +142,14 @@ export class DeletionJournal implements OnApplicationBootstrap {
             throw new ModelCallError("scope_revision_limit", 409);
           revision = Number(exists.scopeRevision) + 1;
         }
-        return { fresh, revision };
+        return {
+          fresh,
+          revision,
+          skip:
+            kind === "file" &&
+            "deletedAt" in exists &&
+            exists.deletedAt != null,
+        };
       },
     );
     if (!authorized.ok) throw new UnauthorizedException();
@@ -157,14 +164,23 @@ export class DeletionJournal implements OnApplicationBootstrap {
       scopeRevision: authorized.revision,
       createdAt: new Date().toISOString(),
     };
+    if (authorized.skip) return record;
     // This is an authenticated, durable deletion intent. A crash after fsync but
     // before DB mutation is completed by startup replay, before HTTP is opened.
-    await this.storage.write(Buffer.from(JSON.stringify(record)));
-    const directory = await open(this.root, "r");
     try {
-      await directory.sync();
-    } finally {
-      await directory.close();
+      await this.storage.write(Buffer.from(JSON.stringify(record)));
+      const directory = await open(this.root, "r");
+      try {
+        await directory.sync();
+      } finally {
+        await directory.close();
+      }
+      // Apply before acknowledging. If either persistence or application is uncertain,
+      // all authenticated access remains blocked until startup replay succeeds.
+      await this.apply(record);
+    } catch (error) {
+      this.db.operationsBlocked = true;
+      throw error;
     }
     return record;
   }
@@ -185,10 +201,21 @@ export class DeletionJournal implements OnApplicationBootstrap {
         },
         now = new Date();
       if (record.kind === "file") {
-        await tx.fileOriginal.updateMany({
+        const changed = await tx.fileOriginal.updateMany({
           where: { ...scope, id: record.targetId, deletedAt: null },
           data: { deletedAt: now },
         });
+        if (changed.count)
+          await tx.installationAuditEvent.create({
+            data: {
+              installationId: install.id,
+              actorType: "administrator",
+              actorAdministratorId: record.ownerAdministratorId,
+              action: "file_deleted",
+              outcome: "succeeded",
+              requestId: record.targetId,
+            },
+          });
         await tx.fileVersion.updateMany({
           where: {
             installationId: install.id,
@@ -201,7 +228,7 @@ export class DeletionJournal implements OnApplicationBootstrap {
           where: { ...scope, originalId: record.targetId },
         });
       } else if (record.kind === "file_scope") {
-        await tx.fileOriginal.updateMany({
+        const changed = await tx.fileOriginal.updateMany({
           where: {
             ...scope,
             id: record.targetId,
@@ -209,6 +236,17 @@ export class DeletionJournal implements OnApplicationBootstrap {
           },
           data: { excludedAt: now, scopeRevision: record.scopeRevision! },
         });
+        if (changed.count)
+          await tx.installationAuditEvent.create({
+            data: {
+              installationId: install.id,
+              actorType: "administrator",
+              actorAdministratorId: record.ownerAdministratorId,
+              action: "file_scope_changed",
+              outcome: "succeeded",
+              requestId: record.targetId,
+            },
+          });
         await tx.fileIndex.deleteMany({
           where: {
             ...scope,

@@ -352,9 +352,9 @@ footer span {
 
 /* The authenticated workspace shares the setup palette and typography. */
 .workspace {
-  margin-top: 36px;
-  padding-top: 28px;
-  border-top: 1px solid #dfe4dd;
+  margin: 0;
+  padding: 0;
+  border: 0;
   min-width: 0;
 }
 .workspace-heading,
@@ -1567,4 +1567,17 @@ footer span {
   font-size: 9px;
   font-weight: 400;
   color: #a1aa98;
+}
+
+.authenticated-workspace {
+  display: contents;
+}
+.session-status {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 1rem;
+  background: #fff4d8;
 }

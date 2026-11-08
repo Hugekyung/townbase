@@ -6,11 +6,15 @@ import path from "node:path";
 @Injectable()
 export class DeploymentDatabase implements OnApplicationShutdown {
   readonly prisma = new PrismaClient();
+  // A durable deletion whose DB outcome is unknown requires startup replay.
+  operationsBlocked = false;
 
   async check(): Promise<{
     database: "ready" | "unavailable";
     schema: "ready" | "unavailable";
   }> {
+    if (this.operationsBlocked)
+      return { database: "unavailable", schema: "unavailable" };
     try {
       await this.prisma.$queryRaw`SELECT 1`;
     } catch {

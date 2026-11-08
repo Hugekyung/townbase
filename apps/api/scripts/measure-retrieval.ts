@@ -21,6 +21,15 @@ const { PrismaClient } = r("@townbase/database"),
 const owner = new PrismaClient();
 let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
 (async () => {
+  const series = process.env.TOWNBASE_EVAL_SERIES;
+  if (!series || !/^[a-z0-9-]+$/.test(series))
+    throw Error("Explicit performance series required");
+  const evidence = `/data/evidence/${kind}/performance/${series}`;
+  await mkdir(`/data/evidence/${kind}/performance`, {
+    recursive: true,
+    mode: 0o700,
+  });
+  await mkdir(evidence, { mode: 0o700 }); // existing run is never overwritten, even on failure
   if (
     (await owner.installation.findUnique({ where: { id: "primary" } }))
       ?.name !==
@@ -148,9 +157,8 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
     }
     console.log(JSON.stringify({ corpus: kind, id: q.id, measured: true }));
   }
-  await mkdir("/data/evidence/performance", { recursive: true, mode: 0o700 });
   await writeFile(
-    "/data/evidence/performance/search-packet.json",
+    evidence + "/search-packet.json",
     JSON.stringify(
       {
         corpus: kind,
@@ -167,7 +175,7 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
     { mode: 0o600 },
   );
   await writeFile(
-    "/data/evidence/performance/ledger.json",
+    evidence + "/ledger.json",
     JSON.stringify(await owner.modelCall.findMany(), (_k, v) =>
       typeof v === "bigint" ? v.toString() : v,
     ),
@@ -185,6 +193,15 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
     process.exitCode = 1;
   })
   .finally(async () => {
+    const series = process.env.TOWNBASE_EVAL_SERIES;
+    if (!series || !/^[a-z0-9-]+$/.test(series))
+      throw Error("Explicit performance series required");
+    const evidence = `/data/evidence/${kind}/performance/${series}`;
+    await mkdir(`/data/evidence/${kind}/performance`, {
+      recursive: true,
+      mode: 0o700,
+    });
+    await mkdir(evidence, { mode: 0o700 }); // existing run is never overwritten, even on failure
     await app?.close();
     await owner.$disconnect();
   });

@@ -690,6 +690,7 @@ export class AttachmentStore {
           question: true,
           createdAt: true,
           status: true,
+          deadlineAt: true,
           ragSources: true,
         },
       });
@@ -706,7 +707,10 @@ export class AttachmentStore {
         tasks.push({
           requestId: row.requestId,
           title,
-          status: row.status,
+          status:
+            row.status === "running" && row.deadlineAt <= now
+              ? "interrupted"
+              : row.status,
           createdAt: row.createdAt.toISOString(),
         });
       }
@@ -718,13 +722,35 @@ export class AttachmentStore {
   }
   history(token: string | undefined, c: C, cursor?: string) {
     return this.scoped(token, c, async (tx, fresh, now) => {
+      const anchor =
+        cursor == null
+          ? null
+          : await tx.attachmentTask.findFirst({
+              where: {
+                ...this.scope(fresh),
+                requestId: cursor,
+                expiresAt: { gt: now },
+              },
+              select: { requestId: true, createdAt: true },
+            });
+      if (cursor != null && anchor == null) throw new NotFoundException();
       const rows = await tx.attachmentTask.findMany({
         where: {
           ...this.scope(fresh),
           expiresAt: { gt: now },
-          ...(cursor ? { requestId: { gt: cursor } } : {}),
+          ...(anchor
+            ? {
+                OR: [
+                  { createdAt: { gt: anchor.createdAt } },
+                  {
+                    createdAt: anchor.createdAt,
+                    requestId: { gt: anchor.requestId },
+                  },
+                ],
+              }
+            : {}),
         },
-        orderBy: { requestId: "asc" },
+        orderBy: [{ createdAt: "asc" }, { requestId: "asc" }],
         take: 21,
       });
       const tasks = [];
@@ -757,8 +783,7 @@ export class AttachmentStore {
     });
   }
   async removeResult(token: string | undefined, c: C, id: string) {
-    const record = await this.journal.accept(token, c, "private_result", id);
-    await this.journal.apply(record);
+    await this.journal.accept(token, c, "private_result", id);
     await this.cleanup();
     return { deleted: true };
   }

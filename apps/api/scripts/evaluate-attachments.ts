@@ -20,6 +20,8 @@ const output = "/diag/evidence/attachments-" + series;
 const owner = new PrismaClient();
 let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
 (async () => {
+  await mkdir("/diag/evidence", { recursive: true, mode: 0o700 });
+  await mkdir(output, { mode: 0o700 }); // reject reruns before any paid work
   const install = await owner.installation.findUnique({
     where: { id: "primary" },
   });
@@ -108,21 +110,28 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
       .replace(token, password, c, "answer", key);
     if (!stored.ok) throw Error("Synthetic credential storage failed");
   }
-  await app.get(ModelIntegrationService).setTransfers(token, password, c, {
-    documentEmbedding: false,
-    rag: false,
-    attachment: true,
-  });
-  await app.get(ModelExecutionService).configure(token, password, c, {
-    answerModel: "gpt-6-luna",
-    reasoning: "low",
-    inputTokenLimit: 16000,
-    outputTokenLimit: 2048,
-    monthlyBudgetUsd: "0.05",
-    priceVersion: PRICE_VERSION,
-  });
+  const transferSetup = await app
+    .get(ModelIntegrationService)
+    .setTransfers(token, password, c, {
+      documentEmbedding: false,
+      rag: false,
+      attachment: true,
+    });
+  if (!transferSetup.ok) throw Error("Synthetic transfer policy failed");
+  const executionSetup = await app
+    .get(ModelExecutionService)
+    .configure(token, password, c, {
+      answerModel: "gpt-6-luna",
+      reasoning: "low",
+      inputTokenLimit: 16000,
+      outputTokenLimit: 2048,
+      monthlyBudgetUsd: "0.05",
+      priceVersion: PRICE_VERSION,
+    });
   const agent = app.get(AgentService);
   const snap = await agent.snapshot(token, c);
+  if (!executionSetup.ok)
+    throw Error("Synthetic execution configuration failed");
   const saved = await agent.configure(
     token,
     password,
@@ -148,7 +157,12 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
     gaps: await owner.knowledgeGap.count(),
     drafts: await owner.actionDraft.count(),
   };
-  await mkdir(output, { recursive: true, mode: 0o700 });
+  const measured = {
+    uploaded: 0,
+    ownerResults: 0,
+    readbackEqual: 0,
+    rawDeleted: 0,
+  };
   for (const format of ["txt", "md", "pdf", "docx"]) {
     for (const operation of ["summary", "question", "draft"]) {
       const name = "public-synthetic." + format,
@@ -175,6 +189,11 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
       });
       const read = await store.read(token, c, requestId),
         row = await owner.attachment.findUnique({ where: { id: file.id } });
+      measured.uploaded++;
+      if (result.status === "answered") measured.ownerResults++;
+      if (JSON.stringify(read) === JSON.stringify(result))
+        measured.readbackEqual++;
+      if (row.rawDeletedAt != null) measured.rawDeleted++;
       await appendFile(
         output + "/cases.jsonl",
         JSON.stringify({
@@ -202,6 +221,8 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
     output + "/summary.json",
     JSON.stringify(
       {
+        series,
+        measured,
         baseline,
         after,
         sharedUnchanged: JSON.stringify(baseline) === JSON.stringify(after),
@@ -230,6 +251,8 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
     process.exitCode = 1;
   })
   .finally(async () => {
+    await mkdir("/diag/evidence", { recursive: true, mode: 0o700 });
+    await mkdir(output, { mode: 0o700 }); // reject reruns before any paid work
     await app?.close();
     await owner.$disconnect();
   });

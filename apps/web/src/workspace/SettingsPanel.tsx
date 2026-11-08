@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, errorText, rememberRequest } from "../api";
+import { api, ApiError, errorText, rememberRequest } from "../api";
 import type { Work } from "../Workspace";
 import type { Agent, Integration, Execution, FileItem } from "./types";
 async function selectableFiles(signal: AbortSignal) {
@@ -477,6 +477,27 @@ function AgentForm({
                     meaning: i < 0 ? "" : line.slice(i + 1),
                   };
                 });
+              const validText = (s: string, max: number) =>
+                s.trim().length > 0 && [...s].length <= max;
+              if (
+                !validText(name, 128) ||
+                !validText(purpose, 512) ||
+                [...instructions].length > 2000 ||
+                terminology.length > 30 ||
+                terminology.some(
+                  (t) => !validText(t.term, 64) || !validText(t.meaning, 256),
+                ) ||
+                new Set(terminology.map((t) => t.term.trim().toLowerCase()))
+                  .size !== terminology.length
+              )
+                throw new ApiError(400, "invalid_agent_form");
+              if (
+                selection === "selected" &&
+                ids.some((id) =>
+                  files.some((f) => f.id === id && f.excludedAt != null),
+                )
+              )
+                throw new ApiError(409, "agent_source_unavailable");
               await api("/settings/agent", "PUT", {
                 currentPassword: password,
                 expectedRevision: agent?.revision ?? 0,
@@ -515,7 +536,7 @@ function AgentForm({
           답변 지침
           <textarea
             value={instructions}
-            maxLength={4000}
+            maxLength={2000}
             onChange={(e) => setInstructions(e.target.value)}
           />
         </label>
@@ -545,6 +566,7 @@ function AgentForm({
                 <input
                   type="checkbox"
                   checked={ids.includes(f.id)}
+                  disabled={f.excludedAt != null && !ids.includes(f.id)}
                   onChange={(e) =>
                     setIds(
                       e.target.checked
@@ -554,6 +576,7 @@ function AgentForm({
                   }
                 />
                 {f.title}
+                {f.excludedAt != null ? " · 제외됨 (선택 해제 필요)" : ""}
               </label>
             ))}
             <small>

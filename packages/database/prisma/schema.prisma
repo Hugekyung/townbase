@@ -756,15 +756,15 @@ model Attachment {
  format String @db.VarChar(8)
  byteSize Int
  contentHash String @db.VarChar(64)
- storageKey String
+ storageKey String @unique
  createdAt DateTime @default(now())
  expiresAt DateTime
  blockedAt DateTime?
  rawDeletedAt DateTime?
- installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict)
- owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict)
- task AttachmentTask? @relation(fields:[installationId,ownerAdministratorId,taskRequestId],references:[installationId,ownerAdministratorId,requestId],onDelete:Restrict)
- @@index([installationId,ownerAdministratorId,expiresAt])
+ installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+ owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict,onUpdate:NoAction)
+ task AttachmentTask? @relation(fields:[installationId,ownerAdministratorId,taskRequestId],references:[installationId,ownerAdministratorId,requestId],onDelete:Restrict,onUpdate:NoAction)
+ @@index([installationId,ownerAdministratorId,expiresAt], map:"Attachment_owner_expires_idx")
 }
 model AttachmentTask {
  installationId String
@@ -792,8 +792,8 @@ model AttachmentTask {
  deadlineAt DateTime
  completedAt DateTime?
  expiresAt DateTime
- installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict)
- owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict)
+ installation Installation @relation(fields:[installationId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+ owner Administrator @relation(fields:[installationId,ownerAdministratorId],references:[installationId,id],onDelete:Restrict,onUpdate:NoAction)
  attachments Attachment[]
  @@id([installationId,requestId])
  @@unique([installationId,ownerAdministratorId,requestId])

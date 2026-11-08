@@ -100,6 +100,9 @@ export class FileStorage {
     }
   }
   async read(key: string, maxBytes = FILE_LIMITS.bytes): Promise<Buffer> {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1)
+      throw new FileError("storage_unavailable");
+    maxBytes = Math.min(maxBytes, FILE_LIMITS.bytes);
     return this.safe(async () => {
       this.validKey(key);
       const handle = await open(

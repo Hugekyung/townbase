@@ -256,5 +256,12 @@
 - 출처 prompt의 S1/S2와 저장 UUID를 구분한다. promptLabel은 해당 요청의 소스 순번 metadata로만 보존/표시하며 소유·출처 ID/권한이 아니다. strict JSON schema는 rag_answer/attachment_answer에만 고정 적용하고 schema도 입력 예산에 포함한다. 저장 결과는 실제 UUID/원문 구절을 재검사한다. 정확 항목 구절/어휘 근거의 진입 보완과 실제 합성 품질/제한은 평가 기록을 따른다.
 - 별도 operations volume의 fsync 삭제 의도를 DB 변경 전에 기록하고 시작 때 재적용한다. 대화/개인 결과 삭제·문서/제외·Gap 의도를 포함한다. 오류가 삭제 취소를 의미하지 않는다. 보관 정리·허용 진단 코드·파일 실행 소유권과 operations 경로 readiness, 암호화 snapshot/빈 대상 복원·분리 master/백업 key·최신 삭제 기록·복원 표식/과금 대조는 [운영 안내](docs/backup-and-restore.md)를 따른다.
 - 새 migrations는 `20261108010000_private_attachments`, `20261108020000_chat_navigation`이다. 후자는 최근 첨부 metadata 조회 인덱스이며 권한을 넓히지 않는다. runtime은 새 두 테이블 SELECT/INSERT/정리 DELETE와 명시 상태/결과 열 UPDATE, 감사/만료 세션 정리 DELETE만 추가한다. 식별/소유/보관/REFERENCES·PUBLIC 변경은 여전히 거절한다.
-- 실제 첨부/운영/채팅 통합 시험은 TOWNBASE_FINAL_BASIC_TEST=1·정확한 postgres/townbase_final_test·owner URL/runtime secret·최신 build를 요구한다. 기존 자료가 있으면 자동 reset하지 않는다. 일반 API 시험에서는 건너뛴다. 수동 합성 브라우저 fixture는 test/browser-fixture.ts이며 production 또는 postgres/townbase_browser_test 외 DB에서는 연결/파일 작업 전에 거절한다. 운영 runtime 이미지에는 test/scripts/개발 도구를 넣지 않는다.
+- 실제 첨부/운영/채팅 통합 시험은 TOWNBASE_FINAL_BASIC_TEST=1·정확한 postgres/townbase_final_test·owner URL/runtime secret·최신 build를 요구한다. 기존 자료가 있으면 자동 reset하지 않는다. 일반 API 시험에서는 건너뛴다. 수동 합성 브라우저 fixture는 apps/api/test/browser-fixture.ts이며 production 또는 postgres/townbase_browser_test 외 DB에서는 연결/파일 작업 전에 거절한다. 운영 runtime 이미지에는 test/scripts/개발 도구를 넣지 않는다.
 - 실계정 합성 평가는 사용자가 기존 프로젝트 Key/계정·공개용 합성 입력·총 US$1을 승인했다. 전용 postgres/townbase_live_ops_test·townbase_live_shop_test·townbase_live_diagnostic_test의 비용 이력을 유지하고 합산 예약 상한0.95USD로 제한한다. evaluate-basic.ts·evaluate-attachments.ts·measure-retrieval.ts는 명시 live 플래그/전용 DB를 요구하고 기존 비용 행을 reset하지 않는다. deployment/evaluate-live.mjs는 migration/개발 이미지용이며 운영 시작 경로가 아니다. 일반 시험은 실제 Key/네트워크/유료 호출을 사용하지 않는다. 결과·장비·미확정 비용·비독립 평가 한계는 [실측 기록](docs/evaluation/v0.2/final-2026-11-08.md)을 따른다.
+
+## PR48 리뷰 보완 경계
+
+- 삭제 의도는 fsync 뒤 현재 프로세스에서 즉시 DB에 적용한다. 기록/적용이 불확실하면 DeploymentDatabase.operationsBlocked를 유지해 인증 transaction과 readiness를 차단하며, 정상 startup replay 뒤 새 인스턴스로 복구한다. 이미 삭제된 파일의 반복 DELETE는 journal/감사를 늘리지 않는다.
+- 백업 생성/복원은 동일 manifest 한도(20,000개·개별40GiB)를 검사한다. 복원 전에 모든 별도 삭제 기록을 검증한다. 기존 파일과 이름이 충돌하면 지우지 않는다. backup-process.mjs는 stdin EPIPE/자식 종료를 처리해 평문 stage 정리를 finally로 연결한다.
+- 웹 pending은 미확인 요청의 종류/UUID 목록이며 성공 또는 저장 조회 확인 뒤 해당 ID만 지운다. 자동 유료 재전송은 없다. 일시 인증 확인 장애는 편집기를 유지하되 inert로 차단하고 확정401에서 로그인으로 돌아간다.
+- 공개 합성 평가의 과거 manifest/원자료는 당시 상태로 유지한다. 수정 후 runner는 corpus/series 경로·resume 계약·현재 파일 hash를 확인하며 TOWNBASE_EVAL_SOURCE_COMMIT을 요구한다. 과거 미커밋 실측은 hash/보관 commit/차이를 별도 provenance로 설명하며 새 commit을 소급 기입하지 않는다. 새 유료 평가는 별도 승인 없이 실행하지 않는다.

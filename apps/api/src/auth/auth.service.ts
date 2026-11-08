@@ -80,6 +80,8 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     work: (tx: Tx, now: Date) => Promise<T>,
     sharedBoundary = false,
   ): Promise<T> {
+    if (this.database.operationsBlocked)
+      throw new Error("Deletion replay required");
     return this.database.prisma.$transaction(
       async (tx) => {
         // Session checks share the revocation boundary; mutations remain exclusive.
@@ -96,7 +98,12 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
           Array<{ now: Date }>
         >`SELECT clock_timestamp() AS now`;
         if (!clock) throw new Error("Authentication clock unavailable");
-        return work(tx, clock.now);
+        if (this.database.operationsBlocked)
+          throw new Error("Deletion replay required");
+        const result = await work(tx, clock.now);
+        if (this.database.operationsBlocked)
+          throw new Error("Deletion replay required");
+        return result;
       },
       { timeout: 30000, maxWait: 3000 },
     );

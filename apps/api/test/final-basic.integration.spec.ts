@@ -789,6 +789,22 @@ integration(
         })
         .expect(413);
     });
+    test("attachment envelope overflow has the same file limit code and releases the upload slot", async () => {
+      const before = await owner.attachment.count();
+      const response = await call("post", "/ATTACHMENTS/")
+        .send({
+          name: "oversized.txt",
+          contentBase64: Buffer.alloc(11 * 1024 * 1024, 0x61).toString(
+            "base64",
+          ),
+        })
+        .expect(413);
+      expect(response.body.code).toBe("file_too_large");
+      expect(await owner.attachment.count()).toBe(before);
+      expect(provider.call).not.toHaveBeenCalled();
+      const next = await upload();
+      expect(next.id).toBeTruthy();
+    });
     test("private tasks enforce auth, limits, UUID and exact body aliases", async () => {
       await request(app.getHttpServer())
         .post("/attachments")
@@ -990,6 +1006,12 @@ integration(
           }
           await new Promise((r) => setTimeout(r, 10));
         }
+        const finalCost = await owner.modelCall.findFirst({
+          where: { purpose: "rag_answer", installationId: "primary" },
+        });
+        expect(finalCost?.status).toBe("unknown");
+        expect(finalCost?.chargedNanoUsd).toBeNull();
+        expect(finalCost!.reservedNanoUsd > 0n).toBe(true);
         const read = (
           await call("get", "/rag/questions/" + body.requestId).expect(200)
         ).body;
@@ -1007,6 +1029,119 @@ integration(
         await pending;
       }
     });
+    test("private list deadlines and UUID history use the same chronological contract", async () => {
+      const file = await upload();
+      const response = await call("post", "/attachment-tasks")
+        .send(task(file.id))
+        .expect(200);
+      const base = await owner.attachmentTask.findUniqueOrThrow({
+        where: {
+          installationId_requestId: {
+            installationId: "primary",
+            requestId: response.body.requestId,
+          },
+        },
+      });
+      await owner.attachment.deleteMany();
+      await owner.attachmentTask.deleteMany();
+      const ids = Array.from(
+        { length: 25 },
+        (_, i) =>
+          `${(1000 - i).toString(16).padStart(8, "0")}-1111-4111-8111-111111111111`,
+      );
+      const now = Date.now();
+      for (let i = 0; i < ids.length; i++)
+        await owner.attachmentTask.create({
+          data: {
+            ...base,
+            requestId: ids[i]!,
+            fingerprint: i.toString(16).padStart(64, "0"),
+            createdAt: new Date(now - 10000 + i * 10),
+            deadlineAt: new Date(now - 1000),
+            status: i === 0 ? "running" : "answered",
+            completedAt: i === 0 ? null : base.completedAt,
+            result:
+              i === 0 ? Prisma.DbNull : (base.result as Prisma.InputJsonValue),
+            ragSources: base.ragSources as Prisma.InputJsonValue,
+            attachmentSources: base.attachmentSources as Prisma.InputJsonValue,
+            answer: i === 0 ? null : base.answer,
+            errorCode: null,
+            model: i === 0 ? null : base.model,
+          },
+        });
+      const first = (await call("get", "/attachment-tasks").expect(200)).body;
+      const second = (
+        await call(
+          "get",
+          "/attachment-tasks?cursor=" + first.nextCursor,
+        ).expect(200)
+      ).body;
+      expect(
+        [...first.tasks, ...second.tasks].map(
+          (r: { requestId: string }) => r.requestId,
+        ),
+      ).toEqual(ids);
+      const summary = (
+        await call("get", "/attachment-tasks?view=summary").expect(200)
+      ).body;
+      const overdue = await call("get", "/attachment-tasks/" + ids[0]).expect(
+        200,
+      );
+      const oldestPage = (
+        await call(
+          "get",
+          "/attachment-tasks?view=summary&cursor=" + summary.nextCursor,
+        ).expect(200)
+      ).body;
+      expect(
+        oldestPage.tasks.find(
+          (r: { requestId: string }) => r.requestId === ids[0],
+        ).status,
+      ).toBe(overdue.body.status);
+      expect(overdue.body.status).toBe("interrupted");
+      await call("get", "/attachment-tasks?cursor=" + randomUUID()).expect(404);
+    });
+    test("a DB-rejected durable deletion blocks live reads until clean startup replay", async () => {
+      await owner.$executeRawUnsafe(
+        `CREATE FUNCTION public.pr48_reject_deletion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW."deletedAt" IS NOT NULL THEN RAISE EXCEPTION 'synthetic deletion failure'; END IF; RETURN NEW; END $$`,
+      );
+      await owner.$executeRawUnsafe(
+        `CREATE TRIGGER pr48_deletion_failure BEFORE UPDATE OF "deletedAt" ON "FileOriginal" FOR EACH ROW EXECUTE FUNCTION public.pr48_reject_deletion()`,
+      );
+      try {
+        await call("delete", "/files/" + secondOriginalId)
+          .send({})
+          .expect(503);
+        expect(
+          (
+            await owner.fileOriginal.findUniqueOrThrow({
+              where: { id: secondOriginalId },
+            })
+          ).deletedAt,
+        ).toBeNull();
+        await call("get", "/files/" + secondOriginalId).expect(503);
+        await call("get", "/rag/conversations").expect(503);
+        await call("get", "/readyz").expect(503);
+      } finally {
+        await owner.$executeRawUnsafe(
+          `DROP TRIGGER pr48_deletion_failure ON "FileOriginal"`,
+        );
+        await owner.$executeRawUnsafe(
+          `DROP FUNCTION public.pr48_reject_deletion()`,
+        );
+      }
+      await app.close();
+      await start();
+      await login();
+      await call("get", "/files/" + secondOriginalId).expect(404);
+      expect(
+        (
+          await owner.fileOriginal.findUniqueOrThrow({
+            where: { id: secondOriginalId },
+          })
+        ).deletedAt,
+      ).not.toBeNull();
+    });
     test("deletion intent replays after simulated old DB restore before new reads", async () => {
       const version = await owner.fileVersion.findFirstOrThrow({
         where: { originalId },
@@ -1023,6 +1158,17 @@ integration(
         .send({})
         .expect(200);
       const records = await app.get(DeletionJournal).records();
+      await call("delete", "/files/" + originalId)
+        .send({})
+        .expect(200);
+      expect((await app.get(DeletionJournal).records()).length).toBe(
+        records.length,
+      );
+      expect(
+        await owner.installationAuditEvent.count({
+          where: { action: "file_deleted", requestId: originalId },
+        }),
+      ).toBe(1);
       expect(
         records.some((r) => r.kind === "file" && r.targetId === originalId),
       ).toBe(true);

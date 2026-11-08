@@ -12,6 +12,18 @@ import {
 import path from "node:path";
 import { operationsPath } from "./deletion-journal";
 const DIAGNOSTIC_CODES = new Set([
+  ...[
+    "RUNTIME_PROFILE",
+    "MODULE_LOADING",
+    "APPLICATION",
+    "WEB_ARTIFACTS",
+    "PORT_CONFIGURATION",
+    "LISTEN",
+  ].flatMap((stage) =>
+    ["", "_ENOENT", "_EACCES", "_EADDRINUSE", "_EADDRNOTAVAIL"].map(
+      (errno) => "TOWNBASE_STARTUP_" + stage + errno,
+    ),
+  ),
   "TOWNBASE_AGENT_SETTINGS_FAILED",
   "TOWNBASE_ATTACHMENT_CLEANUP_FAILED",
   "TOWNBASE_ATTACHMENT_FAILED",

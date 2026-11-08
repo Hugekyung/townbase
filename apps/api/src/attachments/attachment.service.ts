@@ -153,7 +153,9 @@ export class AttachmentService
   async stop(token: string | undefined, c: AdministratorContext, id: string) {
     await this.store.stop(token, c, id);
     this.active.get(id)?.controller.abort();
-    await this.store.cleanup();
+    await this.store
+      .cleanup()
+      .catch(() => Logger.error("TOWNBASE_ATTACHMENT_CLEANUP_FAILED"));
     return this.store.read(token, c, id);
   }
   private async execute(

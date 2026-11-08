@@ -1,4 +1,5 @@
-import { execFile, spawn } from "node:child_process";
+import { docker } from "./backup-process.mjs";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { pipeline } from "node:stream/promises";
 import { createWriteStream, createReadStream } from "node:fs";
@@ -26,6 +27,7 @@ import {
   pruneBackups,
   journalDigest,
   fileHash,
+  validateDeletionExport,
 } from "./backup-format.mjs";
 const exec = promisify(execFile),
   args = process.argv.slice(2),
@@ -49,31 +51,7 @@ const allowed = [
 if (Object.keys(options).some((k) => !allowed.includes(k)))
   throw Error("Unknown option");
 let stage, key;
-async function docker(argv, stdin) {
-  const child = spawn("docker", argv, {
-    stdio: [stdin == null ? "ignore" : "pipe", "pipe", "pipe"],
-  });
-  const stderr = [];
-  child.stderr.on("data", (b) => {
-    if (stderr.length < 4) stderr.push(b);
-  });
-  const output = [];
-  child.stdout.on("data", (b) => {
-    if (output.reduce((n, c) => n + c.length, 0) > 16 * 1024 * 1024)
-      child.kill("SIGKILL");
-    else output.push(b);
-  });
-  const close = new Promise((resolve, reject) => {
-    child.once("error", reject);
-    child.once("close", (code) =>
-      code === 0
-        ? resolve(Buffer.concat(output).toString("utf8"))
-        : reject(Error("Docker operation failed")),
-    );
-  });
-  if (stdin != null) child.stdin.end(stdin);
-  return close;
-}
+
 function compose(argv) {
   return [
     "compose",
@@ -131,6 +109,10 @@ async function streamOut(argv, filename) {
   const child = spawn("docker", argv, { stdio: ["ignore", "pipe", "ignore"] });
   const end = new Promise((resolve, reject) => {
     child.once("error", reject);
+    child.stdin?.once("error", (error) => {
+      child.kill("SIGTERM");
+      reject(error);
+    });
     child.once("close", (code) =>
       code === 0 ? resolve() : reject(Error("Database dump failed")),
     );
@@ -152,6 +134,10 @@ async function streamIn(argv, filename) {
   const child = spawn("docker", argv, { stdio: ["pipe", "ignore", "ignore"] });
   const end = new Promise((resolve, reject) => {
     child.once("error", reject);
+    child.stdin?.once("error", (error) => {
+      child.kill("SIGTERM");
+      reject(error);
+    });
     child.once("close", (code) =>
       code === 0 ? resolve() : reject(Error("Database restore failed")),
     );
@@ -398,6 +384,7 @@ try {
           !Number.isFinite(Date.parse(journal.exportedAt))
         )
           throw Error("Invalid journal export");
+        validateDeletionExport(journal);
         const existing = Number(
           (
             await sql(

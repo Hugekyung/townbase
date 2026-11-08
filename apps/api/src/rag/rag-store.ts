@@ -581,7 +581,8 @@ export class RagStore {
           sources: Prisma.JsonValue;
         }>
       >(Prisma.sql`
-        SELECT c.id,c."createdAt",latest."createdAt" AS "updatedAt",first.question,first.sources
+        SELECT c.id,c."createdAt",latest."createdAt" AS "updatedAt",first.question,
+          (SELECT COALESCE(jsonb_agg(jsonb_build_object('id',s->'id','indexId',s->'indexId','originalId',s->'originalId','versionId',s->'versionId','scopeRevision',s->'scopeRevision')), '[]'::jsonb) FROM jsonb_array_elements(first.sources) s) AS sources
         FROM "RagConversation" c
         JOIN LATERAL (SELECT t."createdAt" FROM "RagTurn" t
           WHERE t."installationId"=c."installationId" AND t."ownerAdministratorId"=c."ownerAdministratorId" AND t."conversationId"=c.id AND t."expiresAt">${now}
@@ -597,7 +598,11 @@ export class RagStore {
       for (const row of rows.slice(0, 20)) {
         let title = [...row.question].slice(0, 60).join("");
         try {
-          await this.sourcesCurrent(tx, fresh, savedSources(row.sources));
+          await this.sourcesCurrent(
+            tx,
+            fresh,
+            row.sources as unknown as FileSource[],
+          );
         } catch (e) {
           if (e instanceof ModelCallError && e.code === "source_changed")
             title = "근거가 변경된 대화";
@@ -721,19 +726,12 @@ export class RagStore {
   }
   async removeGap(token: string | undefined, c: Context, id: string) {
     if (!validRequestId(id)) throw new ModelCallError("invalid_request_id");
-    const record = await this.journal.accept(token, c, "gap", id.toLowerCase());
-    await this.journal.apply(record);
+    await this.journal.accept(token, c, "gap", id.toLowerCase());
     return { deleted: true };
   }
   async removeConversation(token: string | undefined, c: Context, id: string) {
     if (!validRequestId(id)) throw new ModelCallError("invalid_request_id");
-    const record = await this.journal.accept(
-      token,
-      c,
-      "conversation",
-      id.toLowerCase(),
-    );
-    await this.journal.apply(record);
+    await this.journal.accept(token, c, "conversation", id.toLowerCase());
     return { deleted: true };
   }
   async maintenance(restarted = false) {

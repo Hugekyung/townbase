@@ -33,7 +33,7 @@ export function Workspace({
     [chatCursor, setChatCursor] = useState<string | null>(null),
     [privateCursor, setPrivateCursor] = useState<string | null>(null),
     [listError, setListError] = useState(""),
-    [pending, setPending] = useState(pendingRequest),
+    [pending, setPending] = useState(() => pendingRequest()),
     [agent, setAgent] = useState({ name: "Townbase", model: "" });
   const working = useRef(false),
     drawer = useRef<HTMLElement>(null),
@@ -122,7 +122,7 @@ export function Workspace({
         if (!c.signal.aborted) setListError(errorText(e));
       });
     return () => c.abort();
-  }, [refresh, menu]);
+  }, [refresh]);
   async function run<T>(action: () => Promise<T>, mutated = true) {
     if (working.current) return undefined;
     working.current = true;
@@ -405,7 +405,7 @@ export function Workspace({
             onMessage={setMessage}
           />
         ) : (
-          <>
+          <div className="workspace">
             <div className="management-heading">
               <button
                 className="icon-button"
@@ -453,7 +453,7 @@ export function Workspace({
             )}
             {pending && (
               <details className="request-status">
-                <summary>최근 요청 상태 확인</summary>
+                <summary>미확인 요청 상태 확인</summary>
                 <p>
                   연결이 끊긴 요청은 새로 실행하기 전에 저장 상태를 조회해
                   주세요.
@@ -481,7 +481,7 @@ export function Workspace({
                 </button>
               </details>
             )}
-          </>
+          </div>
         )}
       </div>
     </section>

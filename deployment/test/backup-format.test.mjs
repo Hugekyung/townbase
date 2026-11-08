@@ -21,6 +21,9 @@ import {
   unpackBundle,
   pruneBackups,
   backupTime,
+  validateManifest,
+  validateDeletionExport,
+  BACKUP_LIMITS,
 } from "../backup-format.mjs";
 test("encrypted backup round-trip restores exact files and excludes attachment bodies", async () => {
   const root = await realpath(
@@ -40,6 +43,11 @@ test("encrypted backup round-trip restores exact files and excludes attachment b
       path.join(stage, "documents", "originals", file),
       "SYNTHETIC DOCUMENT",
     );
+    const forbidden = path.join(stage, "documents", "attachments");
+    await mkdir(forbidden);
+    await writeFile(path.join(forbidden, "private.bin"), "PRIVATE_BODY");
+    await assert.rejects(manifestFiles(stage), /Unexpected backup input/);
+    await rm(forbidden, { recursive: true });
     const manifest = {
       version: 1,
       createdAt: new Date().toISOString(),
@@ -165,4 +173,95 @@ test("restore rejects unsafe, duplicate and truncated manifests without overwrit
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("creation and restore share size and count limits before touching the destination", async () => {
+  const entry = { name: "db.dump", size: 1, sha256: "a".repeat(64) };
+  assert.doesNotThrow(() =>
+    validateManifest({
+      version: 1,
+      files: [{ ...entry, size: BACKUP_LIMITS.fileBytes }],
+    }),
+  );
+  assert.throws(() =>
+    validateManifest({
+      version: 1,
+      files: [{ ...entry, size: BACKUP_LIMITS.fileBytes + 1 }],
+    }),
+  );
+  const tooMany = {
+    version: 1,
+    files: Array.from({ length: BACKUP_LIMITS.entries + 1 }, (_, i) =>
+      i === 0
+        ? entry
+        : { ...entry, name: `documents/originals/${randomUUID()}.bin` },
+    ),
+  };
+  assert.throws(() => validateManifest(tooMany));
+  const root = await mkdtemp(path.join(tmpdir(), "townbase-limit-"));
+  try {
+    const target = path.join(root, "existing");
+    await writeFile(target, "KEEP");
+    await assert.rejects(
+      writeBundle(root, target, { version: 1, files: [entry] }),
+    );
+    assert.equal(await readFile(target, "utf8"), "KEEP");
+    await assert.rejects(writeBundle(root, path.join(root, "new"), tooMany));
+    assert.deepEqual(await readdir(root), ["existing"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+test("retention independently enforces seven recent copies", async () => {
+  const root = await realpath(
+      await mkdtemp(path.join(tmpdir(), "townbase-count-")),
+    ),
+    now = Date.now();
+  try {
+    for (let i = 0; i < 9; i++)
+      await writeFile(
+        path.join(
+          root,
+          "townbase-" +
+            new Date(now - i * 1000).toISOString().replace(/[:.]/g, "-") +
+            "-" +
+            randomUUID() +
+            ".tbk",
+        ),
+        "SYNTHETIC",
+      );
+    assert.equal(await pruneBackups(root, now), 2);
+    assert.equal((await readdir(root)).length, 7);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+test("journal export validates additional records before restore preparation", () => {
+  const record = {
+    version: 1,
+    id: randomUUID(),
+    targetId: randomUUID(),
+    kind: "file",
+    installationId: "primary",
+    workspaceId: "synthetic",
+    ownerAdministratorId: "owner",
+    scopeRevision: null,
+    createdAt: new Date().toISOString(),
+  };
+  const journal = {
+    version: 1,
+    exportedAt: record.createdAt,
+    records: [record],
+  };
+  assert.doesNotThrow(() => validateDeletionExport(journal));
+  for (const extra of [
+    { ...record, id: randomUUID(), kind: "arbitrary" },
+    { ...record, id: randomUUID(), scopeRevision: 2 },
+    { ...record, id: randomUUID(), extra: "body" },
+    { ...record, targetId: "../outside" },
+    { ...record, id: randomUUID(), createdAt: "invalid" },
+  ])
+    assert.throws(() =>
+      validateDeletionExport({ ...journal, records: [record, extra] }),
+    );
 });

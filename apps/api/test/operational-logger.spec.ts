@@ -49,6 +49,22 @@ describe("operational diagnostic privacy", () => {
       "TOWNBASE_APPLICATION_ERROR",
     ]);
   });
+  it("preserves only the allowed startup stage/errno", async () => {
+    const { startupDiagnostic } = await import("../src/startup-failure");
+    const code = startupDiagnostic("listen", {
+      code: "EADDRINUSE",
+      message: "SECRET",
+      path: "/private/SECRET",
+    });
+    new OperationalLogger().error(code);
+    const names = await readdir(path.join(root, "diagnostics"));
+    const text = await readFile(
+      path.join(root, "diagnostics", names[0]!),
+      "utf8",
+    );
+    expect(JSON.parse(text).code).toBe("TOWNBASE_STARTUP_LISTEN_EADDRINUSE");
+    expect(text).not.toContain("SECRET");
+  });
   it("refuses diagnostic directory symlinks without writing to their target", async () => {
     const target = path.join(root, "other");
     await mkdir(target);
@@ -56,6 +72,7 @@ describe("operational diagnostic privacy", () => {
     const stderr = jest.spyOn(process.stderr, "write").mockReturnValue(true);
     new OperationalLogger().error("TOWNBASE_RAG_FAILED");
     expect(await readdir(target)).toEqual([]);
+    expect(stderr).toHaveBeenCalledWith("TOWNBASE_DIAGNOSTIC_STORAGE_FAILED\n");
     expect(stderr.mock.calls.flat().join(" ")).not.toContain(root);
   });
 });

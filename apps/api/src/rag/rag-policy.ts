@@ -262,7 +262,6 @@ export function exactExcerpts(quote: string, content: string): string[] | null {
   }
   const tail = quote.slice(start).trim();
   if (tail) {
-    if ([...tail].length < 8 && pieces.length) return null;
     pieces.push(tail);
   }
   if (pieces.length < 2 || pieces.length > 5) return null;

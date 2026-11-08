@@ -107,6 +107,17 @@ export async function corpusFixtures(root: string, kind: "ops" | "shop") {
       path.join(root, kind + "-questions.md"),
       "utf8",
     );
+  const prefix = kind.toUpperCase();
+  if (
+    [...original.matchAll(/^## ((?:OPS|SHOP)-D\d{2})/gm)].some(
+      (m) => !m[1]!.startsWith(prefix + "-"),
+    ) ||
+    questionText
+      .split("\n")
+      .filter((s) => /^\| (?:OPS|SHOP)-Q\d/.test(s))
+      .some((s) => !s.startsWith("| " + prefix + "-"))
+  )
+    throw Error("Cross-corpus fixture row");
   const documents = [
     ...original.matchAll(
       /^## ((?:OPS|SHOP)-D\d{2})[^\n]*\n([\s\S]*?)(?=^## |$(?![\s\S]))/gm,
@@ -139,6 +150,8 @@ export async function corpusFixtures(root: string, kind: "ops" | "shop") {
         .split("|")
         .slice(1, -1)
         .map((s) => s.trim());
+      if (cells[5] !== "true" && cells[5] !== "false")
+        throw Error("Invalid answerability label");
       return {
         id: cells[0]!,
         type: cells[1]!,

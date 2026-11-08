@@ -4,7 +4,7 @@ Notion과 로컬 Git 저장소에 흩어진 제품·개발 문서를 한곳에 �
 
 > 현재 프로젝트 이름과 패키지 이름은 `townbase`를 사용한다. 제품 방향은 `Workspace Knowledge Agent`로 정의되어 있다.
 
-> v0.2 기본 기능: Docker 배포·단일 관리자 인증/복구·모델/전송/비용 설정·파일 등록/명시 색인·출처 답변/거절/Gap·일회성 첨부·설정/문서/채팅 웹·수동 암호화 백업/복원을 로컬 구현·검증했다. 검증 요약 확인 후 커밋/PR 전달 승인을 받았다. 현재 브랜치의 실제 시험·미달 항목은 [최종 검증 기록](docs/implementation/v0.2-final-basic-release.md), 실행은 [배포 안내](docs/self-hosted-deployment.md)와 [백업/복원](docs/backup-and-restore.md)을 따른다. 아래 기존 수집/MCP 설명은 v0.1 개발 경로다.
+> v0.2 기본 기능: Docker 배포·단일 관리자 인증/복구·모델/전송/비용 설정·파일 등록/명시 색인·출처 답변/거절/Gap·일회성 첨부·설정/문서/채팅 웹·수동 암호화 백업/복원을 로컬 구현·검증했다. 실제 시험·미달 항목은 [최종 검증 기록](docs/implementation/v0.2-final-basic-release.md), 실행은 [배포 안내](docs/self-hosted-deployment.md)와 [백업/복원](docs/backup-and-restore.md)을 따른다. 아래 기존 수집/MCP 설명은 v0.1 개발 경로다.
 
 ## 프로젝트 개요
 

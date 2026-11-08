@@ -120,10 +120,12 @@ try {
       throw Error("Invalid backup name");
     const directory = await privateDirectory(path.join(root, "backups"));
     const filename = path.join(directory, name);
+    const handle = await open(filename, "wx", 0o600);
+    await handle.close();
     try {
       await pipeline(
         process.stdin,
-        createWriteStream(filename, { flags: "wx", mode: 0o600 }),
+        createWriteStream(filename, { flags: "r+" }),
       );
       const file = await open(filename, "r");
       try {

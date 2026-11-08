@@ -63,7 +63,10 @@ export function taskInput(body: unknown): AttachmentInput {
       throw new ModelCallError("invalid_request");
     return normalized;
   };
-  if (!["summary", "question", "draft"].includes(String(v.operation)))
+  if (
+    typeof v.operation !== "string" ||
+    !["summary", "question", "draft"].includes(v.operation)
+  )
     throw new ModelCallError("invalid_request");
   const ragQuestion =
     v.ragQuestion == null
@@ -76,7 +79,7 @@ export function taskInput(body: unknown): AttachmentInput {
   return {
     ...base,
     operation: v.operation as AttachmentInput["operation"],
-    attachmentIds: ids(v.attachmentIds, 3, 1),
+    attachmentIds: ids(v.attachmentIds, ATTACHMENT_LIMITS.files, 1),
     historyRequestIds: ids(v.historyRequestIds ?? [], 3, 0),
     ragQuestion,
   };

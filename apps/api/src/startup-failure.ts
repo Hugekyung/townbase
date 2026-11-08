@@ -16,3 +16,13 @@ export function startupFailure(stage: StartupStage, error: unknown): string {
   );
   return `Townbase startup failed [${stage}${safeCode ? `:${safeCode}` : ""}]. Check deployment configuration.`;
 }
+
+export function startupDiagnostic(stage: StartupStage, error: unknown): string {
+  const safe = startupFailure(stage, error);
+  const errno = /:(ENOENT|EACCES|EADDRINUSE|EADDRNOTAVAIL)\]/.exec(safe)?.[1];
+  return (
+    "TOWNBASE_STARTUP_" +
+    stage.replace(/-/g, "_").toUpperCase() +
+    (errno ? "_" + errno : "")
+  );
+}

@@ -78,7 +78,13 @@ export async function manifestFiles(stage) {
         const name = path.relative(stage, filename).split(path.sep).join("/");
         if (!allowedName(name)) throw Error("Unexpected backup input");
         const s = await lstat(filename);
-        if (!s.isFile() || s.nlink !== 1) throw Error("Unsafe backup input");
+        if (
+          !s.isFile() ||
+          s.nlink !== 1 ||
+          s.size > BACKUP_LIMITS.fileBytes ||
+          result.length >= BACKUP_LIMITS.entries - 1
+        )
+          throw Error("Unsafe backup input");
         result.push({ name, size: s.size, sha256: await fileHash(filename) });
       }
     }
@@ -86,7 +92,13 @@ export async function manifestFiles(stage) {
   await scan(path.join(stage, "documents"));
   const dump = path.join(stage, "db.dump");
   const s = await lstat(dump);
-  if (!s.isFile() || s.isSymbolicLink()) throw Error("Invalid database dump");
+  if (
+    !s.isFile() ||
+    s.isSymbolicLink() ||
+    s.nlink !== 1 ||
+    s.size > BACKUP_LIMITS.fileBytes
+  )
+    throw Error("Invalid database dump");
   result.unshift({
     name: "db.dump",
     size: s.size,
@@ -94,10 +106,80 @@ export async function manifestFiles(stage) {
   });
   return result.sort((a, b) => a.name.localeCompare(b.name));
 }
+export const BACKUP_LIMITS = Object.freeze({
+  entries: 20000,
+  fileBytes: 40 * 1024 ** 3,
+});
+export function validateManifest(m) {
+  if (
+    m?.version !== 1 ||
+    !Array.isArray(m.files) ||
+    m.files.length < 1 ||
+    m.files.length > BACKUP_LIMITS.entries ||
+    !m.files.some((f) => f?.name === "db.dump") ||
+    new Set(m.files.map((f) => f?.name)).size !== m.files.length
+  )
+    throw Error("Invalid manifest");
+  for (const f of m.files)
+    if (
+      typeof f?.name !== "string" ||
+      !allowedName(f.name) ||
+      !Number.isSafeInteger(f.size) ||
+      f.size < 0 ||
+      f.size > BACKUP_LIMITS.fileBytes ||
+      typeof f.sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(f.sha256)
+    )
+      throw Error("Unsafe manifest entry");
+}
+export function validateDeletionExport(journal) {
+  const uuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const keys =
+    "createdAt,id,installationId,kind,ownerAdministratorId,scopeRevision,targetId,version,workspaceId";
+  if (
+    journal?.version !== 1 ||
+    !Array.isArray(journal.records) ||
+    typeof journal.exportedAt !== "string" ||
+    !Number.isFinite(Date.parse(journal.exportedAt))
+  )
+    throw Error("Invalid journal export");
+  const ids = new Set();
+  for (const r of journal.records) {
+    if (
+      !r ||
+      typeof r !== "object" ||
+      Array.isArray(r) ||
+      Object.keys(r).sort().join(",") !== keys ||
+      r.version !== 1 ||
+      typeof r.id !== "string" ||
+      !uuid.test(r.id) ||
+      typeof r.targetId !== "string" ||
+      !uuid.test(r.targetId) ||
+      !["file", "file_scope", "gap", "conversation", "private_result"].includes(
+        r.kind,
+      ) ||
+      ![r.installationId, r.workspaceId, r.ownerAdministratorId].every(
+        (s) => typeof s === "string" && s.length > 0 && s.length <= 128,
+      ) ||
+      typeof r.createdAt !== "string" ||
+      !Number.isFinite(Date.parse(r.createdAt)) ||
+      (r.kind === "file_scope"
+        ? !Number.isSafeInteger(r.scopeRevision) || r.scopeRevision < 2
+        : r.scopeRevision !== null) ||
+      ids.has(r.id.toLowerCase())
+    )
+      throw Error("Invalid deletion record");
+    ids.add(r.id.toLowerCase());
+  }
+}
 export async function writeBundle(stage, filename, manifest) {
+  validateManifest(manifest);
   const encoded = Buffer.from(JSON.stringify(manifest));
   if (encoded.length > 8 * 1024 * 1024) throw Error("Manifest too large");
-  const out = createWriteStream(filename, { flags: "wx", mode: 0o600 });
+  const owned = await open(filename, "wx", 0o600);
+  await owned.close();
+  const out = createWriteStream(filename, { flags: "r+" });
   let failure;
   out.on("error", (e) => {
     failure = e;
@@ -171,11 +253,13 @@ export async function decryptBundle(input, output, key) {
     );
     cipher.setAAD(MAGIC);
     cipher.setAuthTag(tag);
+    const owned = await open(output, "wx", 0o600);
+    await owned.close();
     try {
       await pipeline(
         createReadStream(input, { start: header.length, end: s.size - 17 }),
         cipher,
-        createWriteStream(output, { flags: "wx", mode: 0o600 }),
+        createWriteStream(output, { flags: "r+" }),
       );
     } catch (e) {
       await unlink(output).catch(() => {});
@@ -207,24 +291,8 @@ export async function unpackBundle(input, stage) {
     if (length < 1 || length > 8 * 1024 * 1024)
       throw Error("Invalid manifest size");
     const m = JSON.parse((await read(length)).toString("utf8"));
-    if (
-      m.version !== 1 ||
-      !Array.isArray(m.files) ||
-      m.files.length < 1 ||
-      m.files.length > 20000 ||
-      !m.files.some((f) => f.name === "db.dump") ||
-      new Set(m.files.map((f) => f.name)).size !== m.files.length
-    )
-      throw Error("Invalid manifest");
+    validateManifest(m);
     for (const f of m.files) {
-      if (
-        !allowedName(f.name) ||
-        !Number.isSafeInteger(f.size) ||
-        f.size < 0 ||
-        f.size > 40 * 1024 ** 3 ||
-        !/^[0-9a-f]{64}$/.test(f.sha256)
-      )
-        throw Error("Unsafe manifest entry");
       const filename = path.join(stage, f.name);
       await mkdir(path.dirname(filename), { recursive: true, mode: 0o700 });
       if ((await realpath(path.dirname(filename))) !== path.dirname(filename))

@@ -22,8 +22,21 @@ const child = spawn(
     "--transpile-only",
     `scripts/evaluate-${corpus === "attachments" ? "attachments" : "basic"}.ts`,
   ],
-  { stdio: "inherit", env: { ...process.env, DATABASE_URL: url.toString() } },
+  {
+    detached: true,
+    stdio: "inherit",
+    env: { ...process.env, DATABASE_URL: url.toString() },
+  },
 );
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"])
+  process.on(signal, () => {
+    if (child.pid == null) return;
+    try {
+      process.kill(-child.pid, signal);
+    } catch (e) {
+      if (e.code !== "ESRCH") throw e;
+    }
+  });
 child.once("error", () => {
   process.stderr.write("TOWNBASE_EVALUATION_FAILED\n");
   process.exit(1);

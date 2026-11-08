@@ -10,7 +10,7 @@ import {
 import type { Work } from "../Workspace";
 import type { FileItem } from "./types";
 export function DocumentsPanel({ work }: { work: Work }) {
-  const uploadRequests = useRef(new WeakMap<File, string>());
+  const uploadRequests = useRef(new WeakMap<File, Map<string, string>>());
   const [items, setItems] = useState<FileItem[]>([]),
     [cursor, setCursor] = useState<string | null>(null),
     [next, setNext] = useState<string | null>(null),
@@ -44,15 +44,18 @@ export function DocumentsPanel({ work }: { work: Work }) {
     return () => c.abort();
   }, [cursor, work.refresh]);
   async function submitFile(file: File, id?: string) {
-    const requestId =
-      (id == null ? uploadRequests.current.get(file) : undefined) ??
-      crypto.randomUUID();
-    if (id == null) uploadRequests.current.set(file, requestId);
+    const encoded = await encodedFile(file, 20 * 1024 * 1024);
+    const target = id ?? "upload";
+    const requests =
+      uploadRequests.current.get(file) ?? new Map<string, string>();
+    const requestId = requests.get(target) ?? crypto.randomUUID();
+    requests.set(target, requestId);
+    uploadRequests.current.set(file, requests);
     rememberRequest("file", requestId);
     const r = await api<{ runId: string; status: string }>(
       id ? "/files/" + id : "/files",
       id ? "PUT" : "POST",
-      await encodedFile(file, 20 * 1024 * 1024),
+      encoded,
       { "X-Townbase-Request-Id": requestId },
     );
     setRuns((list) => [{ name: file.name, ...r }, ...list]);
