@@ -1,28 +1,37 @@
-export type StartupStage =
-  | "runtime-profile"
-  | "module-loading"
-  | "application"
-  | "web-artifacts"
-  | "port-configuration"
-  | "listen";
-
-export function startupFailure(stage: StartupStage, error: unknown): string {
+export const STARTUP_STAGES = [
+  "runtime-profile",
+  "module-loading",
+  "application",
+  "web-artifacts",
+  "port-configuration",
+  "listen",
+] as const;
+export const STARTUP_ERRNOS = [
+  "ENOENT",
+  "EACCES",
+  "EADDRINUSE",
+  "EADDRNOTAVAIL",
+] as const;
+export type StartupStage = (typeof STARTUP_STAGES)[number];
+const diagnosticCode = (stage: StartupStage, errno?: string) =>
+  "TOWNBASE_STARTUP_" +
+  stage.replace(/-/g, "_").toUpperCase() +
+  (errno ? "_" + errno : "");
+export const STARTUP_DIAGNOSTIC_CODES = STARTUP_STAGES.flatMap((stage) => [
+  diagnosticCode(stage),
+  ...STARTUP_ERRNOS.map((errno) => diagnosticCode(stage, errno)),
+]);
+function safeErrno(error: unknown) {
   const code =
     error != null && typeof error === "object" && "code" in error
       ? error.code
       : undefined;
-  const safeCode = ["ENOENT", "EACCES", "EADDRINUSE", "EADDRNOTAVAIL"].find(
-    (allowed) => allowed === code,
-  );
-  return `Townbase startup failed [${stage}${safeCode ? `:${safeCode}` : ""}]. Check deployment configuration.`;
+  return STARTUP_ERRNOS.find((allowed) => allowed === code);
 }
-
+export function startupFailure(stage: StartupStage, error: unknown): string {
+  const code = safeErrno(error);
+  return `Townbase startup failed [${stage}${code ? `:${code}` : ""}]. Check deployment configuration.`;
+}
 export function startupDiagnostic(stage: StartupStage, error: unknown): string {
-  const safe = startupFailure(stage, error);
-  const errno = /:(ENOENT|EACCES|EADDRINUSE|EADDRNOTAVAIL)\]/.exec(safe)?.[1];
-  return (
-    "TOWNBASE_STARTUP_" +
-    stage.replace(/-/g, "_").toUpperCase() +
-    (errno ? "_" + errno : "")
-  );
+  return diagnosticCode(stage, safeErrno(error));
 }

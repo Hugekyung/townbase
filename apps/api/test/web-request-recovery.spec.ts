@@ -116,3 +116,18 @@ test("legacy single pending record is migrated without losing the original", () 
   expect(b.api.pendingRequests()).toHaveLength(2);
   expect(b.api.pendingRequest("attachment")?.id).toBe(id);
 });
+
+test("acknowledged response survives malformed local bookkeeping without destroying it", async () => {
+  const b = browser();
+  b.entries.set("townbase.pending", "{broken");
+  b.fetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({ requestId: id, status: "answered" }),
+  });
+  await expect(b.api.api("/rag/questions/" + id)).resolves.toEqual({
+    requestId: id,
+    status: "answered",
+  });
+  expect(b.entries.get("townbase.pending")).toBe("{broken");
+});

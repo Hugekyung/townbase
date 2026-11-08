@@ -307,7 +307,10 @@ export function AuthPanel({
       {(unavailable || blocked || checking) && (
         <div role="alert" className="session-status">
           로그인·서버 상태 확인 중. 입력 내용은 유지해요.{" "}
-          <button disabled={checking} onClick={() => setAttempt((v) => v + 1)}>
+          <button
+            disabled={checking || blocked}
+            onClick={() => setAttempt((v) => v + 1)}
+          >
             다시 확인
           </button>
         </div>

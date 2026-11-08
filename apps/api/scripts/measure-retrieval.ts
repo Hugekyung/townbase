@@ -193,15 +193,9 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
     process.exitCode = 1;
   })
   .finally(async () => {
-    const series = process.env.TOWNBASE_EVAL_SERIES;
-    if (!series || !/^[a-z0-9-]+$/.test(series))
-      throw Error("Explicit performance series required");
-    const evidence = `/data/evidence/${kind}/performance/${series}`;
-    await mkdir(`/data/evidence/${kind}/performance`, {
-      recursive: true,
-      mode: 0o700,
-    });
-    await mkdir(evidence, { mode: 0o700 }); // existing run is never overwritten, even on failure
-    await app?.close();
-    await owner.$disconnect();
+    try {
+      await app?.close();
+    } finally {
+      await owner.$disconnect();
+    }
   });

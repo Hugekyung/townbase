@@ -2,9 +2,9 @@ import { HttpException } from "@nestjs/common";
 import { FILE_LIMITS, fileFormat } from "./file-contract";
 
 export function isFileUpload(request: {
-  method?: string;
-  originalUrl?: string;
-  url?: string;
+  method?: string | undefined;
+  originalUrl?: string | undefined;
+  url?: string | undefined;
 }): boolean {
   // Express routes accept case variants and one optional trailing slash.
   const path = (request.originalUrl ?? request.url ?? "")

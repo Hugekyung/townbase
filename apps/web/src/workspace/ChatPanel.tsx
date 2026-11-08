@@ -6,7 +6,6 @@ import {
   errorText,
   ApiError,
   download,
-  pendingRequest,
 } from "../api";
 import type { Work } from "../Workspace";
 import type { Result } from "./types";
@@ -212,6 +211,10 @@ export function ChatPanel({
       kind: "rag" | "attachment";
     } | null>(null),
     [uncertain, setUncertain] = useState(false),
+    [uncertainRequest, setUncertainRequest] = useState<{
+      kind: "rag" | "attachment";
+      id: string;
+    } | null>(null),
     [stopping, setStopping] = useState(false),
     [referenceHistory, setReferenceHistory] = useState(true);
   const scrollArea = useRef<HTMLDivElement>(null),
@@ -347,7 +350,8 @@ export function ChatPanel({
     setLoadError("");
   }
   async function readPending() {
-    const saved = pendingRequest(location.kind);
+    // A private attachment sent from a RAG route still belongs to attachment.
+    const saved = uncertainRequest;
     if (!saved || !["rag", "attachment"].includes(saved.kind)) return;
     await work.run(async () => {
       const r = await api<Result>(
@@ -356,6 +360,7 @@ export function ChatPanel({
       );
       put(r);
       setUncertain(false);
+      setUncertainRequest(null);
       onSaved(
         saved.kind as "rag" | "attachment",
         r.conversationId ?? r.requestId,
@@ -426,8 +431,9 @@ export function ChatPanel({
           }
         }
         if (!alive.current) return;
-        requestId = crypto.randomUUID();
-        rememberRequest(privateMode ? "attachment" : "rag", requestId);
+        const preparedId = crypto.randomUUID();
+        rememberRequest(privateMode ? "attachment" : "rag", preparedId);
+        requestId = preparedId;
         setPending({
           id: requestId,
           question: q,
@@ -479,7 +485,13 @@ export function ChatPanel({
         }
       } catch (e) {
         if (alive.current) {
-          if (requestId) setUncertain(true);
+          if (requestId) {
+            setUncertainRequest({
+              kind: privateMode ? "attachment" : "rag",
+              id: requestId,
+            });
+            setUncertain(true);
+          }
           setPending(null);
           setQuestion(q);
         }

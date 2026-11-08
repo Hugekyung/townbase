@@ -65,7 +65,13 @@ const normalize = (s: string) =>
     .replace(/[\s,.:;、。]/g, "");
 async function main() {
   await mkdir(evidence, { recursive: true, mode: 0o700 });
-  runLock = await open(path.join(evidence, ".run.lock"), "wx", 0o600);
+  try {
+    runLock = await open(path.join(evidence, ".run.lock"), "wx", 0o600);
+  } catch (error) {
+    if ((error as { code?: string }).code === "EEXIST")
+      throw Error("Evaluation run lock exists");
+    throw error;
+  }
   const fixture = await corpusFixtures(
     path.resolve(__dirname, "../../../docs/evaluation/v0.2"),
     kind,
@@ -79,6 +85,7 @@ async function main() {
     rounds,
     limit,
     sourceCommit,
+    sourceCommitProvenance: "operator_attested_not_verified_against_checkout",
     questionHash: hash(fixture.questionText),
     corpusHash: hash(fixture.original),
     fixtureHashes: fixture.documents.map((d) => [d.id, hash(d.bytes)]),
@@ -327,6 +334,7 @@ async function main() {
   const settings = await app.get(ModelExecutionService).snapshot(c);
   const manifest = {
     sourceCommit,
+    sourceCommitProvenance: "operator_attested_not_verified_against_checkout",
     resumeContract,
     at: new Date().toISOString(),
     series,
@@ -565,6 +573,7 @@ async function main() {
 main()
   .catch((error) => {
     const allowed = [
+      "Evaluation run lock exists",
       "Evaluation resume contract changed",
       "Evaluation runtime contract changed",
       "Evaluation manifest missing for saved rows",
@@ -582,7 +591,17 @@ main()
           (error.message === v || error.message.startsWith(v + ":")),
       ) ?? "unexpected_failure";
     console.error(
-      JSON.stringify({ code: "TOWNBASE_SYNTHETIC_EVALUATION_FAILED", reason }),
+      JSON.stringify({
+        code: "TOWNBASE_SYNTHETIC_EVALUATION_FAILED",
+        reason,
+        ...(reason === "Evaluation run lock exists"
+          ? {
+              lockFile: path.join(evidence, ".run.lock"),
+              recovery:
+                "Confirm the prior process and paid-call state before removing the stale lock. Never automatically retry.",
+            }
+          : {}),
+      }),
     );
     process.exitCode = 1;
   })

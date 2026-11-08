@@ -70,3 +70,9 @@ rollback도 DB/image를 임의로 과거 버전으로 덮어쓰는 작업이 아
 생성/복원은 모두 manifest 최대20,000개, 개별 파일 최대40GiB를 적용한다. 초과 snapshot은 생성 때 실패하며 복원 불가 백업을 성공으로 기록하지 않는다. 삭제 기록 전체는 빈 대상 변경 전에 검증한다. 백업 이름 충돌은 기존 사본을 보존하며 Docker stdin EPIPE도 정상 실패 정리 경로로 처리한다.
 
 삭제 의도를 승인한 뒤 기록 쓰기나 DB 적용이 불확실하면 인증된 자료 접근과 readiness를 차단한다. 운영자가 DB/저장 장애를 복구한 뒤 단일 API를 재시작하면 journal을 먼저 재적용한다. 오류 응답은 삭제 취소를 뜻하지 않는다. 백업은 API 중지 상태에서만 생성한다.
+
+### Docker 명령 대기·종료 확인
+
+일반 Docker 명령은2분, dump/restore 파일 전송은30분을 넘기면 실패 처리한다. 로컬 Docker CLI에 SIGKILL을 최대3회 시도하고3초 내 종료를 관측한다. 종료가 확인돼야 일반 staging 정리를 진행한다. 종료 미확인은 `TOWNBASE_BACKUP_CHILD_TERMINATION_UNCONFIRMED`로 진단하며 `.townbase/backup-staging-*`의0700/0600 자료를 보존한다. 운영자가 해당 프로젝트와 남은 프로세스·DB 상태를 확인하기 전에는 재시도하거나 staging을 정리하지 않는다.
+
+로컬 Docker CLI 종료는 daemon 내부의 pg_dump/psql 종료 증명이 아니다. 실패한 restore는 복원 표식을 유지한 채 API가 중지된 상태로 남으므로, DB 작업 종료와 대상 상태를 확인한 뒤 빈 대상 복구 절차를 다시 선택한다. 시간 초과를 복원 성공으로 취급하지 않는다.

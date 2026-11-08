@@ -251,8 +251,9 @@ let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
     process.exitCode = 1;
   })
   .finally(async () => {
-    await mkdir("/diag/evidence", { recursive: true, mode: 0o700 });
-    await mkdir(output, { mode: 0o700 }); // reject reruns before any paid work
-    await app?.close();
-    await owner.$disconnect();
+    try {
+      await app?.close();
+    } finally {
+      await owner.$disconnect();
+    }
   });

@@ -1,8 +1,9 @@
-import { docker } from "./backup-process.mjs";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { pipeline } from "node:stream/promises";
-import { createWriteStream, createReadStream } from "node:fs";
+import {
+  docker,
+  streamOut,
+  streamIn,
+  BackupChildUnconfirmed,
+} from "./backup-process.mjs";
 import {
   mkdtemp,
   mkdir,
@@ -29,8 +30,7 @@ import {
   fileHash,
   validateDeletionExport,
 } from "./backup-format.mjs";
-const exec = promisify(execFile),
-  args = process.argv.slice(2),
+const args = process.argv.slice(2),
   command = args.shift(),
   options = {};
 for (const arg of args) {
@@ -51,6 +51,7 @@ const allowed = [
 if (Object.keys(options).some((k) => !allowed.includes(k)))
   throw Error("Unknown option");
 let stage, key;
+let cleanupSafe = true;
 
 function compose(argv) {
   return [
@@ -104,50 +105,6 @@ async function sql(id, text) {
     ],
     text,
   );
-}
-async function streamOut(argv, filename) {
-  const child = spawn("docker", argv, { stdio: ["ignore", "pipe", "ignore"] });
-  const end = new Promise((resolve, reject) => {
-    child.once("error", reject);
-    child.stdin?.once("error", (error) => {
-      child.kill("SIGTERM");
-      reject(error);
-    });
-    child.once("close", (code) =>
-      code === 0 ? resolve() : reject(Error("Database dump failed")),
-    );
-  });
-  try {
-    await Promise.all([
-      pipeline(
-        child.stdout,
-        createWriteStream(filename, { flags: "wx", mode: 0o600 }),
-      ),
-      end,
-    ]);
-  } catch (e) {
-    child.kill("SIGKILL");
-    throw e;
-  }
-}
-async function streamIn(argv, filename) {
-  const child = spawn("docker", argv, { stdio: ["pipe", "ignore", "ignore"] });
-  const end = new Promise((resolve, reject) => {
-    child.once("error", reject);
-    child.stdin?.once("error", (error) => {
-      child.kill("SIGTERM");
-      reject(error);
-    });
-    child.once("close", (code) =>
-      code === 0 ? resolve() : reject(Error("Database restore failed")),
-    );
-  });
-  try {
-    await Promise.all([pipeline(createReadStream(filename), child.stdin), end]);
-  } catch (e) {
-    child.kill("SIGKILL");
-    throw e;
-  }
 }
 async function recordsFrom(directory) {
   const records = [];
@@ -517,12 +474,16 @@ try {
       }
     }
   }
-} catch {
+} catch (error) {
+  if (error instanceof BackupChildUnconfirmed) {
+    cleanupSafe = false;
+    console.error("TOWNBASE_BACKUP_CHILD_TERMINATION_UNCONFIRMED");
+  }
   console.error(
     "TOWNBASE_BACKUP_OPERATION_FAILED: check explicit project, stopped API, private paths/key, empty restore target and current deletion journal. A failed restore remains offline.",
   );
   process.exitCode = 1;
 } finally {
   key?.fill(0);
-  if (stage) await rm(stage, { recursive: true, force: true });
+  if (stage && cleanupSafe) await rm(stage, { recursive: true, force: true });
 }

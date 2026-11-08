@@ -265,3 +265,10 @@
 - 백업 생성/복원은 동일 manifest 한도(20,000개·개별40GiB)를 검사한다. 복원 전에 모든 별도 삭제 기록을 검증한다. 기존 파일과 이름이 충돌하면 지우지 않는다. backup-process.mjs는 stdin EPIPE/자식 종료를 처리해 평문 stage 정리를 finally로 연결한다.
 - 웹 pending은 미확인 요청의 종류/UUID 목록이며 성공 또는 저장 조회 확인 뒤 해당 ID만 지운다. 자동 유료 재전송은 없다. 일시 인증 확인 장애는 편집기를 유지하되 inert로 차단하고 확정401에서 로그인으로 돌아간다.
 - 공개 합성 평가의 과거 manifest/원자료는 당시 상태로 유지한다. 수정 후 runner는 corpus/series 경로·resume 계약·현재 파일 hash를 확인하며 TOWNBASE_EVAL_SOURCE_COMMIT을 요구한다. 과거 미커밋 실측은 hash/보관 commit/차이를 별도 provenance로 설명하며 새 commit을 소급 기입하지 않는다. 새 유료 평가는 별도 승인 없이 실행하지 않는다.
+
+## PR48 2차 리뷰 보완 경계
+
+- backup-process.mjs가 일반 Docker 명령과 streamOut/streamIn을 함께 소유한다. 일반2분·파일 전송30분 deadline, SIGKILL3회/3초 종료 관측을 적용한다. 미종료 확인은 BackupChildUnconfirmed로 전달해 CLI가 private staging을 보존하고 고정 코드로 진단한다. 로컬 CLI 종료를 daemon 내부 exec 종료 증명으로 설명하지 않는다.
+- 평가 scripts의 finally는 자원 정리만 수행하고 app.close 실패에도 owner disconnect를 시도한다. 성공·작업 실패·정리 실패는 실제 script를 합성 의존성으로 구동하는 evaluation-lifecycle.spec.ts로 검증한다. 기존 series 잠금 충돌은 lock 경로/수동 확인 안내를 남기고 타 실행의 lock을 자동 삭제하지 않는다.
+- RAG 화면에서 전송한 첨부 요청도 실패한 kind/id로 재조회한다. ChatPanel의 실패 상태를 pending 진행 표시와 별도로 유지한다. 서버 성공 응답은 로컬 sessionStorage bookkeeping 실패로 뒤집지 않는다.
+- TOWNBASE_EVAL_SOURCE_COMMIT은 운영자 확인값이며 checkout/build 자동 검증값이 아니다. 새 manifest는 operator-attested 표기를 함께 기록하고, 과거 여러 컴포넌트 hash가 없는 실행은 rag-policy 단일 hash의 범위와 구분한다.

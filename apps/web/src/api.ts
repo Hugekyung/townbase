@@ -146,13 +146,20 @@ export function rememberRequest(kind: PendingRequest["kind"], id: string) {
     JSON.stringify([...entries, { kind, id }]),
   );
 }
-export function confirmRequest(id: string) {
-  const entries = pendingRequests().filter(
-    (r) => r.id.toLowerCase() !== id.toLowerCase(),
-  );
-  if (entries.length)
-    sessionStorage.setItem("townbase.pending", JSON.stringify(entries));
-  else sessionStorage.removeItem("townbase.pending");
+export function confirmRequest(id: string): boolean {
+  // Local bookkeeping must never turn an acknowledged server result into failure.
+  // Keep malformed/unwritable state intact for an explicit recovery decision.
+  try {
+    const entries = pendingRequests().filter(
+      (r) => r.id.toLowerCase() !== id.toLowerCase(),
+    );
+    if (entries.length)
+      sessionStorage.setItem("townbase.pending", JSON.stringify(entries));
+    else sessionStorage.removeItem("townbase.pending");
+    return true;
+  } catch {
+    return false;
+  }
 }
 export function pendingRequest(
   kind?: PendingRequest["kind"],

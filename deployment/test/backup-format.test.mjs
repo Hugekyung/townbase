@@ -258,7 +258,7 @@ test("journal export validates additional records before restore preparation", (
     { ...record, id: randomUUID(), kind: "arbitrary" },
     { ...record, id: randomUUID(), scopeRevision: 2 },
     { ...record, id: randomUUID(), extra: "body" },
-    { ...record, targetId: "../outside" },
+    { ...record, id: randomUUID(), targetId: "../outside" },
     { ...record, id: randomUUID(), createdAt: "invalid" },
   ])
     assert.throws(() =>

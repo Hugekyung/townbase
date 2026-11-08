@@ -8,6 +8,10 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { createRequire } from "node:module";
+const fs = createRequire(__filename)(
+  "node:fs/promises",
+) as typeof import("node:fs/promises");
 import { DeletionJournal } from "../src/operations/deletion-journal";
 import {
   AuthService,
@@ -94,9 +98,17 @@ test("repeated deletion of a deleted row writes no new permanent record", async 
 test.each([NaN, Infinity, 0, -1, 1.1])(
   "invalid read bound %s fails before file access",
   async (bound) => {
-    await expect(
-      new FileStorage(path.join(root, "missing")).read(id + ".bin", bound),
-    ).rejects.toMatchObject({ code: "storage_unavailable" });
+    const storage = new FileStorage(path.join(root, "files"));
+    const key = await storage.write(Buffer.from("EXISTING_SYNTHETIC_FILE"));
+    const opened = jest.spyOn(fs, "open");
+    try {
+      await expect(storage.read(key, bound)).rejects.toMatchObject({
+        code: "storage_unavailable",
+      });
+      expect(opened).not.toHaveBeenCalled();
+    } finally {
+      opened.mockRestore();
+    }
   },
 );
 test("oversized caller read bound cannot lift the20MiB hard ceiling", async () => {

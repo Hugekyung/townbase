@@ -1,7 +1,7 @@
 {
   "reviewBaseCommit": "2a3003885dd0354c7fe6fd5f927fca60cd586bc2",
   "actualRunSourceCommit": null,
-  "reason": "Runs executed in an uncommitted worktree based on808d507; no exact historical source commit existed. Do not infer executable identity from the later archival commit. Recorded compiled artifact hashes are authoritative for the measured components.",
+  "reason": "Runs executed in an uncommitted worktree based on808d507; no exact historical source commit existed. The later archival commit is not proof of executed source identity. Every listed run records a rag-policy hash, but only candidate4 records the full listed compiledArtifacts set. Earlier runs cannot be attributed to exact compiled identities for the other components.",
   "schemaTiming": "candidate4 answer runs predate20261108020000_chat_navigation. Later packet benchmark and UI/DB checks include it. No historical migration list was edited.",
   "latencyTiming": "Historical latencyMs includes evaluator turn/model-ledger readback after ask; it is a measured combined upper bound, not pure service/HTTP latency. New runner captures immediately after ask.",
   "manifests": [
@@ -10,28 +10,32 @@
       "sha256": "462c04240155b515a33f93c86c9246add407ad0a2d02705160b1a79ff59e3650",
       "recordedCompiledArtifacts": null,
       "recordedPolicyHash": "847fddbe656ced52682324bf2a88a3d305b9ee4cde634ed24fc961e323215489",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
     },
     {
       "path": "ops/calibrated/manifest.json",
       "sha256": "9b5acd9cd390881cb13bcd817b98b31119148b51569f087e54ee88d1df98e561",
       "recordedCompiledArtifacts": null,
       "recordedPolicyHash": "145ebbe2266509f2e61d9307a9ac2de421d74904438e83a00738645e713f9f8f",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
     },
     {
       "path": "ops/candidate2/manifest.json",
       "sha256": "3b1b69707d25e0a4e74a4858ecd3e961b57f805e6ab87471930ebf9e8d6bdd2e",
       "recordedCompiledArtifacts": null,
       "recordedPolicyHash": "d4cf365ce1013316d7dad1d431c937e55ff34c13d7d5b84038f996f3f8c891d7",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
     },
     {
       "path": "ops/candidate3/manifest.json",
       "sha256": "e5c8bd72fec5e1ab39791391111065da1741ffc0456a00b3140f0c8f92c689eb",
       "recordedCompiledArtifacts": null,
       "recordedPolicyHash": "d774d76223f72fa0748614dd594b47c246ed8ac64d28672e78b01c888e940197",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
     },
     {
       "path": "ops/candidate4/manifest.json",
@@ -44,28 +48,32 @@
         "model-integration/grounded-format": "6d5fbcddf9c770f80afa74d515fcee79c62da40345ba89a14f81d333cc654f90"
       },
       "recordedPolicyHash": "0c83357aa3619d35b32f3078819b2398f189e0b484e05914ba54d4c1921d777e",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "listed_component_set"
     },
     {
       "path": "shop/calibrated/manifest.json",
       "sha256": "2cf76ce5482c3403bac7bc8fc67c1b75ddea9cd82d1c29e263a39eadbf6546b8",
       "recordedCompiledArtifacts": null,
       "recordedPolicyHash": "145ebbe2266509f2e61d9307a9ac2de421d74904438e83a00738645e713f9f8f",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
     },
     {
       "path": "shop/candidate2/manifest.json",
       "sha256": "b86535f7c95f4d82a33c37a27035a54a5f2e1366123383fcb20d904ed3ead2a1",
       "recordedCompiledArtifacts": null,
       "recordedPolicyHash": "d4cf365ce1013316d7dad1d431c937e55ff34c13d7d5b84038f996f3f8c891d7",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
     },
     {
       "path": "shop/candidate3/manifest.json",
       "sha256": "6c01ef72669a3e6abfb9c70d35fcc01025301f945a4930a96122699f39546b4f",
       "recordedCompiledArtifacts": null,
       "recordedPolicyHash": "d774d76223f72fa0748614dd594b47c246ed8ac64d28672e78b01c888e940197",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "rag_policy_only_other_components_unknown"
     },
     {
       "path": "shop/candidate4/manifest.json",
@@ -78,7 +86,8 @@
         "model-integration/grounded-format": "6d5fbcddf9c770f80afa74d515fcee79c62da40345ba89a14f81d333cc654f90"
       },
       "recordedPolicyHash": "0c83357aa3619d35b32f3078819b2398f189e0b484e05914ba54d4c1921d777e",
-      "actualCommitKnown": false
+      "actualCommitKnown": false,
+      "compiledIdentityCoverage": "listed_component_set"
     }
   ],
   "attachments": {

@@ -14,33 +14,15 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { docker } from "../backup-process.mjs";
-test("early child exit handles stdin EPIPE and runs plaintext cleanup", async () => {
-  const root = await realpath(
-    await mkdtemp(path.join(os.tmpdir(), "townbase-epipe-")),
-  );
-  const original = process.env.PATH;
-  try {
-    await writeFile(path.join(root, "docker"), "#!/bin/sh\nexit 1\n");
-    await chmod(path.join(root, "docker"), 0o700);
-    process.env.PATH = root;
-    const stage = path.join(root, "plaintext");
-    await writeFile(stage, "SYNTHETIC_SECRET");
-    let failed = false;
-    try {
-      await docker(["synthetic-test"], Buffer.alloc(8 * 1024 * 1024));
-    } catch {
-      failed = true;
-    } finally {
-      await rm(stage, { force: true });
-    }
-    assert.equal(failed, true);
-    await assert.rejects(access(stage));
-  } finally {
-    process.env.PATH = original;
-    await rm(root, { recursive: true, force: true });
-  }
-});
+import {
+  docker,
+  streamOut,
+  streamIn,
+  observeDockerChild,
+  BackupChildUnconfirmed,
+} from "../backup-process.mjs";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 
 test("backup-import collision leaves the existing managed backup unchanged", async () => {
   const root = await realpath(
@@ -72,3 +54,161 @@ test("backup-import collision leaves the existing managed backup unchanged", asy
     await rm(root, { recursive: true, force: true });
   }
 });
+
+async function withFakeDocker(script, work) {
+  const root = await realpath(
+    await mkdtemp(path.join(os.tmpdir(), "townbase-docker-child-")),
+  );
+  const previous = process.env.PATH;
+  try {
+    await writeFile(
+      path.join(root, "docker"),
+      `#!${process.execPath}\n${script}`,
+    );
+    await chmod(path.join(root, "docker"), 0o700);
+    const parsed = spawnSync(
+      process.execPath,
+      ["--check", path.join(root, "docker")],
+      { encoding: "utf8" },
+    );
+    assert.equal(parsed.status, 0, parsed.stderr);
+    process.env.PATH = root;
+    await work(root);
+  } finally {
+    process.env.PATH = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+}
+test("stream dump and restore execute the real helper and preserve exact bytes", async () => {
+  await withFakeDocker(
+    `const fs=require('node:fs');if(process.argv[2]==='dump'){process.stdout.write('SYNTHETIC_DUMP');}else{let data=[];process.stdin.on('data',b=>data.push(b));process.stdin.on('end',()=>fs.writeFileSync(process.argv[3],Buffer.concat(data)));}`,
+    async (root) => {
+      const dump = path.join(root, "dump"),
+        restored = path.join(root, "restored");
+      await streamOut(["dump"], dump);
+      await streamIn(["restore", restored], dump);
+      assert.equal(await readFile(restored, "utf8"), "SYNTHETIC_DUMP");
+    },
+  );
+});
+test("an actual stdin EPIPE rejects even when the child would otherwise exit successfully", async () => {
+  await withFakeDocker(
+    `require('node:fs').closeSync(0);setTimeout(()=>process.exit(0),1000);`,
+    async () => {
+      await assert.rejects(
+        docker(["input"], Buffer.alloc(8 * 1024 * 1024)),
+        (e) => e.code === "EPIPE",
+      );
+    },
+  );
+});
+test("stalled Docker CLI is killed and observed before returning deadline failure", async () => {
+  await withFakeDocker(
+    `require('node:fs').writeFileSync(process.argv[2],String(process.pid));setInterval(()=>{},1000);`,
+    async (root) => {
+      const pidFile = path.join(root, "pid");
+      await assert.rejects(
+        docker([pidFile], undefined, { deadlineMs: 300 }),
+        /deadline exceeded/,
+      );
+      const pid = Number(await readFile(pidFile, "utf8"));
+      assert.throws(
+        () => process.kill(pid, 0),
+        (e) => e.code === "ESRCH",
+      );
+    },
+  );
+});
+test("stream dump and restore also obey their deadlines", async () => {
+  await withFakeDocker(`setInterval(()=>{},1000);`, async (root) => {
+    const input = path.join(root, "input");
+    await writeFile(input, "SYNTHETIC");
+    await assert.rejects(
+      streamOut([], path.join(root, "dump"), { deadlineMs: 100 }),
+      /deadline exceeded/,
+    );
+    await assert.rejects(
+      streamIn([], input, { deadlineMs: 100 }),
+      /deadline exceeded/,
+    );
+  });
+});
+test("unconfirmed child termination is bounded and cannot authorize plaintext cleanup", async () => {
+  const child = new EventEmitter();
+  Object.assign(child, {
+    pid: 123,
+    stdin: new PassThrough(),
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    unref() {},
+    kill() {
+      return false;
+    },
+  });
+  await assert.rejects(
+    observeDockerChild(child, 1).done,
+    (e) => e instanceof BackupChildUnconfirmed && e.cleanupSafe === false,
+  );
+});
+for (const failurePoint of ["dump", "backup-import"])
+  test(`real backup CLI removes plaintext stage after ${failurePoint} failure`, async () => {
+    const fixture = `const fs=require('node:fs'),path=require('node:path');fs.appendFileSync(process.env.DUMP_PROBE+'.trace',JSON.stringify(process.argv.slice(2))+'\\n');const args=process.argv.slice(2),idApi='a'.repeat(24),idPg='b'.repeat(24);if(args.includes('backup-import')){fs.writeFileSync(process.env.IMPORT_PROBE,'entered');fs.closeSync(0);setTimeout(()=>process.exit(0),1000);}else if(args[0]==='compose'){const service=args.at(-1);console.log(service==='api'?idApi:idPg);}else if(args[0]==='inspect'){const api=args[1]===idApi;console.log(JSON.stringify([{Config:{Labels:{'com.docker.compose.project':'townbase-cli-failure-test','com.docker.compose.service':api?'api':'postgres'}},State:{Running:!api}}]));}else if(args[0]==='cp'){fs.mkdirSync(args.at(-1),{recursive:true});}else if(args.includes('pg_dump')){fs.writeFileSync(process.env.DUMP_PROBE,'entered');if(process.env.IMPORT_PROBE){process.stdout.write(Buffer.alloc(8*1024*1024,0x61));}else{process.stdout.write('PARTIAL_PLAINTEXT');process.exitCode=1;}}else{process.stdin.resume();process.stdin.on('end',()=>console.log(JSON.stringify({installationId:'primary',workspaceId:'synthetic-workspace',initialized:true,migrations:[]})));}`;
+    await withFakeDocker(fixture, async (root) => {
+      const workspace = path.join(root, "workspace"),
+        dot = path.join(workspace, ".townbase"),
+        archive = path.join(root, "archives"),
+        key = path.join(root, "key"),
+        probe = path.join(root, "dump-entered");
+      await mkdir(dot, { recursive: true, mode: 0o700 });
+      await chmod(dot, 0o700);
+      await writeFile(path.join(dot, "compose.env"), "SYNTHETIC_FIXTURE=1\n", {
+        mode: 0o600,
+      });
+      await mkdir(archive, { mode: 0o700 });
+      await writeFile(key, Buffer.alloc(32, 7).toString("base64url"), {
+        mode: 0o600,
+      });
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.resolve("deployment/backup.mjs"),
+          "create",
+          "--project=townbase-cli-failure-test",
+          "--key-file=" + key,
+          "--directory=" + archive,
+        ],
+        {
+          cwd: workspace,
+          env: {
+            ...process.env,
+            DUMP_PROBE: probe,
+            ...(failurePoint === "backup-import"
+              ? { IMPORT_PROBE: probe + ".import" }
+              : {}),
+          },
+          encoding: "utf8",
+          timeout: 10000,
+        },
+      );
+      assert.equal(result.status, 1, result.stderr);
+      assert.equal(
+        await readFile(probe, "utf8").catch(
+          async () =>
+            "MISSING; " +
+            (await readFile(probe + ".trace", "utf8").catch(
+              () => "no trace; ",
+            )) +
+            result.stderr,
+        ),
+        "entered",
+      );
+      if (failurePoint === "backup-import")
+        assert.equal(await readFile(probe + ".import", "utf8"), "entered");
+      assert.equal(
+        (await (await import("node:fs/promises")).readdir(dot)).some((n) =>
+          n.startsWith("backup-staging-"),
+        ),
+        false,
+      );
+    });
+  });

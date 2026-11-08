@@ -132,14 +132,13 @@ export function configureSelfHostedHttp(app: NestExpressApplication): void {
         "encoding.unsupported": 415,
       };
       if (typeof type === "string" && Object.hasOwn(statuses, type))
-        response
-          .status(statuses[type]!)
-          .json({
-            code:
-              type === "entity.too.large" && isAttachmentUpload(request)
-                ? "file_too_large"
-                : "invalid_json",
-          });
+        response.status(statuses[type]!).json({
+          code:
+            type === "entity.too.large" &&
+            (isAttachmentUpload(request) || isFileUpload(request))
+              ? "file_too_large"
+              : "invalid_json",
+        });
       else next(error);
     },
   );

@@ -1,0 +1,116 @@
+{
+  "date": "2026-11-08",
+  "reviewedBaseline": "eeb0d506b7b217b7bea6cc36a5a626ea1fa1cb17",
+  "branch": "codex/v02-final-basic-release",
+  "status": "delivery_approved",
+  "checks": [
+    {
+      "name": "build",
+      "passed": true,
+      "count": null,
+      "logSha256": "fec47e14a8316ec61bf3901b1837d4ce57a88da68406a3a18593139ee8029ae9",
+      "summary": [
+        "✓ built in 75ms"
+      ]
+    },
+    {
+      "name": "lint",
+      "passed": true,
+      "count": null,
+      "logSha256": "c4744e2ffe16dfcd87b4eacbca0d9ecbe401ecd2db62f32f2981bf4c45def518",
+      "summary": []
+    },
+    {
+      "name": "api",
+      "passed": true,
+      "count": 567,
+      "logSha256": "6d201476176712c8f6fe07766a07a1c0a0549a4741d33051145b7de8683e3740",
+      "summary": [
+        "Test Suites: 12 skipped, 57 passed, 57 of 69 total",
+        "Tests:       323 skipped, 567 passed, 890 total"
+      ]
+    },
+    {
+      "name": "deployment",
+      "passed": true,
+      "count": 39,
+      "logSha256": "16654ac749b2942869dde83a62788fe57aae2cbd47d3ba968910fee6af946bf7",
+      "summary": [
+        "ℹ tests 39",
+        "ℹ pass 39",
+        "ℹ fail 0"
+      ]
+    },
+    {
+      "name": "backup_process_subset",
+      "passed": true,
+      "count": 8,
+      "logSha256": "66ede8e018b0dab9c1dec9c4743f010c188941945d9d6f0e85d0ea73dc5acc52",
+      "summary": [
+        "ℹ tests 8",
+        "ℹ pass 8",
+        "ℹ fail 0"
+      ]
+    },
+    {
+      "name": "evaluation_lifecycle_subset",
+      "passed": true,
+      "count": 7,
+      "logSha256": "52364ae03c8841add73e2748c1ecbe513d37c50f0477334cace89995d77d2a0e",
+      "summary": [
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       7 passed, 7 total"
+      ]
+    },
+    {
+      "name": "component_recovery_subset",
+      "passed": true,
+      "count": 1,
+      "logSha256": "88d84d3ec446f2ead53ef43964edaaadcec7a8e37a557588c3bf0e61f5b89124",
+      "summary": [
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       1 passed, 1 total"
+      ]
+    }
+  ],
+  "actualCli": {
+    "created": true,
+    "restored": {
+      "restored": true,
+      "backupAt": "2026-11-08T14:11:43.204Z",
+      "apiStillStopped": true,
+      "costReconciliationRequired": true
+    },
+    "backupSha256": "e62d6ea2706ba8ba6cfce4d4080815b30a18540e39396836cac21b6d2a4e8838",
+    "plaintextStageRemoved": {
+      "source": true,
+      "target": true
+    },
+    "runtimeImage": "townbase-pr48-r2-runtime",
+    "migrationImage": "townbase-pr48-r2-migration",
+    "readback": "restore-readback.json"
+  },
+  "sourceArtifactsSha256": {
+    "deployment/backup.mjs": "a52e97d4f946e5132ab668a032e786d20014f3f21d42d939adf9e9cec159705b",
+    "deployment/backup-process.mjs": "d2c04202cc89338302a6f4cd333a646521108f9ad72d2405fa099e87a760d6f3",
+    "apps/api/scripts/measure-retrieval.ts": "bfea1c17131c6ab0ca580255bdad096a63980c19824935b9d7f05bad2a08a24c",
+    "apps/api/scripts/evaluate-attachments.ts": "197390b77449848041c81e8db8414295ece18f546ffda892f047906f88cfd07f",
+    "apps/api/scripts/evaluate-basic.ts": "ba76c421ca478577f057f66c0020c6f0575df7f81523100f918df705a3999eae",
+    "apps/web/src/workspace/ChatPanel.tsx": "4113ecb08731707a03b3449858e12ad76a894655549375226825b5f4d9f24cf6",
+    "apps/web/src/api.ts": "68c9658b9e1854df953cdde80a9440c2840fe19cbbd7067d1087eb04884705a7",
+    "apps/api/dist/deployment/self-hosted-http.js": "94dfd3e98ba6f8f704d8d5934d1a08d57d2e26a83f8620586afa33ad3671927e"
+  },
+  "actualPaidCalls": 0,
+  "notes": [
+    "API567 includes evaluation lifecycle7 and component recovery1; do not add subsets twice.",
+    "API default skipped323 opt-in tests; no current claim of rerunning all prior ACL/RAG DB suites.",
+    "Deployment39 includes backup process8 and backup format7.",
+    "Actual CLI backup and blank-target restore followed by authenticated raw/document/chat/private-result and billing-block readback passed.",
+    "Browser upload/private result path observed; crash happened after successful response, so browser lost-response reproduction was not claimed.",
+    "Component routing test executes actual event handlers with retained hook state; DOM/effects are excluded.",
+    "Evaluation lifecycle runs actual runner scripts but mocks DB/provider/filesystem; no live keys or paid calls.",
+    "Historical manifests/raw evidence unchanged; provenance description narrowed.",
+    "At verification time delivery was pending; user subsequently approved commit, push and summary comment. Resolve is not automatic."
+  ],
+  "deliveryApproval": "User approved commit, push and PR summary comment after verification summary."
+}
