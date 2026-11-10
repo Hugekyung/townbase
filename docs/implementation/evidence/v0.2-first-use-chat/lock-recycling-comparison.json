@@ -197,5 +197,33 @@
       "pid": 36362,
       "owned": true
     }
-  ]
+  ],
+  "artifacts": {
+    "script": "lock-recycling-runner.mjs",
+    "rawLog": "lock-recycling-raw.log",
+    "originalLocalScript": "/tmp/townbase-lock-lifetime.mjs",
+    "originalLocalLog": "/tmp/townbase-lock-lifetime.log"
+  },
+  "fieldDefinitions": {
+    "owned": "pg_locks confirms that the queried backend PID holds (741126, key) in the two-int advisory-lock namespace (objsubid=2); it is not the production API owner lock",
+    "keyMapping": [
+      {
+        "maxIdleConnectionLifetimeSeconds": 2,
+        "advisoryKey": [
+          741126,
+          98
+        ],
+        "initialPid": 36361
+      },
+      {
+        "maxIdleConnectionLifetimeSeconds": 0,
+        "advisoryKey": [
+          741126,
+          99
+        ],
+        "initialPid": 36362
+      }
+    ],
+    "reproduction": "Runner uses /app deployment/database-env.mjs and installed Prisma inside the local API container; diagnostic keys 98/99 only. Raw PID values are historical, not portable expected values."
+  }
 }

@@ -64,7 +64,8 @@ const fixture = () => ({
   transfers: { rag: false, attachment: false, documentEmbedding: false },
 });
 function componentHarness(api: jest.Mock) {
-  const slots: unknown[] = [];
+  let slots: unknown[] = [];
+  const componentSlots = new Map<string, unknown[]>();
   let cursor = 0,
     mounted = false;
   const effects: (() => unknown)[] = [];
@@ -91,23 +92,26 @@ function componentHarness(api: jest.Mock) {
     type,
     props,
   });
-  vm.runInNewContext(compile("SettingsPanel.tsx", "\nexport {KeyForm};"), {
-    exports,
-    require: (name: string) => {
-      if (name === "react") return hooks;
-      if (name === "react/jsx-runtime") return { jsx, jsxs: jsx };
-      if (name === "./model-readiness") return policy;
-      if (name === "../api")
-        return {
-          api,
-          errorText: () => "synthetic read error",
-          rememberRequest: () => {},
-        };
-      throw Error(name);
+  vm.runInNewContext(
+    compile("SettingsPanel.tsx", "\nexport {KeyForm,AgentForm};"),
+    {
+      exports,
+      require: (name: string) => {
+        if (name === "react") return hooks;
+        if (name === "react/jsx-runtime") return { jsx, jsxs: jsx };
+        if (name === "./model-readiness") return policy;
+        if (name === "../api")
+          return {
+            api,
+            errorText: () => "synthetic read error",
+            rememberRequest: () => {},
+          };
+        throw Error(name);
+      },
+      AbortController,
+      console,
     },
-    AbortController,
-    console,
-  });
+  );
   let pending: Promise<unknown> = Promise.resolve();
   const changed = jest.fn();
   const work = {
@@ -130,9 +134,11 @@ function componentHarness(api: jest.Mock) {
       changed(value);
     },
   };
-  const render = (name = "SettingsPanel") => {
+  const render = (name = "SettingsPanel", custom?: unknown) => {
+    if (!componentSlots.has(name)) componentSlots.set(name, []);
+    slots = componentSlots.get(name)!;
     cursor = 0;
-    return exports[name]!(name === "KeyForm" ? props : { work });
+    return exports[name]!(custom ?? (name === "KeyForm" ? props : { work }));
   };
   return {
     render,
@@ -208,7 +214,14 @@ test("a slow file listing does not block the saved model settings", async () => 
   const root = h.render();
   expect(text(root)).toContain("문서 채팅 준비 상태");
   expect(text(root)).toContain("1. OpenAI 연결·전송 허용");
-  expect(text(root)).toContain("기본 Agent·참조 문서를 확인하고 있어요");
+  expect(
+    nodes(root).some(
+      (n) =>
+        typeof n.type === "function" &&
+        n.type.name === "AgentForm" &&
+        n.props.filesReady === false,
+    ),
+  ).toBe(true);
 });
 test("failed settings load leaves a retry action instead of indefinite loading", async () => {
   const api = jest.fn((url: string) =>
@@ -260,3 +273,93 @@ for (const readFails of [false, true])
     for (const field of nodes(root).filter((n) => n.type === "input"))
       expect(field.props.value).toBe("");
   });
+
+test.each(["pending", "failed"])(
+  "Agent readiness stays unknown while its lookup is %s",
+  async (state) => {
+    const api = jest.fn((url: string) =>
+      url === "/settings/model-integration"
+        ? Promise.resolve(fixture())
+        : url === "/files"
+          ? Promise.resolve({ items: [], nextCursor: null })
+          : state === "failed"
+            ? Promise.reject(Error("fixture"))
+            : new Promise(() => {}),
+    );
+    const h = componentHarness(api);
+    await h.mount();
+    const value = text(h.render());
+    expect(value).toContain(
+      state === "pending"
+        ? "확인 중기본 Agent 저장"
+        : "확인 실패기본 Agent 저장",
+    );
+    expect(value).not.toContain("설정 필요기본 Agent 저장");
+  },
+);
+test("file-list failure preserves selected sources while other Agent fields remain editable", async () => {
+  const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const agent = {
+    id,
+    revision: 2,
+    name: "agent",
+    purpose: "purpose",
+    instructions: "",
+    terminology: [],
+    sourceSelection: "selected",
+    sourceOriginalIds: [id],
+  };
+  const api = jest.fn((url: string, method?: string) =>
+    method === "PUT"
+      ? Promise.resolve({})
+      : url === "/settings/model-integration"
+        ? Promise.resolve(fixture())
+        : url === "/settings/agent"
+          ? Promise.resolve({ agent })
+          : Promise.reject(Error("fixture")),
+  );
+  const h = componentHarness(api);
+  await h.mount();
+  const root = h.render();
+  const form = nodes(root).find(
+    (n) => typeof n.type === "function" && n.type.name === "AgentForm",
+  )!;
+  expect(form).toBeDefined();
+  expect(form.props.filesReady).toBe(false);
+  let fields = h.render("AgentForm", form.props);
+  expect(nodes(fields).find((n) => n.type === "select")!.props.disabled).toBe(
+    true,
+  );
+  expect(nodes(fields).find((n) => n.type === "fieldset")!.props.disabled).toBe(
+    true,
+  );
+  const inputs = nodes(fields).filter((n) => n.type === "input");
+  (inputs[0]!.props.onChange as (event: { target: { value: string } }) => void)(
+    { target: { value: "edited name" } },
+  );
+  (
+    inputs.at(-1)!.props.onChange as (event: {
+      target: { value: string };
+    }) => void
+  )({
+    target: { value: "test password" },
+  });
+  fields = h.render("AgentForm", form.props);
+  (
+    nodes(fields).find((n) => n.type === "form")!.props.onSubmit as (event: {
+      preventDefault(): void;
+    }) => void
+  )({
+    preventDefault() {},
+  });
+  await h.wait();
+  expect(api).toHaveBeenCalledWith(
+    "/settings/agent",
+    "PUT",
+    expect.objectContaining({
+      name: "edited name",
+      sourceSelection: "selected",
+      sourceOriginalIds: [id],
+    }),
+  );
+});

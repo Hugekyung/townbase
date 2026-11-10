@@ -1712,25 +1712,33 @@ integration("D04 actual persistent run queue", () => {
         'ALTER TABLE "InstallationAuditEvent" DROP CONSTRAINT "D05_reject_scope_audit"',
       );
     }
-    expect(app.get(DeploymentDatabase).operationsBlocked).toBe(true);
-    expect(
-      await owner.fileOriginal.findUniqueOrThrow({ where: { id: item.id } }),
-    ).toMatchObject({ excludedAt: null, scopeRevision: 1 });
-    await request(app.getHttpServer())
-      .get(`/files/${item.id}`)
-      .set(headers())
-      .expect(503);
-    // Simulate successful startup replay before a new instance accepts requests.
-    await app.get(DeletionJournal).replay();
-    app.get(DeploymentDatabase).operationsBlocked = false;
-    expect(await read(item.id)).toMatchObject({
-      excludedAt: expect.any(String),
-      scopeRevision: 2,
-      version: { searchable: false },
-    });
-    await expect(currentSources([source])).rejects.toMatchObject({
-      code: "source_changed",
-    });
+    try {
+      expect(app.get(DeploymentDatabase).operationsBlocked).toBe(true);
+      expect(
+        await owner.fileOriginal.findUniqueOrThrow({ where: { id: item.id } }),
+      ).toMatchObject({ excludedAt: null, scopeRevision: 1 });
+      await request(app.getHttpServer())
+        .get(`/files/${item.id}`)
+        .set(headers())
+        .expect(503);
+      // Simulate successful startup replay before a new instance accepts requests.
+      await app.get(DeletionJournal).replay();
+      app.get(DeploymentDatabase).operationsBlocked = false;
+      expect(await read(item.id)).toMatchObject({
+        excludedAt: expect.any(String),
+        scopeRevision: 2,
+        version: { searchable: false },
+      });
+      await expect(currentSources([source])).rejects.toMatchObject({
+        code: "source_changed",
+      });
+    } finally {
+      try {
+        await app.get(DeletionJournal).replay();
+      } finally {
+        app.get(DeploymentDatabase).operationsBlocked = false;
+      }
+    }
   });
   test.each(["register", "replace", "reprocess", "index"])(
     "PR45 %s history retains captured scope across exclusion/re-inclusion on every read path",

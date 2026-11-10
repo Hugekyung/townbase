@@ -101,8 +101,8 @@ function App() {
             : "ready",
     },
     {
-      title: "문서 처리·채팅 서비스",
-      detail: "문서 처리와 질문을 시작할 수 있는지 점검해요",
+      title: "문서 처리 실행기",
+      detail: "문서 처리 실행기가 운영 중인지 점검해요",
       value:
         status == null
           ? undefined
@@ -183,7 +183,7 @@ function App() {
                       status.database === "ready" &&
                       status.schema === "ready" &&
                       status.storage === "ready"
-                    ? "문서 처리·채팅 서비스가 준비되지 않았어요. 운영자가 서버 상태를 확인하고 필요한 경우 재시작한 뒤, ‘상태 다시 확인’을 눌러 주세요."
+                    ? "문서 처리 실행기가 준비되지 않았어요. 운영자가 서버 상태를 확인하고 필요한 경우 재시작한 뒤, ‘상태 다시 확인’을 눌러 주세요."
                     : ready
                       ? status?.setup === "complete"
                         ? "기본 실행 환경이 연결됐고 관리자 등록도 완료됐어요."

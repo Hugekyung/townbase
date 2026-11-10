@@ -234,6 +234,7 @@ function harness() {
 test("private send failure from a RAG conversation rechecks the exact attachment request, not an unrelated RAG request", async () => {
   const h = harness();
   await h.mount();
+  h.api.mockClear();
   let view = h.render();
   h.find(view, (n) => n.type === "input" && n.props.type === "file")!.props
     .onChange!({
@@ -266,12 +267,7 @@ test("private send failure from a RAG conversation rechecks the exact attachment
   await h.wait();
   expect(
     h.api.mock.calls
-      .filter(
-        (call) =>
-          (call[1] ?? "GET") === "GET" &&
-          (call[0].startsWith("/attachment-tasks/") ||
-            call[0].startsWith("/rag/questions/")),
-      )
+      .filter((call) => (call[1] ?? "GET") === "GET")
       .map((call) => call[0]),
   ).toEqual(["/attachment-tasks/" + h.failedId()]);
   expect(h.saved).toHaveBeenCalledWith("attachment", h.failedId());

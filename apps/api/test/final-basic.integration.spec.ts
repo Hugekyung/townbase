@@ -38,6 +38,9 @@ const { AuthService } = built(
 const { AgentService } = built(
   "../dist/agent/agent.service",
 ) as typeof import("../src/agent/agent.service");
+const { FileIndexService } = built(
+  "../dist/files/file-index.service",
+) as typeof import("../src/files/file-index.service");
 const { FileRunService } = built(
   "../dist/files/file-run.service",
 ) as typeof import("../src/files/file-run.service");
@@ -815,9 +818,21 @@ integration(
     test("mixed retrieval embeds only separately entered question, with no attachment contamination", async () => {
       const f = await upload();
       const before = await sharedCounts();
-      const r = await call("post", "/attachment-tasks")
-        .send(task(f.id, { ragQuestion: "배송 절차를 알려줘" }))
-        .expect(200);
+      const search = jest.spyOn(app.get(FileIndexService), "search");
+      const r = await (async () => {
+        try {
+          const result = await call("post", "/attachment-tasks")
+            .send(task(f.id, { ragQuestion: "배송 절차를 알려줘" }))
+            .expect(200);
+          expect(search).toHaveBeenCalledTimes(1);
+          expect(search.mock.calls[0]![4]).toMatchObject({
+            question: "배송 절차를 알려줘",
+          });
+          return result;
+        } finally {
+          search.mockRestore();
+        }
+      })();
       expect(r.body.status).toBe("answered");
       expect(
         r.body.sources.some((s: { kind: string }) => s.kind === "rag"),

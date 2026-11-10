@@ -96,9 +96,9 @@ test("lost execution ownership is visible despite all infrastructure being conne
   );
   const checks = nodes(root).filter((n) => n.props.className === "check");
   expect(checks).toHaveLength(5);
-  expect(text(checks[4])).toContain("문서 처리·채팅 서비스");
+  expect(text(checks[4])).toContain("문서 처리 실행기");
   expect(text(checks[4])).toContain("연결 필요");
-  expect(text(root)).toContain("문서 처리·채팅 서비스가 준비되지 않았어요");
+  expect(text(root)).toContain("문서 처리 실행기가 준비되지 않았어요");
   expect(nodes(root).find((n) => n.type === "AuthPanel")?.props.blocked).toBe(
     true,
   );

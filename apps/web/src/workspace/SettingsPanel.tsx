@@ -32,11 +32,15 @@ export function SettingsPanel({ work }: { work: Work }) {
     [agentLoaded, setAgentLoaded] = useState(false),
     [filesLoaded, setFilesLoaded] = useState(false),
     [agentError, setAgentError] = useState(""),
-    [filesError, setFilesError] = useState("");
+    [filesError, setFilesError] = useState(""),
+    [agentLoading, setAgentLoading] = useState(true),
+    [filesLoading, setFilesLoading] = useState(true);
   useEffect(() => {
     const c = new AbortController();
     setError("");
     setLoading(true);
+    setAgentLoading(true);
+    setFilesLoading(true);
     setAgentError("");
     setFilesError("");
     void api<Integration>(
@@ -70,6 +74,9 @@ export function SettingsPanel({ work }: { work: Work }) {
       })
       .catch((e) => {
         if (!c.signal.aborted) setAgentError(errorText(e));
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setAgentLoading(false);
       });
     void selectableFiles(c.signal)
       .then((value) => {
@@ -80,6 +87,9 @@ export function SettingsPanel({ work }: { work: Work }) {
       })
       .catch((e) => {
         if (!c.signal.aborted) setFilesError(errorText(e));
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setFilesLoading(false);
       });
     return () => c.abort();
   }, [work.refresh, attempt]);
@@ -105,7 +115,10 @@ export function SettingsPanel({ work }: { work: Work }) {
     );
   const steps = modelSetupSteps(integration, {
     agentConfigured: agentLoaded && agent != null,
-  });
+  }).map((step) => ({
+    ...step,
+    unknown: step.id === "agent" && (agentLoading || Boolean(agentError)),
+  }));
   const missing = steps.filter((step) => !step.ready);
   return (
     <div className="settings-grid">
@@ -116,16 +129,26 @@ export function SettingsPanel({ work }: { work: Work }) {
       >
         <h3>문서 채팅 준비 상태</h3>
         <p>
-          {missing.length
-            ? "Key 저장과 채팅 준비 완료는 달라요. 아래 남은 설정을 완료해 주세요."
-            : "모델 실행 설정을 마쳤어요. 문서 등록·색인 후 질문해 보세요."}
+          {steps.some((step) => step.unknown)
+            ? "일부 설정 상태를 확인 중이거나 확인하지 못했어요. 아래 항목을 확인해 주세요."
+            : missing.length
+              ? "Key 저장과 채팅 준비 완료는 달라요. 아래 남은 설정을 완료해 주세요."
+              : "모델 실행 설정을 마쳤어요. 문서 등록·색인 후 질문해 보세요."}
         </p>
         {loading && <p role="status">저장된 설정을 다시 확인하고 있어요.</p>}
         {error && <p role="alert">최신 설정을 확인하지 못했어요. {error}</p>}
         <ul>
           {steps.map((step) => (
             <li key={step.id}>
-              <span>{step.ready ? "완료" : "설정 필요"}</span>
+              <span>
+                {step.unknown
+                  ? agentError
+                    ? "확인 실패"
+                    : "확인 중"
+                  : step.ready
+                    ? "완료"
+                    : "설정 필요"}
+              </span>
               <button
                 type="button"
                 onClick={() =>
@@ -173,11 +196,12 @@ export function SettingsPanel({ work }: { work: Work }) {
       {filesError && (
         <p role="alert">참조 문서 목록을 확인하지 못했어요. {filesError}</p>
       )}
-      {agentLoaded && filesLoaded ? (
+      {agentLoaded ? (
         <AgentForm
           key={(agent?.revision ?? 0) + ":" + (agent?.id ?? "new")}
           agent={agent}
           files={files}
+          filesReady={filesLoaded && !filesLoading && !filesError}
           work={work}
         />
       ) : !agentError && !filesError ? (
@@ -553,10 +577,12 @@ function ModelForm({
 function AgentForm({
   agent,
   files,
+  filesReady,
   work,
 }: {
   agent: Agent | null;
   files: FileItem[];
+  filesReady: boolean;
   work: Work;
 }) {
   const [name, setName] = useState(agent?.name ?? "기본 Agent"),
@@ -661,6 +687,7 @@ function AgentForm({
         <label>
           참조 문서
           <select
+            disabled={!filesReady}
             value={selection}
             onChange={(e) => setSelection(e.target.value as "all" | "selected")}
           >
@@ -668,8 +695,14 @@ function AgentForm({
             <option value="selected">선택한 문서만</option>
           </select>
         </label>
+        {!filesReady && (
+          <p role="status">
+            참조 문서 목록을 확인할 수 없어 선택 변경은 잠시 사용할 수 없어요.
+            기존 선택은 유지돼요.
+          </p>
+        )}
         {selection === "selected" && (
-          <fieldset>
+          <fieldset disabled={!filesReady}>
             <legend>선택 {ids.length}개</legend>
             {files.map((f) => (
               <label key={f.id} className="check-label">

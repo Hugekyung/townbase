@@ -377,19 +377,21 @@ export class FileIndexService {
       WHERE i."installationId"=${c.installationId} AND o."ownerAdministratorId"=${c.administratorId} AND i."ownerAdministratorId"=${c.administratorId} AND ${currentIndexWhere}
       ${selection?.originalIds == null ? Prisma.empty : selection.originalIds.length === 0 ? Prisma.sql`AND false` : Prisma.sql`AND i."originalId" IN (${Prisma.join(selection.originalIds.map((id) => Prisma.sql`${id}::uuid`))})`}
       ${selection?.knowledgeTypes == null ? Prisma.empty : Prisma.sql`AND ch."knowledgeTypes"::text[] && ARRAY[${Prisma.join(selection.knowledgeTypes)}]::text[]`}
+      ), normalized AS MATERIALIZED (
+        SELECT id,regexp_replace(lower(normalize(content,NFKC)), '[[:space:]]', '', 'g') AS text FROM eligible
       ), scored AS (
         SELECT eligible.*, ${
           terms.length
             ? Prisma.sql`(${Prisma.join(
                 terms.map(
                   (term) =>
-                    Prisma.sql`CASE WHEN regexp_replace(lower(normalize(content,NFKC)), '[[:space:]]', '', 'g') LIKE ${"%" + term + "%"} THEN 1 ELSE 0 END`,
+                    Prisma.sql`CASE WHEN normalized.text LIKE ${"%" + term + "%"} THEN 1 ELSE 0 END`,
                 ),
                 " + ",
               )})`
             : Prisma.sql`0`
         } AS hits
-        FROM eligible
+        FROM eligible JOIN normalized USING (id)
       ), semantic AS (
         SELECT id,row_number() OVER (ORDER BY score DESC,id)::int AS rank FROM scored ORDER BY score DESC,id LIMIT ${topK}
       ), lexical AS (

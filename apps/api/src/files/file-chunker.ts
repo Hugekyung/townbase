@@ -40,7 +40,12 @@ export function fileChunks(
     let current: FileChunk | undefined;
     let previous: FileChunk | undefined;
     const flush = () => {
-      if (current) chunks.push(current);
+      if (current) {
+        current.contentHash = createHash("sha256")
+          .update(current.content)
+          .digest("hex");
+        chunks.push(current);
+      }
       current = undefined;
     };
     let offset = 0,
@@ -82,9 +87,6 @@ export function fileChunks(
         if (current) {
           current.content += "\n" + piece.content;
           current.parts.push(...piece.parts);
-          current.contentHash = createHash("sha256")
-            .update(current.content)
-            .digest("hex");
         } else current = { ...piece, parts: [...piece.parts] };
         // Only overlap a complete unit, never a fragment of a long sentence/table.
         previous = pieces.length === 1 ? piece : undefined;

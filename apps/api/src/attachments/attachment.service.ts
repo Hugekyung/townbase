@@ -268,6 +268,7 @@ export class AttachmentService
               ? { originalIds: a.config.sourceOriginalIds }
               : {}),
             knowledgeTypes: strategyFor(mode).knowledgeTypes,
+            question: a.turn.ragQuestion,
           },
         );
         const selection = selectSources(mode, retrieved, a.turn.ragQuestion);

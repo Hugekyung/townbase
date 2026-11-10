@@ -36,12 +36,12 @@ const money = (value: bigint) =>
 export function UsageDashboard({ work }: { work: Work }) {
   const [usage, setUsage] = useState<Usage | null>(null),
     [budget, setBudget] = useState<Integration["execution"] | null>(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
     const c = new AbortController();
     setError("");
-    setUsage(null);
-    setBudget(null);
+    setRefreshing(true);
     void Promise.all([
       api<Usage>(
         "/settings/model-integration/usage",
@@ -59,11 +59,15 @@ export function UsageDashboard({ work }: { work: Work }) {
       ),
     ])
       .then(([u, b]) => {
+        if (c.signal.aborted) return;
         setUsage(u);
         setBudget(b);
       })
       .catch((e) => {
         if (!c.signal.aborted) setError(errorText(e));
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setRefreshing(false);
       });
     return () => c.abort();
   }, [work.refresh]);
@@ -82,6 +86,7 @@ export function UsageDashboard({ work }: { work: Work }) {
     <section className="usage-dashboard">
       <div className="panel-heading">
         <h2>API 사용량</h2>
+        {refreshing && usage && <p role="status">사용량을 갱신하고 있어요.</p>}
         <button
           disabled={work.busy}
           onClick={() => void work.run(async () => {})}
@@ -94,7 +99,14 @@ export function UsageDashboard({ work }: { work: Work }) {
         전체 사용량이나 최종 청구서가 아니며, API Key를 교체해도 이전 기록은
         남아요.
       </p>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert">
+          {usage
+            ? "최신 사용량을 확인하지 못했어요. 표시된 값은 이전 조회 결과예요. "
+            : ""}
+          {error}
+        </p>
+      )}
       {!usage && !error && <p role="status">사용량을 불러오고 있어요…</p>}
       {usage && budget && (
         <>

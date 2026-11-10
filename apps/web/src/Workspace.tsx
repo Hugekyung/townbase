@@ -24,13 +24,14 @@ export function Workspace({
   account: ReactNode;
 }) {
   const [location, setLocation] = useState(readLocation),
-    [menu, setMenu] = useState(() => {
+    [desktopPinned, setDesktopPinned] = useState(() => {
       try {
         return localStorage.getItem("townbase.menu-open") === "true";
       } catch {
         return false;
       }
     }),
+    [mobileMenu, setMobileMenu] = useState(false),
     [wide, setWide] = useState(
       () => window.matchMedia("(min-width: 900px)").matches,
     ),
@@ -45,6 +46,11 @@ export function Workspace({
     [listError, setListError] = useState(""),
     [pending, setPending] = useState(() => pendingRequest()),
     [agent, setAgent] = useState({ name: "Townbase", model: "" });
+  const menu = wide ? desktopPinned : mobileMenu;
+  const setMenu = (next: boolean | ((value: boolean) => boolean)) => {
+    if (wide) setDesktopPinned(next);
+    else setMobileMenu(next);
+  };
   const working = useRef(false),
     drawer = useRef<HTMLElement>(null),
     menuButton = useRef<HTMLButtonElement>(null);
@@ -66,17 +72,20 @@ export function Workspace({
   }, []);
   useEffect(() => {
     const query = window.matchMedia("(min-width: 900px)");
-    const handler = () => setWide(query.matches);
+    const handler = () => {
+      setMobileMenu(false);
+      setWide(query.matches);
+    };
     query.addEventListener("change", handler);
     return () => query.removeEventListener("change", handler);
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem("townbase.menu-open", String(menu));
+      localStorage.setItem("townbase.menu-open", String(desktopPinned));
     } catch {
       /* UI preference is optional. */
     }
-  }, [menu]);
+  }, [desktopPinned]);
   useEffect(() => {
     if (!menu || wide) return;
     const before = document.activeElement as HTMLElement | null;

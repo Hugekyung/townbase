@@ -1613,7 +1613,7 @@ footer span {
 .thread-tools {
   flex-wrap: wrap;
   height: auto;
-  min-height: 48px;
+  min-height: 36px;
   gap: 8px;
 }
 .usage-cards {
@@ -1725,4 +1725,11 @@ footer span {
 .settings-card[id],
 #basic-agent-settings {
   scroll-margin-top: 20px;
+}
+
+@media (max-width: 600px) {
+  .thread-tools {
+    height: auto;
+    min-height: 30px;
+  }
 }

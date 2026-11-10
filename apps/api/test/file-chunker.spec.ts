@@ -38,13 +38,21 @@ describe("D04 structured file splitting", () => {
     for (const chunk of rows)
       for (const part of chunk.parts) {
         const original = part.segment === 0 ? text : "다음쪽";
-        expect(chunk.content).toContain(
-          Array.from(original)
-            .slice(part.start, part.end)
-            .join("")
-            .trim()
-            .replace(/\s+/gu, " "),
-        );
+        const value = Array.from(original)
+          .slice(part.start, part.end)
+          .join("")
+          .trim()
+          .replace(/\s+/gu, " ");
+        expect(value.length).toBeGreaterThan(0);
+        expect(chunk.content).toContain(value);
+        const lines = original.split("\n");
+        const ranges = lines.map((line, index) => {
+          const start =
+            Array.from(lines.slice(0, index).join("\n")).length +
+            (index ? 1 : 0);
+          return { start, end: start + Array.from(line).length };
+        });
+        expect(ranges).toContainEqual({ start: part.start, end: part.end });
       }
     expect(
       rows.some((c) =>
