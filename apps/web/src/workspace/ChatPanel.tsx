@@ -35,8 +35,15 @@ export function ResultView({ result }: { result: Result }) {
   const claims = result.result
     ? [...result.result.claims, ...result.result.conflicts]
     : [];
+  // A refusal that keeps verified facts is still a refusal, never an answer.
+  const partial =
+    result.status === "refused" &&
+    result.sourceState !== "unavailable" &&
+    result.result?.contractVersion === 2 &&
+    result.result.claims.length > 0;
   return (
     <div className="assistant-answer">
+      {partial && <span className="tag partial-badge">일부 근거만 확인</span>}
       {result.sourceState === "unavailable" ? (
         <p className="muted">
           근거 문서가 삭제·교체·제외되어 이 답변을 숨겼어요.
@@ -77,6 +84,12 @@ export function ResultView({ result }: { result: Result }) {
       {result.status === "refused" && !!result.result?.conflicts.length && (
         <p className="answer-guidance">
           기준이 서로 달라요. 적용할 기준은 문서 담당자에게 확인해 주세요.
+        </p>
+      )}
+      {partial && (
+        <p className="answer-guidance">
+          찾은 근거로 일부만 확인했어요. 최종 판단 전에 추가로 확인할 항목을
+          살펴봐 주세요.
         </p>
       )}
       {error && <p role="alert">{error}</p>}

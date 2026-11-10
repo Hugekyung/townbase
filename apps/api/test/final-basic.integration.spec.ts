@@ -166,7 +166,12 @@ integration(
             usage,
             providerId: "synthetic-rag",
             outcome: variant === "incomplete" ? "incomplete" : "succeeded",
-            text: JSON.stringify(result),
+            // RAG uses the v2 schema; attachments keep the v1 shape.
+            text: JSON.stringify(
+              r.format?.name === "townbase_rag_grounded_v2"
+                ? { ...result, followUps: [] }
+                : result,
+            ),
           };
         },
       ),

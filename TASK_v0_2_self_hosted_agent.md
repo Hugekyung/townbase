@@ -292,3 +292,8 @@ PR #45 병합 main `8319ad2`를 동기화하고 `codex/v02-e01-agent-settings`�
 ## PR #49 신규 리뷰 6건 (2026-11-10, 로컬)
 
 종료 유예60초·실제 watchdog 종료 시험, 검색어 상한 fixture, R04-a/b 상태 분리, 공통 모드·중립 I/O 진단·잠금 충돌 중단을 보완했다. 이번 실행은 API 640·배포 43·실제 Docker 종료 1로 중복 제외 684개 통과이며 이전 906개 및 미재실행 DB 통합 결과를 합산하지 않는다. 로컬 API 종료 유예 적용·정상 readiness를 확인했다. [대응 기록](docs/implementation/v0.2-pr49-second-review-response.md)을 따르며 사용자 승인을 받아 이번 변경을 커밋·푸시하고 PR #49에 요약 댓글로 전달한다.
+
+
+## 2026-11-11 묶음 B R05 답변 계약 v2 (로컬)
+
+`codex/v02-rag-answer-contract`에서 RAG 전용 v2 결과 계약을 구현했다. 거절에도 검증된 부분 사실과 추가 확인 항목(followUps)을 분리해 저장한다. 같은 문서의 서로 다른 구간 충돌을 허용하고 같은 구간 중복은 차단한다. Q08 진단을 위해 검증 실패 분기를 고정 진단 코드로 남긴다. 첨부는 v1 계약을 그대로 쓰고, 과거 v1 RAG 행은 v1 규칙으로 재조회한다. 새 migration은 없다. API 676·배포 44·agent-core 32·RAG 실DB 30·최종 기본 실DB 29·모델 실행 실DB 45가 통과했다. 실제 답변 점수 재측정·유료 호출·재색인은 하지 않았다. [R05 기록](docs/implementation/v0.2-rag-answer-contract.md)을 따른다. 커밋·푸시·PR은 사용자 승인 후 진행한다.

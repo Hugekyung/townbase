@@ -308,3 +308,11 @@
 - 기본 Compose api.stop_grace_period는60초다. FileRun45초 watchdog보다 Docker 기본10초 SIGKILL이 먼저 오지 않도록 한다. 명시 운영자 stop timeout override는 별도다. 실제 종료 검증은 `TOWNBASE_SHUTDOWN_DOCKER_TEST=1 TOWNBASE_SHUTDOWN_IMAGE=townbase-local-api node deployment/test/file-shutdown.integration.mjs`이며 API build·동일 helper의 로컬 runtime 이미지·.townbase/compose.env가 필요하다. 일반 test:deployment에는 포함하지 않고 DB/Key/문서를 연결하지 않는다.
 - replay는 BASIC_AGENT_MODES 공통 계약과 중립 file_io_unavailable 코드를 사용한다. 잠금 진단은 두 키 모두 최초 획득 성공 후에만 측정한다. 기존 hash/raw log는 역사 자료로 보존하고 현재 runner hash와 구분한다.
 - R04-a 분할/전환과 R04-b 미완료 표 구조 검증을 구분한다. [6건 대응·684개 검증](docs/implementation/v0.2-pr49-second-review-response.md)을 따른다. 답변 점수 재측정·유료 호출·재색인은 수행하지 않는다.
+
+## 묶음 B R05 RAG 답변 계약 (2026-11-11, 로컬)
+
+- rag_answer만 `townbase_rag_grounded_v2` schema와 `followUps`를 사용한다. 첨부(attachment_answer)는 v1 schema·지침을 그대로 쓰며 v1 직렬화 hash를 시험으로 고정한다. 저장 v2 행은 `contractVersion: 2`를 명시하고, 버전 없는 과거 RAG 행은 v1 규칙으로 읽는다. 과거 행을 v2로 재해석하지 않는다.
+- 부분 사실이 있는 거절도 `refused`이며 Gap을 저장한다. 거절의 사실도 S번호·정확 인용 검증이 필수다. followUps는 사실·인용 통로가 아니며 answerable이면 비어 있어야 한다. 근거 없음 거절은 찾은 근거 기준임을 밝히고 문서 전체 부재로 표현하지 않는다.
+- 충돌은 다른 문서 또는 같은 문서의 겹치지 않는 서로 다른 구간 2개가 필요하다. 같은 문장·포함 관계·같은 위치 키의 겹친 범위는 한 쪽이다. 위치 키는 chunk 줄과 저장 locations의 1:1 대응을 사용하며, 대응이 없으면 줄 텍스트로 보수적으로 판정한다.
+- 공개 오류는 `invalid_grounded_response`를 유지하고 내부 분기는 `TOWNBASE_RAG_GROUNDING_*` 허용 진단 코드로만 남긴다. 공급자 원문 저장·유료 자동 재시도·모델 전환은 없다.
+- RAG 지침/schema를 늘릴 때는 최소 입력 설정4,096에서 짧은 출처 v2 prompt가 schema 포함 상한 안에 드는지 시험한다. [R05 기록](docs/implementation/v0.2-rag-answer-contract.md)을 따른다.

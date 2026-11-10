@@ -1,4 +1,4 @@
-import { GROUNDED_FORMAT_INPUT, groundedPurpose } from "./grounded-format";
+import { groundedFormat, groundedFormatInput } from "./grounded-format";
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import {
@@ -501,11 +501,11 @@ export class ModelExecutionService {
       });
       if (credential == null || !credential.enabled)
         throw new ModelCallError("credential_not_enabled", 409);
-      const grounded = groundedPurpose(input.purpose);
+      const format = groundedFormat(input.purpose);
       const bound = inputBound(
         (input.instructions ?? "") +
           input.input +
-          (grounded ? GROUNDED_FORMAT_INPUT : ""),
+          groundedFormatInput(input.purpose),
       );
       if (
         bound > settings.inputTokenLimit ||
@@ -515,7 +515,7 @@ export class ModelExecutionService {
       const model =
         purpose === "embedding" ? FIXED_EMBEDDING.model : settings.answerModel;
       const request: ProviderRequest = {
-        ...(grounded ? { grounded: true as const } : {}),
+        ...(format == null ? {} : { format }),
         model,
         input: input.input,
         outputLimit: purpose === "embedding" ? 0 : settings.outputTokenLimit,

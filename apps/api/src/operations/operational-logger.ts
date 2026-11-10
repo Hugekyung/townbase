@@ -11,6 +11,7 @@ import {
   writeSync,
 } from "node:fs";
 import path from "node:path";
+import { GROUNDING_DIAGNOSTIC_CODES } from "../rag/rag-policy";
 import { operationsPath } from "./deletion-journal";
 const DIAGNOSTIC_CODES = new Set([
   ...STARTUP_DIAGNOSTIC_CODES,
@@ -30,6 +31,7 @@ const DIAGNOSTIC_CODES = new Set([
   "TOWNBASE_RAG_CLEANUP_FAILED",
   "TOWNBASE_RAG_FAILED",
   "TOWNBASE_RAG_RESULT_PERSIST_FAILED",
+  ...GROUNDING_DIAGNOSTIC_CODES,
 ]);
 // Only diagnostic codes survive. Messages/stacks/bodies are never persisted.
 export class OperationalLogger implements LoggerService {

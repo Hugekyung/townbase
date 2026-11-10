@@ -1018,6 +1018,9 @@ footer span {
   color: #2d352d;
   overflow-wrap: anywhere;
 }
+.partial-badge {
+  margin-bottom: 6px;
+}
 .answer-guidance {
   font-size: 13px;
   line-height: 1.7;

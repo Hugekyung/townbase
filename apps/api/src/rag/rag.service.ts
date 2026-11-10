@@ -22,8 +22,10 @@ import {
   strategyFor,
   selectSources,
   promptFor,
-  parseGroundedResult,
-  refusal,
+  parseRagAnswer,
+  ragRefusal,
+  GroundingError,
+  groundingDiagnostic,
   type ResolvedMode,
 } from "./rag-policy";
 import type { ProviderResult } from "../model-integration/openai-provider";
@@ -238,7 +240,7 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
           c,
           a,
           protectedSources,
-          refusal(),
+          ragRefusal(),
           null,
         );
         return;
@@ -250,6 +252,7 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
         selection.sources,
         a.history,
         a.inputLimit,
+        "rag_v2",
       );
       const response = await this.models.execute(
         token,
@@ -265,10 +268,9 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
         },
         boundary,
       );
-      const result = parseGroundedResult(
+      const result = parseRagAnswer(
         callResult(response).text,
         selection.sources,
-        "prompt",
       );
       if (signal.aborted) throw new ModelCallError("question_timeout", 504);
       await this.store.complete(
@@ -280,6 +282,10 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
         response.call.model,
       );
     } catch (error) {
+      // First failure only: no paid retry or model switch. The fixed branch
+      // code (never provider text) separates JSON/ID/quote/invariant causes.
+      if (error instanceof GroundingError)
+        Logger.warn(groundingDiagnostic(error.detail));
       const code = signal.aborted ? "question_timeout" : ragFailure(error);
       try {
         await this.store.fail(c, a.turn, code);
