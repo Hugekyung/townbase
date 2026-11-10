@@ -13,6 +13,7 @@ import {
   promptFor,
   RAG_INSUFFICIENT,
   RAG_PARTIAL_NOTICE,
+  RAG_SCOPE_NOTICE,
   ragRefusal,
   type RagSource,
 } from "../src/rag/rag-policy";
@@ -150,6 +151,7 @@ describe("R05 RAG v2 answer contract", () => {
     const text = answerText(result);
     expect(text.split("\n\n")).toEqual([
       "찾은 근거로는 소득 기준 충족 여부를 판단할 수 없습니다.",
+      RAG_SCOPE_NOTICE,
       RAG_PARTIAL_NOTICE,
       `접수는 오전 10시에 시작합니다. [${p16.id}]`,
       "추가로 확인할 항목:\n- 세대 월평균 소득은 얼마인가요?\n- 무주택 여부",
@@ -455,6 +457,38 @@ describe("R05 stored readback and prompt boundary", () => {
       "문서 전체에 해당 내용이 없다는 뜻은 아닙니다",
     );
     expect(answerText(ragRefusal())).toBe(RAG_INSUFFICIENT);
+  });
+
+  test("a model reason claiming whole-document absence still shows the server scope notice", () => {
+    const result = parseRagAnswer(
+      v2({
+        isAnswerable: false,
+        reason: "문서 전체에 계약 장소 정보가 없습니다.",
+        claims: [],
+      }),
+      [p16],
+    );
+    // The model's wording is kept as-is; the fixed server notice follows it.
+    expect(result.reason).toBe("문서 전체에 계약 장소 정보가 없습니다.");
+    expect(answerText(result).split("\n\n")).toEqual([
+      "문서 전체에 계약 장소 정보가 없습니다.",
+      RAG_SCOPE_NOTICE,
+    ]);
+    expect(RAG_SCOPE_NOTICE).toContain(
+      "문서 전체에 해당 내용이 없다는 뜻은 아닙니다",
+    );
+    // Answered results and v1 rows are unchanged.
+    expect(answerText(parseRagAnswer(v2(), [p16]))).not.toContain(
+      RAG_SCOPE_NOTICE,
+    );
+    expect(
+      answerText({
+        isAnswerable: false,
+        reason: "근거 부족",
+        claims: [],
+        conflicts: [],
+      }),
+    ).toBe("근거 부족");
   });
 
   test("RAG prompts count the v2 schema; the default attachment prompt is unchanged", () => {

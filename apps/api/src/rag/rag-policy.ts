@@ -359,6 +359,10 @@ export const INSUFFICIENT =
 // whole document set lacks the fact.
 export const RAG_INSUFFICIENT =
   "이번에 찾은 등록 문서 근거로는 답변할 수 없습니다. 문서 전체에 해당 내용이 없다는 뜻은 아닙니다. 관련 문서를 추가하거나 질문을 구체화해 주세요.";
+// Model reasons are free text and cannot be verified for scope. Every v2
+// refusal therefore carries this fixed server notice after the reason.
+export const RAG_SCOPE_NOTICE =
+  "※ 이번에 찾은 근거 기준이며, 문서 전체에 해당 내용이 없다는 뜻은 아닙니다.";
 export const RAG_PARTIAL_NOTICE =
   "아래는 찾은 근거로 확인된 일부 내용입니다. 최종 판단에는 추가 확인이 필요합니다.";
 export function refusal(): GroundedResult {
@@ -670,6 +674,10 @@ export function answerText(result: RagStoredResult) {
     ].join("\n\n");
   return [
     ...(result.isAnswerable ? [] : [result.reason]),
+    // The server's own no-evidence reason already states the scope.
+    ...(!result.isAnswerable && result.reason !== RAG_INSUFFICIENT
+      ? [RAG_SCOPE_NOTICE]
+      : []),
     ...(!result.isAnswerable && result.claims.length > 0
       ? [RAG_PARTIAL_NOTICE]
       : []),

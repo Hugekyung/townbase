@@ -2,6 +2,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import ts from "typescript";
+import { createHash } from "node:crypto";
+import {
+  answerText,
+  parseRagAnswer,
+  type RagSource,
+} from "../src/rag/rag-policy";
 
 // Render the real ResultView with inert hooks and collect its visible text.
 type Node = { type: unknown; props: Record<string, unknown> };
@@ -71,24 +77,75 @@ const base = {
   sources: [],
   calls: [],
 };
-const claim = { text: "접수는 오전 10시입니다.", evidence: [] };
+// The positive fixture is produced by the real v2 parser, so the badge is
+// exercised only with a refusal the server can actually store.
+const sourceId = "11111111-1111-4111-8111-111111111111";
+const content = "접수 시간은 오전 10시부터입니다.";
+const source: RagSource = {
+  id: sourceId,
+  indexId: sourceId,
+  originalId: sourceId,
+  versionId: sourceId,
+  scopeRevision: 1,
+  content,
+  title: "모집공고",
+  fileName: "notice.pdf",
+  format: "pdf",
+  contentHash: "x",
+  chunkHash: createHash("sha256").update(content).digest("hex"),
+  locations: [
+    {
+      segment: 0,
+      start: 0,
+      end: 19,
+      location: { page: 16 },
+      headingPath: [],
+    },
+  ],
+  headingPath: [],
+  sourceType: "uploaded_file",
+  knowledgeTypes: ["unknown"],
+  domainTags: [],
+  status: "active",
+  sourcePriority: 50,
+  requestedMode: null,
+  resolvedMode: null,
+  score: 0.8,
+  reference: "/files/" + sourceId + "/reference",
+};
+const partial = parseRagAnswer(
+  JSON.stringify({
+    isAnswerable: false,
+    reason: "찾은 근거로는 소득 기준 충족 여부를 판단할 수 없습니다.",
+    claims: [
+      {
+        text: "접수는 오전 10시에 시작합니다.",
+        evidence: [{ sourceId: "S1", quote: "오전 10시부터" }],
+      },
+    ],
+    conflicts: [],
+    followUps: ["세대 월평균 소득"],
+  }),
+  [source],
+);
+const claim = partial.claims[0]!;
 describe("R05 chat result display", () => {
   const render = resultView();
   test("a v2 refusal with verified partial facts is badged, not shown as answered", () => {
+    expect(claim.evidence).toEqual([{ sourceId, quote: "오전 10시부터" }]);
     const view = render({
       ...base,
       status: "refused",
-      answer: "판단 불가\n\n추가로 확인할 항목:\n- 소득",
-      result: {
-        contractVersion: 2,
-        claims: [claim],
-        conflicts: [],
-        followUps: ["소득"],
-      },
+      answer: answerText(partial),
+      sources: [{ ...source, kind: "file" }],
+      result: partial,
     });
     expect(view).toContain("<badge>일부 근거만 확인");
     expect(view).toContain("찾은 근거로 일부만 확인했어요");
-    expect(view).toContain("추가로 확인할 항목");
+    expect(view).toContain("추가로 확인할 항목:\n- 세대 월평균 소득");
+    // The verified quote is shown under its numbered source.
+    // (JSX splits "출처 {n}개" into separate text children.)
+    expect(view).toContain("등록 문서 모집공고16쪽오전 10시부터");
   });
   test.each([
     ["answered v2", { status: "answered", contractVersion: 2 }],
