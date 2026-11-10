@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r \".tool_response.filePath // .tool_input.file_path // empty\"); case \"$f\" in *.json) node -e \"JSON.parse(require(\\\"fs\\\").readFileSync(process.argv[1],\\\"utf8\\\"))\" \"$f\" 2>/dev/null || { echo \"JSON parse failed: $f\" >&2; exit 2; };; esac",
+            "timeout": 10,
+            "statusMessage": "Checking JSON syntax"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r \".tool_input.command // empty\"); printf \"%s\" \"$cmd\" | grep -Eq \"(^|[^[:alnum:]_.-])git([[:space:]]+-c[[:space:]]+[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)\" || exit 0; cd \"$CLAUDE_PROJECT_DIR\" && { git diff --check && git diff --cached --check; } >&2 || { echo \"git diff --check failed; fix whitespace errors before committing\" >&2; exit 2; }",
+            "timeout": 30,
+            "statusMessage": "Running git diff --check"
+          }
+        ]
+      }
+    ]
+  }
+}
