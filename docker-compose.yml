@@ -38,6 +38,8 @@ services:
     security_opt: [no-new-privileges:true]
 
   api:
+    # Allow the 45s application watchdog to finish before Docker forces SIGKILL.
+    stop_grace_period: 60s
     platform: ${TOWNBASE_PLATFORM:-linux/amd64}
     build:
       context: .

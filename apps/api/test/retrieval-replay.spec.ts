@@ -7,6 +7,7 @@ import {
   replayDiagnostic,
   runReplayCli,
 } from "../src/evaluation/retrieval-replay";
+import { BASIC_AGENT_MODES } from "@townbase/agent-core";
 import { retrievalTerms } from "../src/files/retrieval-text";
 
 test("lexical terms retain short content words and remove chained particles", () => {
@@ -16,7 +17,9 @@ test("lexical terms retain short content words and remove chained particles", ()
     "정도",
     "학생",
   ]);
-  expect(retrievalTerms("긴문장 ".repeat(1000)).length).toBeLessThanOrEqual(24);
+  const words = Array.from({ length: 1000 }, (_, i) => `항목${i}`);
+  expect(new Set(words).size).toBe(1000);
+  expect(retrievalTerms(words.join(" "))).toEqual(words.slice(0, 24));
 });
 test("replay records the effective mode and persists a readback without raw source text", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "townbase-replay-"));
@@ -67,6 +70,15 @@ test("replay records the effective mode and persists a readback without raw sour
     await expect(replayRetrieval(input, output)).rejects.toMatchObject({
       code: "EEXIST",
     });
+    fixture.questions = BASIC_AGENT_MODES.map((requestedMode) => ({
+      question: "결정 배경 알려줘",
+      requestedMode,
+    }));
+    await writeFile(input, JSON.stringify(fixture));
+    const modes = await replayRetrieval(input, path.join(dir, "modes.json"));
+    expect(modes.cases.map((c) => c.requestedMode)).toEqual([
+      ...BASIC_AGENT_MODES,
+    ]);
     fixture.questions[0] = {
       question: "결정 배경",
       requestedMode: "unsupported",
@@ -87,10 +99,28 @@ test("diagnostics expose only allowed codes, never arbitrary error text or paths
     replayDiagnostic(
       Object.assign(new Error("/private/secret"), { code: "ENOENT" }),
     ),
-  ).toBe("fixture_io_unavailable");
+  ).toBe("file_io_unavailable");
   expect(replayDiagnostic(new Error("private source text"))).toBe(
     "unexpected_failure",
   );
   expect(replayDiagnostic(new Error("invalid_mode"))).toBe("invalid_mode");
   await expect(runReplayCli([])).rejects.toThrow("input_and_output_required");
+});
+
+test("output-directory I/O failures use a neutral code without exposing paths", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "townbase-output-"));
+  try {
+    const input = path.join(dir, "fixture.json");
+    await writeFile(input, JSON.stringify({ chunks: [], questions: [] }));
+    let error: unknown;
+    try {
+      await replayRetrieval(input, path.join(dir, "missing", "output.json"));
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toMatchObject({ code: "ENOENT" });
+    expect(replayDiagnostic(error)).toBe("file_io_unavailable");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

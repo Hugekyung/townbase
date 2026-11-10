@@ -301,3 +301,10 @@
 - FileRun 종료는 admitted 작업을 drain한 뒤 owner를 해제한다. 대기 client에는 일반 socket_timeout을 적용하지 않으며 전체 종료의45초 watchdog이 실제 process exit(1)을 보장한다. Promise.race로 작업만 버리고 owner를 먼저 해제하지 않는다.
 - replay fixture의 requestedMode는 기본 auto이며 실제 resolver의 확정 mode를 보고서에 저장한다. CLI는 허용된 진단 코드만 출력하고 raw 오류/경로/문서를 출력하지 않는다.
 - desktopPinned만 저장하고 mobileMenu는 transient다. Agent 조회 미확인과 미설정을 구분하며 문서 목록 장애 시 기존 선택 ID를 보존한다. 이전 사용량을 유지한 갱신은 상태/실패 문구로 구분한다. [26건 대응·906개 검증](docs/implementation/v0.2-pr49-review-response.md)을 따른다.
+
+
+## PR #49 신규 6건 보완 (2026-11-10, 로컬)
+
+- 기본 Compose api.stop_grace_period는60초다. FileRun45초 watchdog보다 Docker 기본10초 SIGKILL이 먼저 오지 않도록 한다. 명시 운영자 stop timeout override는 별도다. 실제 종료 검증은 `TOWNBASE_SHUTDOWN_DOCKER_TEST=1 TOWNBASE_SHUTDOWN_IMAGE=townbase-local-api node deployment/test/file-shutdown.integration.mjs`이며 API build·동일 helper의 로컬 runtime 이미지·.townbase/compose.env가 필요하다. 일반 test:deployment에는 포함하지 않고 DB/Key/문서를 연결하지 않는다.
+- replay는 BASIC_AGENT_MODES 공통 계약과 중립 file_io_unavailable 코드를 사용한다. 잠금 진단은 두 키 모두 최초 획득 성공 후에만 측정한다. 기존 hash/raw log는 역사 자료로 보존하고 현재 runner hash와 구분한다.
+- R04-a 분할/전환과 R04-b 미완료 표 구조 검증을 구분한다. [6건 대응·684개 검증](docs/implementation/v0.2-pr49-second-review-response.md)을 따른다. 답변 점수 재측정·유료 호출·재색인은 수행하지 않는다.

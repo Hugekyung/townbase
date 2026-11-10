@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-10",
+  "baseCommit": "f375de6fca19459192b854d6a4c891d719453449",
+  "reviewComments": 6,
+  "localFixes": 6,
+  "tests": {
+    "apiPassed": 640,
+    "optInSkipped": 331,
+    "deploymentPassed": 43,
+    "dockerStopIntegrationPassed": 1,
+    "totalNonDuplicatedPassed": 684,
+    "databaseIntegrationRerun": false
+  },
+  "dockerStop": {
+    "composeGraceSeconds": 60,
+    "watchdogMs": 45000,
+    "elapsedMs": 45091.936708,
+    "exitCode": 1,
+    "helperHash": "7814806bd5ec50369e44fcb8a49b3bbd73bbb54f4e25f22d63467724ef687210",
+    "paidCalls": 0
+  },
+  "initialDeploymentFailure": "Existing fake Docker/Node PID-file fixture was killed before startup under its 300ms deadline; isolated test passed, test-only startup allowance changed to 2000ms while retaining observed process-death assertion; final whole suite passed. Production backup deadlines unchanged.",
+  "historicalEvidenceHashesPreserved": true,
+  "paidCalls": 0,
+  "answerScoreRemeasured": false,
+  "documentReindexPerformed": false,
+  "sourceHashes": {
+    "docker-compose.yml": "1af08692cff83dab801120897adea0852d77ab3fe7be690cbddb457dd6edf3c8",
+    "apps/api/src/evaluation/retrieval-replay.ts": "a0889cffd56926fcaec7a53a0cd582a9aaeff2415bae0e08b0bbc991f9fe4cec",
+    "apps/api/test/retrieval-replay.spec.ts": "71c353d10bd71e623c3054cf5822681aa7005e76b36b33721d334158fdd32cd2",
+    "docs/implementation/evidence/v0.2-first-use-chat/lock-recycling-runner.mjs": "bba6da7f70bd3b652a89f958def6575b3694b84fee439edbf568bf3df402c98f",
+    "deployment/test/lock-diagnostic.test.mjs": "32f86f56fbc62090f6ef11232c1fbf6fd3164d8844712dca24cd5df75a4272cb",
+    "deployment/test/file-shutdown.integration.mjs": "8af6e3492d2e8830d60d0568f68d942ba5f3461d67659ba88cf0cc3226e5c416",
+    "deployment/test/backup-process.test.mjs": "59ec29a06299be6e639a43005c745bcff1b6132cb89d61b0ea4b9d154338bc2a"
+  },
+  "localDeployment": {
+    "apiStopGraceSeconds": 60,
+    "imageRebuildNeeded": false,
+    "schemaMigration": false
+  },
+  "delivery": "user approved commit/push/PR49 summary comment"
+}

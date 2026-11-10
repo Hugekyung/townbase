@@ -384,3 +384,8 @@ PR #47 보완 후 execution의 inputTokenLimit은4,096~16,000이며 기본16,000
 관리자 로그인만으로 새 답변 모델 호출이 활성화되지는 않는다. 설정에서 답변/임베딩 API Key, 예산·가격표 확인, 작업별 전송 허용과 기본 Agent를 준비한다. 입력창 전송 버튼 왼쪽의 모델·추론 강도는 다음 답변에만 적용하고 다른 대화/설치 기본값은 바꾸지 않는다. 전송한 선택은 대화 결과와 함께 저장된다. 임베딩은 변경할 수 없다.
 
 설정의 API 사용량은 이 설치/관리자의 UTC 현재 달 호출 기록과 추정 비용이다. OpenAI 계정 전체 사용량이나 최종 청구서와 구분한다. 준비 상태의 execution이 unavailable이면 문서 처리·채팅 서비스 항목과 복구 안내를 확인한다. 자세한 계약과 검증 범위는 [첫 사용 개선 기록](implementation/v0.2-first-use-chat-settings.md)을 따른다.
+
+
+## API 종료 유예 (PR #49 보완)
+
+기본 Compose는 API에 `stop_grace_period: 60s`를 적용한다. FileRun 종료는 접수된 작업을 drain한 뒤 owner를 해제하며, 연결/작업이 멈추면45초 watchdog으로 프로세스를 종료한다. 기본 Docker10초 강제 종료가 먼저 발생하지 않도록 한 설정이다. `docker stop -t` 등으로 더 짧은 유예를 지정하면 watchdog 이전에 Docker가 강제 종료할 수 있으므로 정상 drain 완료로 해석하지 않는다. 일반 종료·중단 이력 복구/청구 불명 예약 보호는 유지한다. [실제 종료 검증과 명시 시험](implementation/v0.2-pr49-second-review-response.md)을 따른다.

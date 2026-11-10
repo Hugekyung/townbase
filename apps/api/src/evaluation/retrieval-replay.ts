@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile, open } from "node:fs/promises";
 import { lexicalMatches } from "../files/retrieval-text";
 import { selectSources, resolvedMode, type RagSource } from "../rag/rag-policy";
-import type { BasicAgentMode } from "@townbase/agent-core";
+import { BASIC_AGENT_MODES, type BasicAgentMode } from "@townbase/agent-core";
 import { savedSources } from "../rag/rag-store";
 
 export async function replayRetrieval(inputPath: string, outputPath: string) {
@@ -46,14 +46,7 @@ export async function replayRetrieval(inputPath: string, outputPath: string) {
     savedSources([chunk] as unknown as Parameters<typeof savedSources>[0]);
   const cases = fixture.questions.map(
     ({ question, requestedMode = "auto" }) => {
-      if (
-        ![
-          "auto",
-          "onboarding",
-          "product_history",
-          "documentation_gap",
-        ].includes(requestedMode)
-      )
+      if (!BASIC_AGENT_MODES.includes(requestedMode))
         throw new Error("invalid_mode");
       if (typeof question !== "string" || [...question].length > 4000)
         throw new Error("invalid_question");
@@ -116,7 +109,7 @@ export function replayDiagnostic(error: unknown): string {
     return error.message;
   if (error != null && typeof error === "object" && "code" in error) {
     if (["ENOENT", "EACCES", "EPERM", "EISDIR"].includes(String(error.code)))
-      return "fixture_io_unavailable";
+      return "file_io_unavailable";
     if (error.code === "EEXIST") return "output_exists";
     if (error.code === "stored_result_unavailable") return "invalid_source";
   }

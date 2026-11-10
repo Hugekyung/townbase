@@ -199,10 +199,11 @@
     }
   ],
   "artifacts": {
-    "script": "lock-recycling-runner.mjs",
+    "script": "lock-recycling-runner.historical.txt",
     "rawLog": "lock-recycling-raw.log",
     "originalLocalScript": "/tmp/townbase-lock-lifetime.mjs",
-    "originalLocalLog": "/tmp/townbase-lock-lifetime.log"
+    "originalLocalLog": "/tmp/townbase-lock-lifetime.log",
+    "reproductionScript": "lock-recycling-runner.mjs"
   },
   "fieldDefinitions": {
     "owned": "pg_locks confirms that the queried backend PID holds (741126, key) in the two-int advisory-lock namespace (objsubid=2); it is not the production API owner lock",
@@ -225,5 +226,7 @@
       }
     ],
     "reproduction": "Runner uses /app deployment/database-env.mjs and installed Prisma inside the local API container; diagnostic keys 98/99 only. Raw PID values are historical, not portable expected values."
-  }
+  },
+  "reproductionScriptSha256": "bba6da7f70bd3b652a89f958def6575b3694b84fee439edbf568bf3df402c98f",
+  "reproductionScriptNote": "Historical measurement used the unchanged archived script and raw log. The current reproduction script aborts unless both diagnostic locks are acquired; no historical measurement was rerun or rewritten."
 }
