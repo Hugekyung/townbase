@@ -4,8 +4,14 @@ import {
   type FileExtraction,
   type FileSegment,
 } from "./file-contract";
+import { evidenceUnits } from "./retrieval-text";
 
-export const FILE_INDEX_CONFIGURATION = "file-index-d04-v2";
+export const FILE_INDEX_CONFIGURATION = "file-index-d04-v3";
+// Old embeddings stay usable until an explicit, atomic reindex succeeds.
+export const READABLE_INDEX_CONFIGURATIONS = [
+  "file-index-d04-v2",
+  FILE_INDEX_CONFIGURATION,
+];
 export const CHUNK_BYTES = 4096;
 const MAX_PARTS = 128;
 // Fixed UTF-8 bound, not an exact tokenizer. Normalize whitespace explicitly;
@@ -23,6 +29,72 @@ export type FileChunk = {
   }>;
 };
 export function fileChunks(
+  value: FileExtraction,
+  maxBytes = CHUNK_BYTES,
+): FileChunk[] {
+  assertExtraction(value, value.format);
+  if (!Number.isInteger(maxBytes) || maxBytes < 4 || maxBytes > CHUNK_BYTES)
+    throw new RangeError("Invalid file chunk bound");
+  const chunks: FileChunk[] = [];
+  value.segments.forEach((segment, segmentIndex) => {
+    let current: FileChunk | undefined;
+    let previous: FileChunk | undefined;
+    const flush = () => {
+      if (current) chunks.push(current);
+      current = undefined;
+    };
+    let offset = 0,
+      priorEnd = 0;
+    for (const range of evidenceUnits(segment.text)) {
+      const text = segment.text.slice(range.start, range.end);
+      offset += Array.from(segment.text.slice(priorEnd, range.start)).length;
+      const unitOffset = offset;
+      offset += Array.from(text).length;
+      priorEnd = range.end;
+      const pieces = byteChunks(
+        {
+          ...value,
+          codePoints: Array.from(text).length,
+          segments: [{ ...segment, text }],
+        },
+        maxBytes,
+      );
+      for (const piece of pieces) {
+        piece.parts = piece.parts.map((p) => ({
+          ...p,
+          segment: segmentIndex,
+          start: p.start + unitOffset,
+          end: p.end + unitOffset,
+        }));
+        const fits = (a: FileChunk, b: FileChunk) =>
+          Buffer.byteLength(a.content + "\n" + b.content) <= maxBytes &&
+          a.parts.length + b.parts.length <= MAX_PARTS;
+        if (current && !fits(current, piece)) {
+          flush();
+          if (
+            previous &&
+            Buffer.byteLength(previous.content) <=
+              Math.min(512, maxBytes / 4) &&
+            fits(previous, piece)
+          )
+            current = { ...previous, parts: [...previous.parts] };
+        }
+        if (current) {
+          current.content += "\n" + piece.content;
+          current.parts.push(...piece.parts);
+          current.contentHash = createHash("sha256")
+            .update(current.content)
+            .digest("hex");
+        } else current = { ...piece, parts: [...piece.parts] };
+        // Only overlap a complete unit, never a fragment of a long sentence/table.
+        previous = pieces.length === 1 ? piece : undefined;
+      }
+    }
+    flush(); // Pages and source headings never silently merge.
+  });
+  return chunks;
+}
+function byteChunks(
   value: FileExtraction,
   maxBytes = CHUNK_BYTES,
 ): FileChunk[] {

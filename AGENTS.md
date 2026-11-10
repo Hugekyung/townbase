@@ -285,3 +285,11 @@
 - /settings/model-integration/usage는 현재 설치/관리자의 UTC 현재 달 호출 집계다. OpenAI 계정 전체 청구 조회가 아니며 이전 달 미확정 예약을 포함하는 설치 예산 snapshot과 구분한다. 토큰 부분집합/usage 미확인·추정 비용·예약을 중복 합산하지 않는다.
 - session advisory lock은 connection_limit=1만으로 세션 지속이 보장되지 않았다. 파일 잠금 전용 클라이언트는 fileLockConnectionUrl로 풀의 idle/maximum connection lifetime을0으로 고정한다. 실제 연결 상실 시 차단은 유지하고 자동 재획득하지 않는다. /readyz.execution과 UI의 관리자/실행 항목으로 숨은 실패를 표시한다.
 - 넓은 화면 메뉴는 비모달 고정, 작은 화면은 기존 모달·포커스 보호를 유지한다. [계약·검증·로컬 적용](docs/implementation/v0.2-first-use-chat-settings.md)을 따른다. 커밋·푸시·PR은 사용자 요약 승인 뒤 진행한다.
+
+
+## 도입 시험 후 검색 품질 보완 (2026-11-10, 로컬)
+
+- RAG 근거 예산은 실제 prompt source DTO 배열 JSON8,000 UTF-8 bytes·최대5개다. 원본 조각은 보존하고 evidenceWindow의 연속 완전 단위만 전달하며 인용/저장 재조회 모두 해당 구간을 검증한다. 구간이 없는 과거 결과도 읽는다.
+- FileIndexService.search는 선택 question이 있으면 같은 eligible CTE에서 의미20/어휘20 후보를 독립 수집한다. RRF 순위와 raw cosine을 구분하며 mode topK로 어휘 후보를 미리 자르지 않는다. 권한·최신 scope·전송·비용 검사는 유지한다.
+- 새 `file-index-d04-v3`은 페이지/문단·4096-byte 한도·완전 단위 overlap 최대512 bytes를 보존한다. v2는 수동 재색인 성공 전까지 사용하며 후속 CHECK migration은 v1/v2 행을 보존한다. 운영 자료를 자동 재색인하지 않는다. 좌표 기반 표 복원과 OCR 구현으로 설명하지 않는다.
+- src/evaluation/retrieval-replay.ts는 build 제외된 로컬 명시 진단이며 네트워크/Key/DB 호출이 없다. 입력 fixture와 새 출력 경로를 받고 hash·후보/선택/탈락 이유·용량만0600 파일로 저장·readback한다. lexical-only 진단을 실제 의미 검색/답변 정확도로 보고하지 않는다. [검증 기록](docs/implementation/v0.2-rag-quality-improvement.md)을 따른다.

@@ -25,6 +25,7 @@ import {
 } from "../model-integration/model-policy";
 import {
   callId,
+  evidenceContent,
   RAG_LIMITS,
   resolvedMode,
   answerText,
@@ -76,6 +77,7 @@ export function savedSources(value: Prisma.JsonValue): RagSource[] {
     )
   )
     throw new ModelCallError("stored_result_unavailable", 503);
+  for (const source of sources) evidenceContent(source);
   return sources;
 }
 function unionSources(...groups: readonly RagSource[][]) {

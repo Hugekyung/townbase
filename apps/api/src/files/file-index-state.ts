@@ -1,5 +1,5 @@
 import { Prisma } from "@townbase/database";
-import { FILE_INDEX_CONFIGURATION } from "./file-chunker";
+import { READABLE_INDEX_CONFIGURATIONS } from "./file-chunker";
 export type IndexState = {
   searchable: boolean;
   indexStatus: "indexed" | "stale" | "not_indexed";
@@ -13,7 +13,7 @@ export const currentFileWhere = Prisma.sql`
 export const currentIndexWhere = Prisma.sql`${currentFileWhere}
   AND i."scopeRevision"=o."scopeRevision"
   AND i."extractionDigest"=encode(sha256(convert_to(v.extraction::text,'UTF8')),'hex')
-  AND i."configurationVersion"=${FILE_INDEX_CONFIGURATION} AND i."embeddingModel"='text-embedding-3-small'`;
+  AND i."configurationVersion" IN (${Prisma.join(READABLE_INDEX_CONFIGURATIONS)}) AND i."embeddingModel"='text-embedding-3-small'`;
 export async function fileIndexStates(
   tx: Prisma.TransactionClient,
   installation: string,

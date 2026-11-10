@@ -9,8 +9,11 @@ import {
   parseGroundedResult,
   callId,
   type RagSource,
+  evidenceContent,
+  promptSources,
 } from "../src/rag/rag-policy";
 import { isRagQuestion } from "../src/rag/rag-http";
+import { savedSources } from "../src/rag/rag-store";
 import {
   MIN_ANSWER_INPUT_TOKEN_LIMIT,
   inputBound,
@@ -63,6 +66,101 @@ const valid = {
   ],
   conflicts: [],
 };
+test("stored source windows survive JSON readback and reject invalid ranges", () => {
+  const s = { ...source(), evidenceWindow: { start: 0, end: 5 } };
+  const restored = savedSources(JSON.parse(JSON.stringify([s])));
+  expect(evidenceContent(restored[0]!)).toBe(s.content.slice(0, 5));
+  expect(() =>
+    savedSources(
+      JSON.parse(
+        JSON.stringify([{ ...s, evidenceWindow: { start: -1, end: 5 } }]),
+      ),
+    ),
+  ).toThrow();
+  expect(() =>
+    savedSources(
+      JSON.parse(
+        JSON.stringify([
+          { ...s, evidenceWindow: { start: 0, end: s.content.length + 1 } },
+        ]),
+      ),
+    ),
+  ).toThrow();
+  expect(
+    evidenceContent(savedSources(JSON.parse(JSON.stringify([source()])))[0]!),
+  ).toBe(source().content);
+});
+test("packs multiple exact evidence windows within the actual 8KB prompt envelope", () => {
+  const text =
+    "일반 안내입니다. ".repeat(90) +
+    "청약통장은 입주 전까지 가입해야 합니다. " +
+    "별도 안내입니다. ".repeat(90);
+  const rows = Array.from({ length: 5 }, (_, i) =>
+    source({
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      content: text,
+      score: 0.7,
+      vectorRank: i + 1,
+      lexicalRank: i + 1,
+    }),
+  );
+  const selected = selectSources(
+    "onboarding",
+    rows,
+    "청약통장은 입주 전까지 가입해야 해?",
+  );
+  expect(selected.sources.length).toBeGreaterThan(1);
+  expect(
+    Buffer.byteLength(JSON.stringify(promptSources(selected.sources))),
+  ).toBeLessThanOrEqual(8000);
+  for (const s of selected.sources) {
+    expect(s.content).toBe(text);
+    expect(evidenceContent(s)).toContain(
+      "청약통장은 입주 전까지 가입해야 합니다.",
+    );
+  }
+  const s = selected.sources[0]!;
+  expect(() =>
+    parseGroundedResult(
+      JSON.stringify({
+        ...valid,
+        claims: [
+          {
+            text: "설명",
+            evidence: [
+              { sourceId: s.id, quote: "일반 안내입니다. ".repeat(15) },
+            ],
+          },
+        ],
+      }),
+      [s],
+    ),
+  ).toThrow();
+  expect(selected.diagnostics.length).toBe(5);
+});
+test("independent lexical candidates survive low cosine and the legacy mode topK cut", () => {
+  const unrelated = Array.from({ length: 20 }, (_, i) =>
+    source({
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      content: "일반 임대 안내",
+      score: 0.5,
+      vectorRank: i + 1,
+    }),
+  );
+  const exact = source({
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    content: "실제 근무지는 재직증명서로 확인합니다.",
+    score: 0.1,
+    lexicalRank: 1,
+  });
+  const result = selectSources(
+    "onboarding",
+    [...unrelated, exact],
+    "실제 근무지는 재직증명서로 확인해?",
+  );
+  expect(result.sources.some((s) => s.id === exact.id)).toBe(true);
+  expect(result.answerable).toBe(true);
+});
 test("short Korean field names can retrieve direct textual evidence without lowering the raw semantic gate", () => {
   const explicit = source({
     content: "지각 연락 대상: 운영 담당.",

@@ -217,6 +217,7 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
             ? { originalIds: a.config.sourceOriginalIds }
             : {}),
           knowledgeTypes: profile.knowledgeTypes,
+          question: a.turn.question,
         },
       );
       const candidates = retrieved.map((s) => ({
