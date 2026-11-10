@@ -1,11 +1,14 @@
 // Shared hook input parsing. A missing or malformed payload fails closed
 // (exit 2) instead of silently disabling the guard.
 export async function readHookInput(stdin = process.stdin) {
-  let raw = "";
-  for await (const chunk of stdin) raw += chunk;
+  // Decode once so a multibyte character split across chunks stays intact.
+  const chunks = [];
+  for await (const chunk of stdin)
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
   try {
-    const value = JSON.parse(raw);
-    if (value === null || typeof value !== "object") throw new Error();
+    const value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      throw new Error();
     return value;
   } catch {
     throw new HookInputError();

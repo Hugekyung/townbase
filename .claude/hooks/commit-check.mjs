@@ -18,10 +18,18 @@ const OPTIONS_WITH_VALUE = new Set([
   "--config-env",
 ]);
 
+// Not a shell parser: line continuations, subshells, command substitution and
+// quoted `bash -c 'git commit'` forms are normalized so they are still found.
+// A false positive (e.g. `echo "git commit"`) only runs the check.
 export function runsGitCommit(command) {
   if (typeof command !== "string") return false;
-  for (const segment of command.split(/&&|\|\||[;|\n]/)) {
-    const tokens = segment.trim().split(/\s+/).filter(Boolean);
+  const joined = command.replace(/\\\r?\n/g, " ");
+  for (const segment of joined.split(/&&|\|\||\$\(|[;|\n()`]/)) {
+    const tokens = segment
+      .trim()
+      .split(/\s+/)
+      .map((token) => token.replace(/^["']+|["']+$/g, ""))
+      .filter(Boolean);
     for (let i = 0; i < tokens.length; i++) {
       if (path.basename(tokens[i]) !== "git") continue;
       let j = i + 1;
@@ -33,46 +41,56 @@ export function runsGitCommit(command) {
   return false;
 }
 
-function git(args, cwd) {
+export function git(args, cwd) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
 }
 
-export function whitespaceProblems(cwd) {
-  const problems = [];
-  // Run both checks independently so each reports its own errors.
-  for (const [label, args] of [
-    ["worktree", ["diff", "--check"]],
-    ["staged", ["diff", "--cached", "--check"]],
-  ]) {
-    const result = git(args, cwd);
-    if (result.error || result.status !== 0)
-      problems.push(`[${label}]\n${result.stdout}${result.stderr}`.trim());
-  }
-  const untracked = git(
-    ["ls-files", "--others", "--exclude-standard", "-z"],
-    cwd,
-  );
-  if (untracked.error || untracked.status !== 0)
-    problems.push("[untracked] CLAUDE_HOOK_UNTRACKED_LIST_FAILED");
-  else
-    for (const file of untracked.stdout.split("\0").filter(Boolean)) {
-      // --no-index exits 1 for any difference; only --check output is a problem.
-      const result = git(
-        ["diff", "--no-index", "--check", "--", "/dev/null", file],
-        cwd,
-      );
-      if (result.error || result.status > 1 || result.stdout.trim())
-        problems.push(`[untracked]\n${result.stdout}${result.stderr}`.trim());
-    }
-  return problems;
+// Returns "" only for a confirmed clean result. A git that cannot start or is
+// terminated by a signal is reported with a fixed code, never as clean.
+export function gitProblem(label, result, { untracked = false } = {}) {
+  if (result.error) return `[${label}] CLAUDE_HOOK_GIT_UNAVAILABLE`;
+  if (result.status == null) return `[${label}] CLAUDE_HOOK_GIT_TERMINATED`;
+  const stdout = result.stdout ?? "";
+  const stderr = result.stderr ?? "";
+  // `diff --no-index` exits 1 for any difference, so 1 alone is not a problem
+  // there; an error on stderr (unreadable or changing file) still is.
+  const clean = untracked
+    ? result.status <= 1 && !stdout.trim() && !stderr.trim()
+    : result.status === 0;
+  return clean ? "" : `[${label}]\n${stdout}${stderr}`.trim();
 }
 
-export async function checkCommit(input, cwd = process.env.CLAUDE_PROJECT_DIR) {
+export function whitespaceProblems(cwd, run = git) {
+  // Run every check independently so each reports its own errors.
+  const problems = [
+    gitProblem("worktree", run(["diff", "--check"], cwd)),
+    gitProblem("staged", run(["diff", "--cached", "--check"], cwd)),
+  ];
+  const listed = run(["ls-files", "--others", "--exclude-standard", "-z"], cwd);
+  const listProblem = gitProblem("untracked", listed);
+  if (listProblem) problems.push(listProblem);
+  else
+    for (const file of listed.stdout.split("\0").filter(Boolean))
+      problems.push(
+        gitProblem(
+          "untracked",
+          run(["diff", "--no-index", "--check", "--", "/dev/null", file], cwd),
+          { untracked: true },
+        ),
+      );
+  return problems.filter(Boolean);
+}
+
+export async function checkCommit(
+  input,
+  cwd = process.env.CLAUDE_PROJECT_DIR,
+  run = git,
+) {
   if (!runsGitCommit(input.tool_input?.command)) return "";
-  const problems = whitespaceProblems(cwd || process.cwd());
+  const problems = whitespaceProblems(cwd || process.cwd(), run);
   return problems.length
     ? problems.join("\n") +
-        "\ngit diff --check failed; fix whitespace errors before committing"
+        "\nWhitespace check failed or could not run; resolve the above before committing"
     : "";
 }
 

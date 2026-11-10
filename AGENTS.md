@@ -75,6 +75,7 @@
 - v0.2 평가 명세/합성 문서·120문항은 `docs/evaluation/v0.2/README.md`를 따른다. A04 실행/미실행 결과는 같은 경로의 `baseline-2026-10-23.md`를 확인한다.
 - 기본 TASK의 문서 완료와 코드/실모델/품질 검증 완료를 구분한다. 추천 S 값은 승인 전 기본값이 아니며 해당 작업 착수 전에 결정한다.
 - 2026-10-22 사용자는 모델 외 기본 기술·수치 선택을 판단해 확정하도록 위임했다. `DECISIONS_v0_2_basic.md`의 S01·S03~S14를 적용하고 동일 항목의 승인을 반복 요청하지 않는다. 파서 버전·TLS 구성 등 범위 내 구현 세부는 공식 지원·현재 코드와 맞춰 기록한다. S02 답변 모델 전환·제품 범위 확대·보호 약화·외부 공개·커밋/푸시 승인은 이 위임과 구분한다.
+- `.claude/settings.json`의 Claude Code 프로젝트 훅은 Edit/Write 후 `.json` 문법과 `git commit` 전 worktree·staged·untracked 공백 오류를 검사한다. bash와 Node가 필요하며 `shell: "bash"`로 실행한다. 입력·검사·git 실행 실패는 스크립트가 exit 2로 막고, node 자체를 시작하지 못하는 경우는 `onFailure: "block"`을 지원하는 Claude Code에서만 막힌다. 저장소의 `.json`은 엄격한 JSON(주석·끝 쉼표 없음)이다. 커밋 감지는 셸 파서가 아니며 시험은 `deployment/test/claude-hooks.test.mjs`다.
 
 ## 반복 리뷰 주의
 

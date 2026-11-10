@@ -6,11 +6,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Readable } from "node:stream";
 import {
   checkCommit,
+  gitProblem,
   runsGitCommit,
 } from "../../.claude/hooks/commit-check.mjs";
 import { checkJson } from "../../.claude/hooks/check-json.mjs";
+import { readHookInput } from "../../.claude/hooks/hook-input.mjs";
 
 const hooks = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -38,6 +41,12 @@ test("commit detection covers global options and compound commands", () => {
     "git --no-pager commit -m y",
     "git --git-dir .git --work-tree . commit -m y",
     "/usr/bin/git commit -m y",
+    "bash -c 'git commit -m x'",
+    'sh -c "git commit"',
+    "(git commit -m x)",
+    "echo $(git commit -m x)",
+    "git \\\n commit -m x",
+    "git commit\\\n -m x",
   ])
     assert.equal(runsGitCommit(command), true, command);
   for (const command of [
@@ -132,4 +141,80 @@ test("JSON check reports only broken .json files", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("git that cannot run or is terminated is never treated as clean", async () => {
+  assert.equal(
+    gitProblem("staged", {
+      error: new Error("ENOENT"),
+      stdout: null,
+      stderr: null,
+    }),
+    "[staged] CLAUDE_HOOK_GIT_UNAVAILABLE",
+  );
+  assert.equal(
+    gitProblem(
+      "untracked",
+      { status: null, signal: "SIGKILL", stdout: "", stderr: "" },
+      { untracked: true },
+    ),
+    "[untracked] CLAUDE_HOOK_GIT_TERMINATED",
+  );
+  // --no-index exits 1 for any difference; an error on stderr is still a problem.
+  assert.equal(
+    gitProblem(
+      "untracked",
+      { status: 1, stdout: "", stderr: "" },
+      { untracked: true },
+    ),
+    "",
+  );
+  assert.match(
+    gitProblem(
+      "untracked",
+      { status: 1, stdout: "", stderr: "error: could not read x" },
+      { untracked: true },
+    ),
+    /could not read x/,
+  );
+  const unavailable = () => ({
+    error: new Error("ENOENT"),
+    stdout: null,
+    stderr: null,
+  });
+  const message = await checkCommit(
+    { tool_input: { command: "git commit" } },
+    "/repo",
+    unavailable,
+  );
+  assert.doesNotMatch(message, /null/);
+  assert.match(message, /CLAUDE_HOOK_GIT_UNAVAILABLE/);
+  assert.match(message, /could not run/);
+});
+
+test("non-object hook input and split UTF-8 are handled", async () => {
+  for (const raw of ["[]", "null", "1", ""])
+    await assert.rejects(
+      readHookInput(Readable.from([Buffer.from(raw)])),
+      /CLAUDE_HOOK_INPUT_INVALID/,
+    );
+  const bytes = Buffer.from(
+    JSON.stringify({ tool_input: { file_path: "/문서/한글.json" } }),
+  );
+  const split = bytes.indexOf(Buffer.from("한")) + 1; // inside a multibyte character
+  const value = await readHookInput(
+    Readable.from([bytes.subarray(0, split), bytes.subarray(split)]),
+  );
+  assert.equal(value.tool_input.file_path, "/문서/한글.json");
+});
+
+test("JSON check separates read failures from parse failures", async () => {
+  assert.match(
+    await checkJson({
+      tool_input: {
+        file_path: path.join(tmpdir(), "townbase-missing-hook.json"),
+      },
+    }),
+    /^CLAUDE_HOOK_JSON_READ_FAILED/,
+  );
 });
