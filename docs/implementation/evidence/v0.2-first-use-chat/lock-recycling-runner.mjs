@@ -36,7 +36,8 @@ export async function runLockDiagnostic(
         });
     }
   } finally {
-    await Promise.all(clients.map(({ p }) => p.$disconnect()));
+    // Close every client; a disconnect failure must not replace the original error.
+    await Promise.allSettled(clients.map(({ p }) => p.$disconnect()));
   }
 }
 async function main() {

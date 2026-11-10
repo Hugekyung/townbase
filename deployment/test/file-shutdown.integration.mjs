@@ -94,5 +94,11 @@ try {
     }),
   );
 } finally {
-  await docker(["rm", "-f", name]);
+  // Report cleanup failure separately; it must not replace the original test failure.
+  try {
+    await docker(["rm", "-f", name]);
+  } catch {
+    console.error("TOWNBASE_SHUTDOWN_CLEANUP_FAILED");
+    process.exitCode = 1;
+  }
 }

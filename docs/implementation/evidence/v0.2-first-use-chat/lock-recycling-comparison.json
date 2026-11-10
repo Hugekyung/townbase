@@ -227,6 +227,6 @@
     ],
     "reproduction": "Runner uses /app deployment/database-env.mjs and installed Prisma inside the local API container; diagnostic keys 98/99 only. Raw PID values are historical, not portable expected values."
   },
-  "reproductionScriptSha256": "bba6da7f70bd3b652a89f958def6575b3694b84fee439edbf568bf3df402c98f",
-  "reproductionScriptNote": "Historical measurement used the unchanged archived script and raw log. The current reproduction script aborts unless both diagnostic locks are acquired; no historical measurement was rerun or rewritten."
+  "reproductionScriptSha256": "cc4dbeca811fdf36442493a7408b28deeadeadca5cfd0fa08ce5ca85695a5de9",
+  "reproductionScriptNote": "Historical measurement used the unchanged archived script and raw log. The current reproduction script aborts unless both diagnostic locks are acquired and closes every client with allSettled so a disconnect failure cannot replace the original error; no historical measurement was rerun or rewritten. The prior reproduction hash bba6da7f… is retained in pr49-second-review-response.json."
 }

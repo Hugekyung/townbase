@@ -34,6 +34,31 @@ for (const busy of [0, 1]) {
     assert.ok(clients.every((c) => c.disconnected));
   });
 }
+test("busy lock error survives disconnect failures and every client is closed", async () => {
+  const clients = [];
+  const create = () => {
+    const index = clients.length;
+    const client = {
+      attempted: false,
+      $queryRaw: async () => [{ pid: 100 + index, acquired: index === 0 }],
+      $disconnect: async () => {
+        client.attempted = true;
+        if (index === 0) throw new Error("synthetic_disconnect_failure");
+      },
+    };
+    clients.push(client);
+    return client;
+  };
+  await assert.rejects(
+    runLockDiagnostic(create, {
+      wait: async () => {},
+      publish: () => {},
+    }),
+    /TOWNBASE_DIAGNOSTIC_LOCK_BUSY/,
+  );
+  assert.equal(clients.length, 2);
+  assert.ok(clients.every((c) => c.attempted));
+});
 test("successful lock acquisition precedes all samples and clients are closed", async () => {
   const clients = [],
     samples = [];
