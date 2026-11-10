@@ -1,0 +1,163 @@
+{
+  "dateKst": "2026-11-10",
+  "reviewedBaseline": "63633620049bcb36d1a9179c8620d653d0795c97",
+  "branch": "codex/chat-model-usage-sidebar",
+  "testedSource": {
+    "state": "uncommitted_worktree",
+    "identity": "sourceArtifactsSha256"
+  },
+  "status": "historical_local_verification_snapshot_pending_delivery",
+  "checks": [
+    {
+      "name": "build",
+      "logSha256": "773bee49553dc602e893f7cf9e37ef41a599cb656a6771397a7e10a6ad31d136",
+      "summary": [
+        "✓ built in 83ms"
+      ]
+    },
+    {
+      "name": "lint",
+      "logSha256": "c4744e2ffe16dfcd87b4eacbca0d9ecbe401ecd2db62f32f2981bf4c45def518",
+      "summary": []
+    },
+    {
+      "name": "schema",
+      "logSha256": "c1f27afb7f7ed8e03a3fd101774b8319bd58b293e46857d0193a99b2cedc0642",
+      "summary": [
+        "The schema at prisma/schema.prisma is valid 🚀"
+      ]
+    },
+    {
+      "name": "api",
+      "logSha256": "c2d612026be0fbc67450c0a2e1400f42d2debc88300a582190ba104eca2a00ae",
+      "summary": [
+        "Test Suites: 12 skipped, 61 passed, 61 of 73 total",
+        "Tests:       329 skipped, 618 passed, 947 total"
+      ]
+    },
+    {
+      "name": "deployment",
+      "logSha256": "8b982dfbfc462b126c139125209b1d5a827459200f663791179b9674d50f68b2",
+      "summary": [
+        "ℹ tests 40",
+        "ℹ pass 40",
+        "ℹ fail 0"
+      ]
+    },
+    {
+      "name": "restricted_role",
+      "logSha256": "3467904feaafb1c98561cc15699e1a22d676520244d12a0658db672d42876f25",
+      "summary": [
+        "ℹ tests 82",
+        "ℹ pass 82",
+        "ℹ fail 0"
+      ]
+    },
+    {
+      "name": "synthetic_database",
+      "logSha256": "baffad9d36054fef468a88f3f3719ffa5af1456c50f37fa0f55896c7d458f089",
+      "summary": [
+        "Test Suites: 1 passed, 1 total",
+        "Tests:       29 passed, 29 total"
+      ]
+    },
+    {
+      "name": "schema_after_comment_clarification",
+      "logSha256": "c1f27afb7f7ed8e03a3fd101774b8319bd58b293e46857d0193a99b2cedc0642",
+      "summary": [
+        "The schema at prisma/schema.prisma is valid 🚀"
+      ]
+    }
+  ],
+  "sourceArtifactsSha256": {
+    "apps/api/src/attachments/attachment-policy.ts": "3667ae298e4fe76ce38ebcb1b00167b0892bb61d2334d473e601f190faf4c7e4",
+    "apps/api/src/attachments/attachment-store.ts": "5c1252abf8ee2cbedd8bea57bd08c3e6770d11a998f3f93fe1905d80eb599b76",
+    "apps/api/src/attachments/attachment.service.ts": "c7b17e6810809806300e044a43007b856f0295a31ddff00f14d609b3cf08abd3",
+    "apps/api/src/deployment/readiness.controller.ts": "9a86df2753609347ad5e982239b2946de66f513ff32680c0cf1d5fcb707ec37c",
+    "apps/api/src/files/file-lock-connection.ts": "303ccdbf743a81e20022e2bcb3c016052618336881d87be6cfeb4a0e8f4f94e6",
+    "apps/api/src/files/file-management.service.ts": "27246c54122b239bc246e6fd34be8d02544795d6f6daefd6a69dbca29086a8e2",
+    "apps/api/src/files/file-run.service.ts": "ca8b38a71b294606df3d5434eb607f85ad9bb513c54be4a32145b1f34c1363e5",
+    "apps/api/src/model-integration/model-execution.controller.ts": "8221396d2c44d3bb29b061f5e460afdce785fc4a27e306861ef82eb77068d784",
+    "apps/api/src/model-integration/model-execution.service.ts": "fe8248f86a2645bed849dc670d63695235926a05b666c3fdacd85b6420bcb1a0",
+    "apps/api/src/model-integration/model-policy.ts": "2d47c226ae0445ee7d1ec5f1d93ebecdd598d68015cda4fed2b9b629e3097fba",
+    "apps/api/src/rag/rag-policy.ts": "75478200e002d323b19aa746c14eb980b44a647ec793f17c810a5b4b3319c951",
+    "apps/api/src/rag/rag-store.ts": "223ac531f52db4af5b9c359ceec212156fe35e957e8edf8bf1fd95f11eb898de",
+    "apps/api/src/rag/rag.service.ts": "5df201005dd642de77c37424579bec0a292b6d319dccc2b295bfa4c147ed7f92",
+    "apps/api/test/chat-recovery-routing.spec.ts": "f662af7602969ab96aa35ef48dfd5aa1602099331bb1f1cf99b049f4be8ef631",
+    "apps/api/test/deployment.spec.ts": "450e93401e20eb6eb50d6087ce8a6356f6b4527df23319a5466a52514c0e014e",
+    "apps/api/test/file-lock-connection.spec.ts": "c9d7b104ecbc38bea6a55354e2a66326b317eea3a8ae4cb6a9ac41046154db15",
+    "apps/api/test/final-basic.integration.spec.ts": "65721b4011fec8a10f94a4fe0a1befc9f665310a31c1c5a3748778f03e693ca6",
+    "apps/api/test/model-policy.spec.ts": "3e742ce51de83a7954e670b7b805383571fbda9c35f5b28d410740c1ecbf21e4",
+    "apps/api/test/web-readiness.spec.ts": "080151190d382e16ff01573d2f77c96d613aac819aabb8a455665531deaab0e7",
+    "apps/api/test/web-sidebar.spec.ts": "7e8c9c7222d3032cfd22a14c333c524c2612eb92184e8048aa4fcc50f2f7ea01",
+    "apps/web/src/Workspace.tsx": "d1ea2903a63a41f3074844bd705c28e35ec4b04d48a68200ebfc99a2e41d2744",
+    "apps/web/src/main.tsx": "6d0f5d01be0ea889dc97fe6cc9d36c447127cf4ca4594c44e3212fdef5284cc8",
+    "apps/web/src/style.css": "bd6c5d310030e369af3d991d4b6ec69c053200694654e33f805d7fe755efd47a",
+    "apps/web/src/workspace/ChatPanel.tsx": "05ad9af5ba6ab4760f18370d9cb614265845533aa2af66a1d638d3d711d53a28",
+    "apps/web/src/workspace/UsageDashboard.tsx": "10626980e931c1f41cdb813692650b14e5653a706d629a86d4724ac86fbc1385",
+    "apps/web/src/workspace/navigation.ts": "0069e66ab2253026cf33943eb764ebf99506f3c28bd0d060afd991f10798271a",
+    "apps/web/src/workspace/types.ts": "64bcf2f55abbe8786cfbc4cd7e3766c45f6ab108843090753d04f83bc1724b77",
+    "packages/database/prisma/migrations/20261110000000_chat_model_options/migration.sql": "7bbb3a6288f3f1bb7794587b70994cd19703ff1a4ec05be53d57d22954cf6fcf",
+    "packages/database/prisma/schema.prisma": "4649f33b1b5da898313096abd84d765786fd094cc68160524f41e0f539d98ebc"
+  },
+  "localUpgrade": {
+    "project": "townbase-local",
+    "before": {
+      "administrators": 1,
+      "files": 0,
+      "turns": 0,
+      "calls": 0
+    },
+    "after": {
+      "administrators": 1,
+      "files": 0,
+      "turns": 0,
+      "calls": 0
+    },
+    "readiness": {
+      "database": "ready",
+      "schema": "ready",
+      "storage": "ready",
+      "setup": "complete",
+      "execution": "ready",
+      "capabilities": {
+        "administratorSetup": false,
+        "chat": true
+      }
+    },
+    "databaseOnlySafetyCopy": "ignored .townbase/maintenance/before-chat-options-20261110.dump"
+  },
+  "browser": {
+    "actualAdministratorSession": true,
+    "modelChoice": "gpt-6.1-sol/high selected without submitting a paid request; fresh chat restored default Luna/low",
+    "sidebar": "desktop stayed pinned through settings navigation and reload",
+    "dashboard": "current month zero calls and budget not configured; no fabricated usage rows",
+    "mobile": "branch unit tests only; no new physical mobile run",
+    "screenshots": "kept outside repository because they show personal administrator UI"
+  },
+  "additionalPaidModelCalls": 0,
+  "notes": [
+    "API618 excludes329 opt-in DB cases; synthetic DB29 and restricted-role82 were run explicitly and are separate counts.",
+    "Provider, secrets and document corpus in integration tests are synthetic; the product itself has no fake fallback.",
+    "Existing raw quality evidence was not changed or rerun.",
+    "The initial readiness-only deployment pass had one synthetic PID-file timing failure during a concurrent build; rerun40 and final40 passed without changing protection.",
+    "No commit, push, PR or external comment performed for this work.",
+    "After the full checks, only a Prisma schema comment and documentation were clarified; no runtime code or SQL changed. Schema validation was repeated."
+  ],
+  "lockDiagnostic": "lock-recycling-comparison.json",
+  "warmReadinessCheck": {
+    "artifact": "readiness-monitor.json",
+    "sampleCount": 11,
+    "allReady": true,
+    "startedAt": "2026-11-09T18:20:41.243Z",
+    "lastSampleAt": "2026-11-09T18:25:41.517Z"
+  },
+  "followUp": {
+    "artifact": "composer-placement.json",
+    "scope": "Subsequent UI-only placement change has its own source hashes and checks; the API618/DB29 results above remain the earlier tested snapshot."
+  },
+  "additionalFollowUp": {
+    "artifact": "key-setup.json",
+    "scope": "Subsequent frontend Key readback/setup guidance; latest API625 and web checks are separate from the earlier snapshot."
+  }
+}

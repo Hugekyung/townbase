@@ -12,9 +12,14 @@ export function readLocation(): PageLocation {
   if (parts[0] === "settings")
     return {
       kind: "settings",
-      section: ["models", "account", "runs", "gaps", "operations"].includes(
-        parts[1] ?? "",
-      )
+      section: [
+        "models",
+        "account",
+        "usage",
+        "runs",
+        "gaps",
+        "operations",
+      ].includes(parts[1] ?? "")
         ? parts[1]!
         : "models",
     };

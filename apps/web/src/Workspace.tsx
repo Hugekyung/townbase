@@ -3,6 +3,7 @@ import { api, ApiError, errorText, pendingRequest } from "./api";
 import { ChatPanel } from "./workspace/ChatPanel";
 import { DocumentsPanel } from "./workspace/DocumentsPanel";
 import { SettingsPanel } from "./workspace/SettingsPanel";
+import { UsageDashboard } from "./workspace/UsageDashboard";
 import { RecordsPanel } from "./workspace/RecordsPanel";
 import { Icon } from "./workspace/Icon";
 import { readLocation, chatHash } from "./workspace/navigation";
@@ -23,7 +24,16 @@ export function Workspace({
   account: ReactNode;
 }) {
   const [location, setLocation] = useState(readLocation),
-    [menu, setMenu] = useState(false),
+    [menu, setMenu] = useState(() => {
+      try {
+        return localStorage.getItem("townbase.menu-open") === "true";
+      } catch {
+        return false;
+      }
+    }),
+    [wide, setWide] = useState(
+      () => window.matchMedia("(min-width: 900px)").matches,
+    ),
     [version, setVersion] = useState(0),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
@@ -55,7 +65,20 @@ export function Workspace({
       window.removeEventListener("townbase:session-expired", handler);
   }, []);
   useEffect(() => {
-    if (!menu) return;
+    const query = window.matchMedia("(min-width: 900px)");
+    const handler = () => setWide(query.matches);
+    query.addEventListener("change", handler);
+    return () => query.removeEventListener("change", handler);
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("townbase.menu-open", String(menu));
+    } catch {
+      /* UI preference is optional. */
+    }
+  }, [menu]);
+  useEffect(() => {
+    if (!menu || wide) return;
     const before = document.activeElement as HTMLElement | null;
     drawer.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const key = (e: KeyboardEvent) => {
@@ -84,7 +107,7 @@ export function Workspace({
       document.removeEventListener("keydown", key);
       (before ?? menuButton.current)?.focus();
     };
-  }, [menu]);
+  }, [menu, wide]);
   useEffect(() => {
     const c = new AbortController();
     setListError("");
@@ -133,7 +156,7 @@ export function Workspace({
       return await action();
     } catch (e) {
       failed = true;
-      setMenu(false);
+      if (!wide) setMenu(false);
       if (e instanceof ApiError && e.status === 401) expired.current();
       else setMessage(errorText(e));
       return undefined;
@@ -149,14 +172,14 @@ export function Workspace({
     if (working.current) return;
     window.location.hash = hash;
     setLocation(readLocation());
-    setMenu(false);
+    if (!wide) setMenu(false);
     setMessage("");
   };
   const newChat = (kind: "rag" | "attachment" = "rag") => {
     setVersion((n) => n + 1);
     window.location.hash = chatHash(kind);
     setLocation(readLocation());
-    setMenu(false);
+    if (!wide) setMenu(false);
     setMessage("");
   };
   const isChat = location.kind === "rag" || location.kind === "attachment";
@@ -178,20 +201,24 @@ export function Workspace({
   const sections = [
     ["models", "Agent·모델 연결"],
     ["account", "계정"],
+    ["usage", "API 사용량"],
     ["runs", "실행 이력"],
     ["gaps", "Knowledge Gap"],
     ["operations", "운영·보관"],
   ] as const;
   return (
-    <section className="agent-app" aria-label="Townbase Agent">
+    <section
+      className={"agent-app" + (menu && wide ? " menu-pinned" : "")}
+      aria-label="Townbase Agent"
+    >
       <header className="agent-header">
         <div className="agent-header-left">
           <button
             ref={menuButton}
             className="icon-button"
-            aria-label="메뉴 열기"
+            aria-label={menu ? "메뉴 접기" : "메뉴 열기"}
             aria-expanded={menu}
-            onClick={() => setMenu(true)}
+            onClick={() => setMenu((open) => !open)}
           >
             <Icon name="menu" />
           </button>
@@ -201,7 +228,9 @@ export function Workspace({
             onClick={() => go("#/settings/models")}
           >
             {agent.name}
-            <span>{agent.model || "모델 설정 확인"}</span>
+            <span>
+              {agent.model ? "기본 모델 · " + agent.model : "모델 설정 확인"}
+            </span>
           </button>
         </div>
         <button
@@ -215,17 +244,19 @@ export function Workspace({
       </header>
       {menu && (
         <>
-          <button
-            className="drawer-backdrop"
-            aria-label="메뉴 영역 밖 닫기"
-            tabIndex={-1}
-            onClick={() => setMenu(false)}
-          />
+          {!wide && (
+            <button
+              className="drawer-backdrop"
+              aria-label="메뉴 영역 밖 닫기"
+              tabIndex={-1}
+              onClick={() => setMenu(false)}
+            />
+          )}
           <aside
             ref={drawer}
             className="agent-drawer"
-            role="dialog"
-            aria-modal="true"
+            role={wide ? "complementary" : "dialog"}
+            aria-modal={wide ? undefined : true}
             aria-label="주요 메뉴와 채팅 목록"
           >
             <div className="drawer-heading">
@@ -436,6 +467,8 @@ export function Workspace({
                 <div className="settings-content">
                   {location.section === "models" ? (
                     <SettingsPanel work={work} />
+                  ) : location.section === "usage" ? (
+                    <UsageDashboard work={work} />
                   ) : location.section === "account" ? (
                     <section className="settings-card">
                       <h2>관리자 계정</h2>

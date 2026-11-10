@@ -1,3 +1,4 @@
+import { fileLockConnectionUrl } from "./file-lock-connection";
 import { isDeepStrictEqual } from "node:util";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -98,12 +99,9 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     );
   }
   private async lock(key: number, wait = false) {
-    const url = new URL(process.env.DATABASE_URL!);
-    url.searchParams.set("connection_limit", "1");
-    // Shutdown must wait for admitted input I/O, not the readiness socket timeout.
-    if (wait) url.searchParams.delete("socket_timeout");
+    const url = fileLockConnectionUrl(process.env.DATABASE_URL!, wait);
     const client = new PrismaClient({
-      datasources: { db: { url: url.toString() } },
+      datasources: { db: { url } },
     });
     try {
       if (wait) {

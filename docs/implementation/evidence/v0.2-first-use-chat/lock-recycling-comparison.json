@@ -1,0 +1,201 @@
+{
+  "scope": "temporary independent diagnostic advisory keys 98 and 99, user documents unchanged",
+  "connectionLimit": 1,
+  "queryIntervalMilliseconds": 500,
+  "scriptSha256": "264e2ac052a0c229a11c61642324f1f2602119d7f2100d0d6777997da41cfd28",
+  "rawLogSha256": "e5b3ba7b3d0ee98b2af21c0d30a57c8227bb3df2f51ca3286973ca6318e0ea92",
+  "samples": [
+    {
+      "sample": 0,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36361,
+      "owned": true
+    },
+    {
+      "sample": 0,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 1,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36361,
+      "owned": true
+    },
+    {
+      "sample": 1,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 2,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36361,
+      "owned": true
+    },
+    {
+      "sample": 2,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 3,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36372,
+      "owned": false
+    },
+    {
+      "sample": 3,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 4,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36372,
+      "owned": false
+    },
+    {
+      "sample": 4,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 5,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36372,
+      "owned": false
+    },
+    {
+      "sample": 5,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 6,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36372,
+      "owned": false
+    },
+    {
+      "sample": 6,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 7,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36375,
+      "owned": false
+    },
+    {
+      "sample": 7,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 8,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36375,
+      "owned": false
+    },
+    {
+      "sample": 8,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 9,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36375,
+      "owned": false
+    },
+    {
+      "sample": 9,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 10,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36375,
+      "owned": false
+    },
+    {
+      "sample": 10,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 11,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36376,
+      "owned": false
+    },
+    {
+      "sample": 11,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 12,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36376,
+      "owned": false
+    },
+    {
+      "sample": 12,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 13,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36376,
+      "owned": false
+    },
+    {
+      "sample": 13,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 14,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36376,
+      "owned": false
+    },
+    {
+      "sample": 14,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    },
+    {
+      "sample": 15,
+      "maxIdleConnectionLifetimeSeconds": 2,
+      "pid": 36385,
+      "owned": false
+    },
+    {
+      "sample": 15,
+      "maxIdleConnectionLifetimeSeconds": 0,
+      "pid": 36362,
+      "owned": true
+    }
+  ]
+}

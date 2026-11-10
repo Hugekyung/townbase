@@ -186,3 +186,30 @@ function canonical(value: unknown): unknown {
     );
   return value;
 }
+
+export type AnswerOptions = { answerModel: AnswerModel; reasoning: Reasoning };
+export const REASONING_OPTIONS: Readonly<
+  Record<AnswerModel, readonly Reasoning[]>
+> = {
+  "gpt-6-luna": ["none", "low", "medium", "high", "xhigh", "max"],
+  "gpt-6.1-sol": ["low", "medium", "high", "xhigh", "max"],
+};
+export function answerOptions(value: unknown): AnswerOptions {
+  if (value == null || typeof value !== "object" || Array.isArray(value))
+    throw new ModelCallError("invalid_model_options");
+  const v = value as Record<string, unknown>;
+  if (
+    Object.keys(v).length !== 2 ||
+    !Object.hasOwn(v, "answerModel") ||
+    !Object.hasOwn(v, "reasoning") ||
+    !ANSWER_MODELS.includes(v.answerModel as AnswerModel) ||
+    !REASONING_OPTIONS[v.answerModel as AnswerModel]?.includes(
+      v.reasoning as Reasoning,
+    )
+  )
+    throw new ModelCallError("invalid_model_options");
+  return {
+    answerModel: v.answerModel as AnswerModel,
+    reasoning: v.reasoning as Reasoning,
+  };
+}

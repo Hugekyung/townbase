@@ -1,3 +1,4 @@
+import { modelSetupSteps } from "./model-readiness";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   api,
@@ -8,7 +9,7 @@ import {
   download,
 } from "../api";
 import type { Work } from "../Workspace";
-import type { Result } from "./types";
+import type { Result, Integration, AnswerOptions } from "./types";
 import type { ChatLocation } from "./navigation";
 import { Icon } from "./Icon";
 export function ResultView({ result }: { result: Result }) {
@@ -217,6 +218,55 @@ export function ChatPanel({
     } | null>(null),
     [stopping, setStopping] = useState(false),
     [referenceHistory, setReferenceHistory] = useState(true);
+  const [integration, setIntegration] = useState<Integration | null>(null);
+  const [modelOptions, setModelOptions] = useState<AnswerOptions | null>(null);
+  const [modelError, setModelError] = useState("");
+  const [modelLoading, setModelLoading] = useState(true);
+  const [modelAttempt, setModelAttempt] = useState(0);
+  const [agentConfigured, setAgentConfigured] = useState(false);
+  useEffect(() => {
+    const c = new AbortController();
+    setModelError("");
+    setModelLoading(true);
+    void Promise.all([
+      api<Integration>(
+        "/settings/model-integration",
+        "GET",
+        undefined,
+        {},
+        c.signal,
+      ),
+      api<{ agent: unknown }>(
+        "/settings/agent",
+        "GET",
+        undefined,
+        {},
+        c.signal,
+      ),
+    ])
+      .then(([value, a]) => {
+        if (c.signal.aborted) return;
+        setIntegration(value);
+        setAgentConfigured(a.agent != null);
+        setModelOptions(
+          (current) =>
+            current ?? {
+              answerModel: value.execution.settings.answerModel,
+              reasoning: value.execution.settings.reasoning,
+            },
+        );
+      })
+      .catch((e) => {
+        if (!c.signal.aborted) {
+          setIntegration(null);
+          setModelError(errorText(e));
+        }
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setModelLoading(false);
+      });
+    return () => c.abort();
+  }, [work.refresh, modelAttempt]);
   const scrollArea = useRef<HTMLDivElement>(null),
     scrollAnchor = useRef<{ height: number; top: number } | null>(null),
     nearBottom = useRef(true);
@@ -256,6 +306,8 @@ export function ChatPanel({
               c.signal,
             ).then((r) => {
               setResults(r.turns);
+              const latest = r.turns.at(-1)?.modelOptions;
+              if (latest) setModelOptions(latest);
               setCursor(r.nextCursor);
             })
           : api<Result>(
@@ -264,7 +316,10 @@ export function ChatPanel({
               undefined,
               {},
               c.signal,
-            ).then((r) => setResults([r]))
+            ).then((r) => {
+              setResults([r]);
+              if (r.modelOptions) setModelOptions(r.modelOptions);
+            })
       )
         .catch((e) => {
           if (!c.signal.aborted) setLoadError(errorText(e));
@@ -393,7 +448,14 @@ export function ChatPanel({
     }
   }
   async function send() {
-    if (!question.trim() || work.busy || currentRunning) return;
+    if (
+      !question.trim() ||
+      work.busy ||
+      currentRunning ||
+      !modelReady ||
+      !modelOptions
+    )
+      return;
     const q = question;
     let requestId: string | undefined;
     setLoadError("");
@@ -458,6 +520,7 @@ export function ChatPanel({
                 requestId,
                 question: q,
                 operation,
+                modelOptions,
                 attachmentIds: attached,
                 requestedMode: mode,
                 historyRequestIds:
@@ -468,6 +531,7 @@ export function ChatPanel({
                 requestId,
                 question: q,
                 requestedMode: mode,
+                modelOptions,
                 historyRequestIds: context,
                 ...(location.id ? { conversationId: location.id } : {}),
               },
@@ -499,6 +563,18 @@ export function ChatPanel({
       }
     });
   }
+  const missingSetup = integration
+    ? modelSetupSteps(integration, {
+        privateMode,
+        mixed,
+        agentConfigured,
+      }).filter((step) => !step.ready)
+    : [];
+  const modelReady =
+    !modelLoading &&
+    integration != null &&
+    !modelError &&
+    missingSetup.length === 0;
   const empty = !loading && !results.length && !pending;
   return (
     <div
@@ -667,6 +743,30 @@ export function ChatPanel({
         <div ref={end} />
       </div>
       <div className="composer-dock">
+        <p className="model-choice-note">
+          모델·추론 강도는 다음 답변에 적용돼요. 강도가 높으면 응답 시간과
+          비용이 늘어날 수 있어요.
+        </p>
+        {!modelReady && (
+          <div className="composer-warning" role="status">
+            {modelLoading
+              ? "저장된 모델 설정을 확인하고 있어요."
+              : modelError
+                ? "모델 설정을 불러오지 못했어요. " + modelError
+                : integration
+                  ? "남은 설정: " +
+                    missingSetup.map((step) => step.label).join(" · ")
+                  : "모델 설정을 확인하지 못했어요."}
+            {!modelLoading && modelError && (
+              <button onClick={() => setModelAttempt((n) => n + 1)}>
+                설정 다시 확인
+              </button>
+            )}
+            <button onClick={() => onNavigate("#/settings/models")}>
+              설정 완료하기
+            </button>
+          </div>
+        )}
         {uncertain && (
           <div className="composer-warning" role="alert">
             연결이 끊겨 저장 결과를 확인하지 못했어요. 다시 보내기 전에{" "}
@@ -831,30 +931,94 @@ export function ChatPanel({
                 <option value="documentation_gap">문서 부족</option>
               </select>
             </div>
-            {pending || currentRunning ? (
-              <button
-                type="button"
-                className="send-button stop-button"
-                aria-label="답변 생성 중지"
-                disabled={stopping}
-                onClick={() => void stop()}
-              >
-                <span />
-              </button>
-            ) : (
-              <button
-                className="send-button"
-                aria-label="메시지 보내기"
-                disabled={
-                  work.busy ||
-                  !question.trim() ||
-                  loading ||
-                  (!!loadError && !!location.id)
-                }
-              >
-                <Icon name="send" />
-              </button>
-            )}
+            <div className="composer-send-controls">
+              <div className="chat-model-controls">
+                <label>
+                  <span className="sr-only">모델</span>
+                  <select
+                    aria-label="이 채팅의 답변 모델"
+                    value={modelOptions?.answerModel ?? ""}
+                    disabled={
+                      work.busy || !!currentRunning || loading || !integration
+                    }
+                    onChange={(e) => {
+                      const answerModel = e.target.value;
+                      const allowed =
+                        integration?.execution.supportedReasoning[
+                          answerModel
+                        ] ?? [];
+                      setModelOptions({
+                        answerModel,
+                        reasoning: allowed.includes(
+                          modelOptions?.reasoning ?? "",
+                        )
+                          ? modelOptions!.reasoning
+                          : "low",
+                      });
+                    }}
+                  >
+                    {!integration && <option value="">설정 확인 중</option>}
+                    {integration?.supportedAnswerModels.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className="sr-only">추론 강도</span>
+                  <select
+                    aria-label="이 채팅의 추론 강도"
+                    value={modelOptions?.reasoning ?? ""}
+                    disabled={
+                      work.busy || !!currentRunning || loading || !integration
+                    }
+                    onChange={(e) =>
+                      setModelOptions(
+                        (current) =>
+                          current && { ...current, reasoning: e.target.value },
+                      )
+                    }
+                  >
+                    {!modelOptions && <option value="">설정 확인 중</option>}
+                    {(
+                      integration?.execution.supportedReasoning[
+                        modelOptions?.answerModel ?? ""
+                      ] ?? []
+                    ).map((effort) => (
+                      <option key={effort} value={effort}>
+                        {effort}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {pending || currentRunning ? (
+                <button
+                  type="button"
+                  className="send-button stop-button"
+                  aria-label="답변 생성 중지"
+                  disabled={stopping}
+                  onClick={() => void stop()}
+                >
+                  <span />
+                </button>
+              ) : (
+                <button
+                  className="send-button"
+                  aria-label="메시지 보내기"
+                  disabled={
+                    work.busy ||
+                    !question.trim() ||
+                    !modelReady ||
+                    loading ||
+                    (!!loadError && !!location.id)
+                  }
+                >
+                  <Icon name="send" />
+                </button>
+              )}
+            </div>
           </div>
         </form>
         {results.length > 0 && !(privateMode && location.kind === "rag") && (

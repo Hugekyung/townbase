@@ -1,0 +1,27 @@
+{
+  "dateKst": "2026-11-10",
+  "status": "local_verified_pending_delivery_approval",
+  "scope": "CSS-only disabled cursor correction",
+  "sourceArtifactsSha256": {
+    "apps/web/src/style.css": "2165d1f3d86028de15b02187fed36238b9763a1ca2d249da6efbbf1744617684"
+  },
+  "checks": {
+    "webBuild": {
+      "passed": true,
+      "logSha256": "1132e77caae099e1df1895d5f6bbb6aca152eb946f73f6f5341b79d5c7e55292"
+    },
+    "browser": {
+      "actualAdministratorSession": true,
+      "page": "/documents",
+      "button": "등록 실행",
+      "disabled": true,
+      "computedCursor": "default"
+    },
+    "localReadiness": "HTTP200/execution ready"
+  },
+  "paidCalls": 0,
+  "notes": [
+    "No new tests added for the two-rule style fix; previous full test counts are historical.",
+    "No commit/push/PR performed."
+  ]
+}

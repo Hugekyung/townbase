@@ -278,3 +278,10 @@
 - 기본 평가기도 앱 종료/owner disconnect를 각각 시도한다. 자기 잠금은 앱·owner·핸들 정리 확인 후만 제거하고, 실패 시 파일을 보존한다. evaluation-lifecycle의 basic post-create 실패/close 실패/disconnect 실패가 이 경계를 검증한다.
 - resume 비교는 알려진 설명용 provenance만 분리한다. source SHA·자료/질문/compiled hash·반복 범위와 별도의 Agent/모델 runtime 계약은 계속 검사하고, 과거 manifest를 소급 수정하지 않는다.
 - 대량 문서/삭제 기록 cp는 dump/restore와 같은30분 상한을 명시하며 일반 Docker 상태/제어 명령의2분 상한은 유지한다.
+
+## 첫 사용 채팅 설정·사용량·연결 안정성 (2026-11-10, 로컬)
+
+- 사용자 요청으로 채팅/첨부의 modelOptions(answerModel/reasoning)를 다음 전송에 적용한다. 설치 기본값·Key·예산·입출력 한도·임베딩은 변경하지 않는다. 선택값은 결과 접수 metadata로 저장/재조회하며 새 nullable JSONB CHECK migration을 따른다. 변경 옵션도 UUID fingerprint에 포함하며 C의 선택 모델 가격 예약과 기존 설정 digest 보호를 유지한다.
+- /settings/model-integration/usage는 현재 설치/관리자의 UTC 현재 달 호출 집계다. OpenAI 계정 전체 청구 조회가 아니며 이전 달 미확정 예약을 포함하는 설치 예산 snapshot과 구분한다. 토큰 부분집합/usage 미확인·추정 비용·예약을 중복 합산하지 않는다.
+- session advisory lock은 connection_limit=1만으로 세션 지속이 보장되지 않았다. 파일 잠금 전용 클라이언트는 fileLockConnectionUrl로 풀의 idle/maximum connection lifetime을0으로 고정한다. 실제 연결 상실 시 차단은 유지하고 자동 재획득하지 않는다. /readyz.execution과 UI의 관리자/실행 항목으로 숨은 실패를 표시한다.
+- 넓은 화면 메뉴는 비모달 고정, 작은 화면은 기존 모달·포커스 보호를 유지한다. [계약·검증·로컬 적용](docs/implementation/v0.2-first-use-chat-settings.md)을 따른다. 커밋·푸시·PR은 사용자 요약 승인 뒤 진행한다.

@@ -18,6 +18,8 @@ import {
 import { fields } from "../auth/auth-policy";
 import {
   ModelCallError,
+  answerOptions,
+  type AnswerOptions,
   inputBound,
   validRequestId,
 } from "../model-integration/model-policy";
@@ -38,6 +40,7 @@ export const RAG_LIMITS = Object.freeze({
 export type RagQuestion = ReturnType<typeof parseBasicAgentQuestion> & {
   conversationId?: string;
   historyRequestIds: string[];
+  modelOptions?: AnswerOptions;
 };
 export function questionInput(body: unknown): RagQuestion {
   if (body == null || typeof body !== "object" || Array.isArray(body))
@@ -45,6 +48,7 @@ export function questionInput(body: unknown): RagQuestion {
   const {
     conversationId,
     historyRequestIds = [],
+    modelOptions,
     ...base
   } = body as Record<string, unknown>;
   if (
@@ -61,6 +65,9 @@ export function questionInput(body: unknown): RagQuestion {
   try {
     return {
       ...parseBasicAgentQuestion(base),
+      ...(modelOptions === undefined
+        ? {}
+        : { modelOptions: answerOptions(modelOptions) }),
       ...(conversationId == null
         ? {}
         : { conversationId: (conversationId as string).toLowerCase() }),

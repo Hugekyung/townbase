@@ -127,7 +127,7 @@ a:focus-visible {
 }
 button:disabled {
   opacity: 0.65;
-  cursor: wait;
+  cursor: default;
 }
 .checks {
   padding: 0 32px;
@@ -476,7 +476,7 @@ footer span {
 }
 .workspace button:disabled {
   opacity: 0.45;
-  cursor: wait;
+  cursor: default;
 }
 .workspace .danger {
   color: #963f3f;
@@ -1580,4 +1580,149 @@ footer span {
   z-index: 100;
   padding: 1rem;
   background: #fff4d8;
+}
+
+@media (min-width: 900px) {
+  .agent-app.menu-pinned > .agent-header,
+  .agent-app.menu-pinned > .agent-page {
+    margin-left: 292px;
+  }
+  .agent-app.menu-pinned .agent-drawer {
+    box-shadow: none;
+  }
+}
+.chat-model-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.chat-model-controls label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+.chat-model-controls select {
+  max-width: 170px;
+  padding: 6px;
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+  background: white;
+}
+.thread-tools {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 48px;
+  gap: 8px;
+}
+.usage-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.usage-cards article {
+  background: #f7f8f5;
+  border: 1px solid #e2e6de;
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+.usage-cards strong {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.usage-cards small,
+.usage-table small {
+  display: block;
+  color: #697567;
+}
+.usage-table {
+  overflow-x: auto;
+}
+.usage-table table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.usage-table td,
+.usage-table th {
+  padding: 12px 8px;
+  text-align: left;
+  border-bottom: 1px solid #e2e6de;
+  white-space: nowrap;
+}
+.usage-days > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px;
+  border-bottom: 1px solid #e2e6de;
+}
+@media (max-width: 600px) {
+  .chat-model-controls {
+    gap: 6px;
+  }
+  .chat-model-controls select {
+    max-width: 140px;
+  }
+}
+.model-choice-note {
+  font-size: 11px;
+  color: #727f71;
+  margin: 0 4px 8px;
+}
+
+.composer-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.composer-actions > .composer-send-controls {
+  margin-left: auto;
+  gap: 8px;
+  min-width: 0;
+}
+.composer-send-controls .chat-model-controls {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.composer-send-controls .chat-model-controls select {
+  max-width: 144px;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  font-size: 12px;
+}
+.composer-send-controls .chat-model-controls label:last-child select {
+  max-width: 80px;
+}
+.composer-send-controls .send-button {
+  flex: none;
+}
+
+.setup-progress ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.setup-progress li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.setup-progress li > span {
+  min-width: 60px;
+  font-size: 12px;
+  color: #5d6e59;
+}
+.setup-progress li > button {
+  text-align: left;
+}
+.settings-card[id],
+#basic-agent-settings {
+  scroll-margin-top: 20px;
 }

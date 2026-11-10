@@ -501,6 +501,195 @@ integration(
       expect(response.body.retention.diagnosticDays).toBe(7);
       expect(JSON.stringify(response.body)).not.toContain("sk-proj-");
     });
+    test("dedicated session lock survives configured pool recycling and ownership loss still blocks readiness", async () => {
+      const runs = app.get(FileRunService);
+      const originalUrl = process.env.DATABASE_URL!;
+      const short = new URL(originalUrl);
+      short.searchParams.set("max_idle_connection_lifetime", "1");
+      short.searchParams.set("max_connection_lifetime", "1");
+      let lease: PrismaClient | undefined;
+      try {
+        process.env.DATABASE_URL = short.toString();
+        lease = await (
+          runs as unknown as { lock(key: number): Promise<PrismaClient> }
+        ).lock(97);
+      } finally {
+        process.env.DATABASE_URL = originalUrl;
+      }
+      try {
+        const [first] = await lease!.$queryRaw<
+          { pid: number }[]
+        >`SELECT pg_backend_pid() AS pid`;
+        await new Promise((resolve) => setTimeout(resolve, 2200));
+        const [next] = await lease!.$queryRaw<
+          { pid: number; owned: boolean }[]
+        >`SELECT pg_backend_pid() AS pid, EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='advisory' AND classid=741126::oid AND objid=97::oid AND objsubid=2) AS owned`;
+        expect(next?.pid).toBe(first?.pid);
+        expect(next?.owned).toBe(true);
+      } finally {
+        await lease?.$disconnect();
+      }
+      const internal = runs as unknown as { owner: PrismaClient };
+      // Explicitly releasing ownership simulates a lost session without racing timers.
+      await internal.owner
+        .$queryRaw`SELECT pg_advisory_unlock(741126,4) AS released`;
+      try {
+        await call("get", "/readyz").expect(503);
+        expect(await runs.ready()).toBe(false);
+      } finally {
+        await app.close();
+        await start();
+        await login();
+      }
+    });
+    test("chat model and effort reach the provider, persist on readback and do not change global defaults", async () => {
+      const modelOptions = { answerModel: "gpt-6.1-sol", reasoning: "high" };
+      const body = input({ modelOptions });
+      const result = await ask(body).expect(200);
+      expect(result.body.status).toBe("answered");
+      expect(result.body.model).toBe(modelOptions.answerModel);
+      expect(result.body.modelOptions).toEqual(modelOptions);
+      expect(
+        provider.call.mock.calls.some(
+          ([, r]) => r.model === "gpt-6.1-sol" && r.reasoning === "high",
+        ),
+      ).toBe(true);
+      expect(
+        provider.call.mock.calls.some(
+          ([, r]) => r.model === "text-embedding-3-small",
+        ),
+      ).toBe(true);
+      expect(
+        (await call("get", "/rag/questions/" + body.requestId).expect(200)).body
+          .modelOptions,
+      ).toEqual(modelOptions);
+      const stored = await owner.ragTurn.findFirstOrThrow({
+        where: { requestId: body.requestId },
+      });
+      expect(stored.modelOptions).toEqual(modelOptions);
+      const count = provider.call.mock.calls.length;
+      await ask(
+        input({
+          ...body,
+          modelOptions: { answerModel: "gpt-6-luna", reasoning: "low" },
+        }),
+      ).expect(409);
+      expect(provider.call.mock.calls).toHaveLength(count);
+      const defaults = await owner.modelExecutionSettings.findUniqueOrThrow({
+        where: { installationId: "primary" },
+      });
+      expect(defaults.answerModel).toBe("gpt-6-luna");
+      expect(defaults.reasoning).toBe("low");
+    });
+    test("a higher-cost chat choice remains subject to the installation budget", async () => {
+      if (!context.ok) throw Error("Fixture requester missing");
+      await app
+        .get(ModelExecutionService)
+        .configure(token, password, context.requester, {
+          answerModel: "gpt-6-luna",
+          reasoning: "low",
+          inputTokenLimit: 16000,
+          outputTokenLimit: 4096,
+          monthlyBudgetUsd: "0.01",
+          priceVersion: PRICE_VERSION,
+        });
+      const result = await ask(
+        input({
+          modelOptions: { answerModel: "gpt-6.1-sol", reasoning: "high" },
+        }),
+      ).expect(200);
+      expect(result.body.status).toBe("failed");
+      expect(result.body.errorCode).toBe("budget_exceeded");
+      expect(
+        provider.call.mock.calls.every(
+          ([, r]) => r.model === "text-embedding-3-small",
+        ),
+      ).toBe(true);
+    });
+    test("invalid chat choices cannot persist or charge and embedding cannot be overridden", async () => {
+      const count = await owner.modelCall.count();
+      for (const modelOptions of [
+        null,
+        { answerModel: "text-embedding-3-large", reasoning: "low" },
+        { answerModel: "gpt-6.1-sol", reasoning: "none" },
+        {
+          answerModel: "gpt-6-luna",
+          reasoning: "low",
+          monthlyBudgetUsd: "9999",
+        },
+      ])
+        await ask(input({ modelOptions })).expect(400);
+      expect(await owner.modelCall.count()).toBe(count);
+      expect(await owner.ragTurn.count()).toBe(0);
+    });
+    test("usage dashboard counts owned current-month usage and separates held cost from charged cost", async () => {
+      await ask(input()).expect(200);
+      const row = await owner.modelCall.findFirstOrThrow({
+        where: { purpose: "rag_answer" },
+      });
+      const old = new Date(
+        Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 15),
+      );
+      await owner.modelCall.create({
+        data: {
+          ...row,
+          usage: row.usage as Prisma.InputJsonValue,
+          requestId: randomUUID(),
+          createdAt: old,
+          deadlineAt: new Date(old.getTime() + 90000),
+          completedAt: new Date(old.getTime() + 500),
+        },
+      });
+      await owner.modelCall.create({
+        data: {
+          ...row,
+          requestId: randomUUID(),
+          status: "unknown",
+          usage: Prisma.DbNull,
+          chargedNanoUsd: null,
+          reservedNanoUsd: 123n,
+        },
+      });
+      const response = await call(
+        "get",
+        "/settings/model-integration/usage",
+      ).expect(200);
+      expect(response.headers["cache-control"]).toBe("no-store");
+      const answer = response.body.groups.filter(
+        (g: { purpose: string }) => g.purpose === "rag_answer",
+      );
+      expect(
+        answer.reduce(
+          (n: number, g: { calls: string }) => n + Number(g.calls),
+          0,
+        ),
+      ).toBe(2);
+      expect(
+        answer.reduce(
+          (n: number, g: { inputTokens: string }) => n + Number(g.inputTokens),
+          0,
+        ),
+      ).toBe(20);
+      expect(
+        answer.find((g: { status: string }) => g.status === "unknown").heldUsd,
+      ).toBe("0.000000123");
+      expect(response.body.timeZone).toBe("UTC");
+      expect(JSON.stringify(response.body)).not.toContain("sk-proj-");
+      if (!context.ok) throw Error("Fixture requester missing");
+      const other = await app
+        .get(ModelExecutionService)
+        .usage({ ...context.requester, administratorId: "not-the-owner" });
+      expect(other.groups).toEqual([]);
+      expect(other.daily).toEqual([]);
+      await request(app.getHttpServer())
+        .get("/settings/model-integration/usage")
+        .set({
+          Host: "127.0.0.1:3000",
+          Origin: "http://127.0.0.1:3000",
+          "X-Townbase-Auth": "1",
+        })
+        .expect(401);
+    });
     async function upload(
       name = "private.txt",
       bytes: Buffer = Buffer.from(
@@ -519,6 +708,28 @@ integration(
       operation: "summary",
       attachmentIds: [id],
       ...extra,
+    });
+    test("private attachment uses and retains the selected model and effort", async () => {
+      const file = await upload();
+      const modelOptions = { answerModel: "gpt-6.1-sol", reasoning: "medium" };
+      const body = task(file.id, { modelOptions });
+      const result = await call("post", "/attachment-tasks")
+        .send(body)
+        .expect(200);
+      expect(result.body.modelOptions).toEqual(modelOptions);
+      expect(result.body.model).toBe("gpt-6.1-sol");
+      expect(
+        provider.call.mock.calls.some(
+          ([, r]) => r.model === "gpt-6.1-sol" && r.reasoning === "medium",
+        ),
+      ).toBe(true);
+      expect(
+        (await call("get", "/attachment-tasks/" + body.requestId).expect(200))
+          .body.modelOptions,
+      ).toEqual(modelOptions);
+      expect(
+        (await owner.attachmentTask.findFirstOrThrow()).modelOptions,
+      ).toEqual(modelOptions);
     });
     const sharedCounts = async () => ({
       documents: await owner.document.count(),
@@ -894,6 +1105,10 @@ integration(
         await owner.ragTurn.create({
           data: {
             ...base,
+            modelOptions:
+              base.modelOptions == null
+                ? Prisma.DbNull
+                : (base.modelOptions as Prisma.InputJsonValue),
             requestId: randomUUID(),
             embeddingRequestId: randomUUID(),
             answerRequestId: randomUUID(),
@@ -1054,6 +1269,10 @@ integration(
         await owner.attachmentTask.create({
           data: {
             ...base,
+            modelOptions:
+              base.modelOptions == null
+                ? Prisma.DbNull
+                : (base.modelOptions as Prisma.InputJsonValue),
             requestId: ids[i]!,
             fingerprint: i.toString(16).padStart(64, "0"),
             createdAt: new Date(now - 10000 + i * 10),

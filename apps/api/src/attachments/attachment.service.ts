@@ -1,3 +1,4 @@
+import { answerOptions } from "../model-integration/model-policy";
 import { GROUNDED_FORMAT_INPUT } from "../model-integration/grounded-format";
 import {
   Injectable,
@@ -316,6 +317,9 @@ export class AttachmentService
         {
           requestId: attachmentCallId(a.turn.requestId, "answer"),
           purpose: "attachment_answer",
+          ...(a.turn.modelOptions == null
+            ? {}
+            : { modelOptions: answerOptions(a.turn.modelOptions) }),
           ...prompt,
           fileNames: a.files.map((f) => f.fileName),
         },

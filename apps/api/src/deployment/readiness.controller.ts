@@ -106,17 +106,21 @@ export class ReadinessController {
         /* Fail closed. */
       }
     }
-    const ready =
+    const execution =
       setup !== "unavailable" &&
       result.database === "ready" &&
       result.schema === "ready" &&
       storage === "ready" &&
-      (await this.fileRuns.ready());
+      (await this.fileRuns.ready())
+        ? "ready"
+        : "unavailable";
+    const ready = execution === "ready";
     response.status(ready ? 200 : 503);
     return {
       ...result,
       storage,
       setup,
+      execution,
       capabilities: {
         administratorSetup: ready && setup === "required",
         chat: ready && setup === "complete",

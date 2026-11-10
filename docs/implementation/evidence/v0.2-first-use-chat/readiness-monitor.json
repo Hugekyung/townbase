@@ -1,0 +1,61 @@
+{
+  "scope": "HTTP readiness only; no model calls",
+  "intervalSeconds": 30,
+  "samples": [
+    {
+      "at": "2026-11-09T18:20:41.243Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:21:11.280Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:21:41.308Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:22:11.338Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:22:41.366Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:23:11.392Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:23:41.411Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:24:11.439Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:24:41.469Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:25:11.499Z",
+      "status": 200,
+      "execution": "ready"
+    },
+    {
+      "at": "2026-11-09T18:25:41.517Z",
+      "status": 200,
+      "execution": "ready"
+    }
+  ]
+}

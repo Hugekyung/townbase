@@ -10,13 +10,14 @@ type Readiness = {
   database: "ready" | "unavailable";
   schema: "ready" | "unavailable";
   storage: "ready" | "unavailable";
+  execution: "ready" | "unavailable";
 };
 
 function parseReadiness(value: unknown): Readiness {
   if (typeof value !== "object" || value == null)
     throw new Error("Invalid status");
   const record = value as Record<string, unknown>;
-  for (const key of ["database", "schema", "storage"] as const) {
+  for (const key of ["database", "schema", "storage", "execution"] as const) {
     if (record[key] !== "ready" && record[key] !== "unavailable") {
       throw new Error("Invalid status");
     }
@@ -71,6 +72,7 @@ function App() {
     status.database === "ready" &&
     status.schema === "ready" &&
     status.storage === "ready" &&
+    status.execution === "ready" &&
     status.setup !== "unavailable";
   const checks = [
     {
@@ -87,6 +89,26 @@ function App() {
       title: "파일 저장소",
       detail: "문서와 임시 첨부의 보관 공간",
       value: status?.storage,
+    },
+    {
+      title: "관리자 설정 상태",
+      detail: "관리자 등록 상태를 확인할 수 있는지 점검해요",
+      value:
+        status == null
+          ? undefined
+          : status.setup === "unavailable"
+            ? "unavailable"
+            : "ready",
+    },
+    {
+      title: "문서 처리·채팅 서비스",
+      detail: "문서 처리와 질문을 시작할 수 있는지 점검해요",
+      value:
+        status == null
+          ? undefined
+          : status.execution === "ready" && status.httpReady
+            ? "ready"
+            : "unavailable",
     },
   ];
 
@@ -155,11 +177,18 @@ function App() {
                     status.schema === "ready" &&
                     status.storage === "ready"
                   ? "기본 실행 환경은 연결됐지만 관리자 초기화 상태를 확인하지 못했어요. 운영자가 초기화 저장 상태를 확인해 주세요."
-                  : ready
-                    ? status?.setup === "complete"
-                      ? "기본 실행 환경이 연결됐고 관리자 등록도 완료됐어요."
-                      : "기본 실행 환경이 연결됐어요. 다음은 관리자 초기 설정이에요."
-                    : "연결되지 않은 항목이 있어요. 운영자가 서비스 상태를 확인해 주세요."}
+                  : status != null &&
+                      (status.execution === "unavailable" ||
+                        !status.httpReady) &&
+                      status.database === "ready" &&
+                      status.schema === "ready" &&
+                      status.storage === "ready"
+                    ? "문서 처리·채팅 서비스가 준비되지 않았어요. 운영자가 서버 상태를 확인하고 필요한 경우 재시작한 뒤, ‘상태 다시 확인’을 눌러 주세요."
+                    : ready
+                      ? status?.setup === "complete"
+                        ? "기본 실행 환경이 연결됐고 관리자 등록도 완료됐어요."
+                        : "기본 실행 환경이 연결됐어요. 다음은 관리자 초기 설정이에요."
+                      : "연결되지 않은 항목이 있어요. 운영자가 서비스 상태를 확인해 주세요."}
           </div>
         </section>
         <section

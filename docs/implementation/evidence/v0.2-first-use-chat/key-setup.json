@@ -1,0 +1,66 @@
+{
+  "dateKst": "2026-11-10",
+  "status": "local_verified_pending_delivery_approval",
+  "scope": "Key save readback and setup guidance; no backend credential or policy mutation",
+  "testedSource": {
+    "state": "uncommitted_worktree",
+    "identity": "sourceArtifactsSha256"
+  },
+  "sourceArtifactsSha256": {
+    "apps/web/src/workspace/SettingsPanel.tsx": "0f04efe5f9950cf75703b824d7b86e88a28dd3067a1eb1eb9c52db57595dd754",
+    "apps/web/src/workspace/ChatPanel.tsx": "f361f356174834d7a322134b85c1d407e8bc5fc548315fd5721d199b7bbfd384",
+    "apps/web/src/workspace/model-readiness.ts": "15bea44008aa77904c239eac1aa71be03f2372bd7c489c52adef2ae05ad3b7dd",
+    "apps/web/src/style.css": "a4915eb3370b53a8d39cd7d3eae4279347c9b03ee8fcf56a439342fed234a1c1",
+    "apps/api/test/model-setup-web.spec.ts": "27d66b068c5ea367f81e846cc3c94b9a352db14b059b0c9707d84194abad1613",
+    "apps/api/test/chat-recovery-routing.spec.ts": "7a36017d30143e80bd45501f14841389c47f5d4dbde0541b5995be5938ca0510"
+  },
+  "checks": [
+    {
+      "name": "web_build",
+      "logSha256": "1512d467ee40237d23e744bbb902127bc9485104e0b9114bdb4444247eb3b7dd",
+      "summary": [
+        "✓ built in 71ms"
+      ]
+    },
+    {
+      "name": "lint",
+      "logSha256": "c4744e2ffe16dfcd87b4eacbca0d9ecbe401ecd2db62f32f2981bf4c45def518",
+      "summary": []
+    },
+    {
+      "name": "api",
+      "logSha256": "db9e4c2e48e07853cf9571ca67ab2626e827b09de4c4f9ddde6325b45d56336f",
+      "summary": [
+        "Test Suites: 12 skipped, 62 passed, 62 of 74 total",
+        "Tests:       329 skipped, 625 passed, 954 total"
+      ]
+    },
+    {
+      "name": "setup_and_chat_subset",
+      "logSha256": "8a16ee4e450a435a254478a3d0c9e01a60e44e2e880965c203765cec2829576d",
+      "summary": [
+        "Test Suites: 2 passed, 2 total",
+        "Tests:       9 passed, 9 total"
+      ]
+    }
+  ],
+  "observation": {
+    "answerKeyRegisteredAndEnabled": true,
+    "embeddingKeyRegisteredAndEnabled": true,
+    "modelBudgetConfigured": false,
+    "priceConfirmed": false,
+    "ragTransferAllowed": false,
+    "attachmentTransferAllowed": false,
+    "basicAgentConfigured": false,
+    "interpretation": "Key storage is successful; required execution setup is incomplete. No paid provider validation was attempted."
+  },
+  "changes": [
+    "PUT acknowledgement followed by safe masked GET readback; readback failure is distinguished from write failure.",
+    "Key not_checked label is explicitly untested, not loading.",
+    "Model settings load separately from document pagination; failures expose a retry action.",
+    "Shared readiness reasons guide chat and settings; no automatic budget or transfer consent."
+  ],
+  "browser": "Actual existing administrator session, safe saved state and completed/missing checklist verified; chat warning names exact missing settings; no key/password entered or paid test triggered.",
+  "actualPaidCalls": 0,
+  "delivery": "No commit/push/PR performed."
+}
