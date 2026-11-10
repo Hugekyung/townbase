@@ -39,6 +39,9 @@ export type Result = {
     usage: unknown;
   }[];
   result?: {
+    // R05 RAG v2 rows set contractVersion 2; v1 rows and attachments omit it.
+    contractVersion?: 2;
+    followUps?: string[];
     claims: { text: string; evidence: { sourceId: string; quote: string }[] }[];
     conflicts: {
       text: string;

@@ -1,4 +1,10 @@
-import { GROUNDED_FORMAT } from "../src/model-integration/grounded-format";
+import { createHash } from "node:crypto";
+import {
+  GROUNDED_FORMAT,
+  RAG_GROUNDED_FORMAT,
+  groundedFormat,
+  groundedFormatInput,
+} from "../src/model-integration/grounded-format";
 import {
   OpenAIProvider,
   parseProvider,
@@ -150,19 +156,39 @@ describe("fixed OpenAI provider protocol", () => {
       tools: [],
     });
   });
-  test("sends the fixed strict schema for grounded answers without tools or provider storage", async () => {
-    const spy = jest
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify(responseFixture())));
-    await new OpenAIProvider().call(
-      "synthetic-key",
-      { ...request, grounded: true },
-      AbortSignal.timeout(5000),
+  test.each([GROUNDED_FORMAT, RAG_GROUNDED_FORMAT])(
+    "sends the fixed strict schema %# for grounded answers without tools or provider storage",
+    async (format) => {
+      const spy = jest
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response(JSON.stringify(responseFixture())));
+      await new OpenAIProvider().call(
+        "synthetic-key",
+        { ...request, format },
+        AbortSignal.timeout(5000),
+      );
+      const body = JSON.parse(spy.mock.calls[0]![1]!.body as string);
+      expect(body.text).toEqual({ format });
+      expect(body.store).toBe(false);
+      expect(body.tools).toEqual([]);
+    },
+  );
+  test("RAG answers use the v2 schema while attachments keep v1 and other purposes send none", () => {
+    expect(groundedFormat("rag_answer")).toBe(RAG_GROUNDED_FORMAT);
+    expect(groundedFormat("attachment_answer")).toBe(GROUNDED_FORMAT);
+    expect(groundedFormat("rag_question_embedding")).toBeNull();
+    expect(groundedFormatInput("embedding")).toBe("");
+    expect(groundedFormatInput("rag_answer")).toBe(
+      JSON.stringify({ format: RAG_GROUNDED_FORMAT }),
     );
-    const body = JSON.parse(spy.mock.calls[0]![1]!.body as string);
-    expect(body.text).toEqual({ format: GROUNDED_FORMAT });
-    expect(body.store).toBe(false);
-    expect(body.tools).toEqual([]);
+    expect(RAG_GROUNDED_FORMAT.schema.required).toContain("followUps");
+    expect(GROUNDED_FORMAT.schema.required).not.toContain("followUps");
+    // Attachment v1 schema bytes are pinned to the pre-R05 value.
+    expect(
+      createHash("sha256")
+        .update(groundedFormatInput("attachment_answer"))
+        .digest("hex"),
+    ).toBe("87a77d3868fb59be99a2dadb405c249414337470700f10ba07ab9fd03944c614");
   });
   test("uses fixed embedding route/dimensions without an external vector store", async () => {
     const spy = jest.spyOn(globalThis, "fetch").mockResolvedValue(

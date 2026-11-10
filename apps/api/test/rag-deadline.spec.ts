@@ -139,6 +139,7 @@ describe("whole-question deadline", () => {
               isAnswerable: true,
               reason: "",
               conflicts: [],
+              followUps: [],
               claims: [
                 {
                   text: "기록된 답변",

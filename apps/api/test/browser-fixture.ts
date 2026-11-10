@@ -83,9 +83,12 @@ const provider = {
     try {
       const input = JSON.parse(r.input);
       const s = input.sources[0];
+      const v2 =
+        r.format?.name === "townbase_rag_grounded_v2" ? { followUps: [] } : {};
       text = JSON.stringify(
         s
           ? {
+              ...v2,
               isAnswerable: true,
               reason: "",
               claims: [
@@ -99,6 +102,7 @@ const provider = {
               conflicts: [],
             }
           : {
+              ...v2,
               isAnswerable: false,
               reason: "합성 문서의 근거가 없어요.",
               claims: [],

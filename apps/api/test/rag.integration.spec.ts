@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { PrismaClient } from "@townbase/database";
+import { PrismaClient, type Prisma } from "@townbase/database";
 import { Test } from "@nestjs/testing";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import request from "supertest";
@@ -45,6 +45,9 @@ const { CredentialVault } = built(
 const { RagStore } = built(
   "../dist/rag/rag-store",
 ) as typeof import("../src/rag/rag-store");
+const { RAG_PARTIAL_NOTICE } = built(
+  "../dist/rag/rag-policy",
+) as typeof import("../src/rag/rag-policy");
 const { PRICE_VERSION } = built(
   "../dist/model-integration/model-policy",
 ) as typeof import("../src/model-integration/model-policy");
@@ -76,7 +79,9 @@ integration(
       | "refusal"
       | "incomplete"
       | "outage"
-      | "conflict" = "normal";
+      | "conflict"
+      | "partial"
+      | "same_document" = "normal";
     let hold: ((r: ProviderRequest) => Promise<void>) | undefined;
     const vector = (axis = 0) =>
       Array.from({ length: 1536 }, (_, i) => (i === axis ? 1 : 0));
@@ -122,52 +127,98 @@ integration(
           };
           const first = input.sources[0]!;
           const result =
-            variant === "conflict"
+            variant === "partial"
               ? {
                   isAnswerable: false,
-                  reason: "문서의 배송 기준이 달라 확정할 수 없습니다.",
-                  claims: [],
-                  conflicts: [
+                  reason:
+                    "찾은 근거로는 배송비 면제 여부를 판단할 수 없습니다.",
+                  claims: [
                     {
-                      text: "배송 시점이 문서마다 다릅니다.",
-                      evidence: input.sources.slice(0, 2).map((s) => ({
-                        sourceId: s.id,
-                        quote: s.content.slice(0, 30),
-                      })),
+                      text: "배송 절차는 문서에 기록되어 있습니다.",
+                      evidence: [
+                        {
+                          sourceId: first.id,
+                          quote: first.content.slice(0, 30),
+                        },
+                      ],
                     },
                   ],
+                  conflicts: [],
+                  followUps: ["주문 금액은 얼마인가요?"],
                 }
-              : variant === "refusal"
+              : variant === "same_document"
                 ? {
                     isAnswerable: false,
-                    reason: "관련 근거가 충분하지 않습니다.",
+                    reason: "같은 문서 안의 두 구간이 달라 확정할 수 없습니다.",
                     claims: [],
-                    conflicts: [],
-                  }
-                : {
-                    isAnswerable: true,
-                    reason: "",
-                    claims: [
+                    conflicts: [
                       {
-                        text: "배송은 등록된 문서의 절차를 따릅니다.",
+                        text: "문서 앞부분과 뒷부분의 기준이 다릅니다.",
                         evidence: [
                           {
                             sourceId: first.id,
-                            quote:
-                              variant === "invalid"
-                                ? "원문에 없는 문장"
-                                : first.content.slice(0, 30),
+                            quote: first.content.slice(0, 8),
+                          },
+                          {
+                            sourceId: first.id,
+                            quote: first.content.slice(-8),
                           },
                         ],
                       },
                     ],
-                    conflicts: [],
-                  };
+                    followUps: [],
+                  }
+                : variant === "conflict"
+                  ? {
+                      isAnswerable: false,
+                      reason: "문서의 배송 기준이 달라 확정할 수 없습니다.",
+                      claims: [],
+                      conflicts: [
+                        {
+                          text: "배송 시점이 문서마다 다릅니다.",
+                          evidence: input.sources.slice(0, 2).map((s) => ({
+                            sourceId: s.id,
+                            quote: s.content.slice(0, 30),
+                          })),
+                        },
+                      ],
+                    }
+                  : variant === "refusal"
+                    ? {
+                        isAnswerable: false,
+                        reason: "관련 근거가 충분하지 않습니다.",
+                        claims: [],
+                        conflicts: [],
+                      }
+                    : {
+                        isAnswerable: true,
+                        reason: "",
+                        claims: [
+                          {
+                            text: "배송은 등록된 문서의 절차를 따릅니다.",
+                            evidence: [
+                              {
+                                sourceId: first.id,
+                                quote:
+                                  variant === "invalid"
+                                    ? "원문에 없는 문장"
+                                    : first.content.slice(0, 30),
+                              },
+                            ],
+                          },
+                        ],
+                        conflicts: [],
+                      };
           return {
             usage,
             providerId: "synthetic-rag",
             outcome: variant === "incomplete" ? "incomplete" : "succeeded",
-            text: JSON.stringify(result),
+            // RAG uses the v2 schema; attachments keep the v1 shape.
+            text: JSON.stringify(
+              r.format?.name === "townbase_rag_grounded_v2"
+                ? { followUps: [], ...result }
+                : result,
+            ),
           };
         },
       ),
@@ -536,8 +587,102 @@ integration(
           r.body.sources.map((s: { originalId: string }) => s.originalId),
         ),
       ).toEqual(new Set([originalId, secondOriginalId]));
-      expect(r.body.answer).toContain("문서 간 충돌");
+      expect(r.body.answer).toContain("근거 간 충돌");
       expect(r.body.gapId).toEqual(expect.any(String));
+    });
+    test("R05: a refusal keeps verified partial facts and follow-ups, saves a Gap and reads back after restart", async () => {
+      variant = "partial";
+      const r = await ask().expect(200);
+      expect(r.body).toMatchObject({
+        status: "refused",
+        isAnswerable: false,
+        model: "gpt-6-luna",
+      });
+      expect(r.body.result).toMatchObject({
+        contractVersion: 2,
+        claims: [{ text: "배송 절차는 문서에 기록되어 있습니다." }],
+        followUps: ["주문 금액은 얼마인가요?"],
+      });
+      expect(r.body.result.claims[0].evidence[0].sourceId).toBe(
+        r.body.sources[0].id,
+      );
+      expect(r.body.answer).toContain(RAG_PARTIAL_NOTICE);
+      expect(r.body.answer).toContain(
+        "추가로 확인할 항목:\n- 주문 금액은 얼마인가요?",
+      );
+      const answerRequest = provider.call.mock.calls.find(
+        ([, req]) => req.model === "gpt-6-luna",
+      )![1];
+      expect(answerRequest.format?.name).toBe("townbase_rag_grounded_v2");
+      const gap = await owner.ragGap.findUniqueOrThrow({
+        where: { id: r.body.gapId },
+      });
+      expect(gap).toMatchObject({
+        turnRequestId: r.body.requestId,
+        reason: "찾은 근거로는 배송비 면제 여부를 판단할 수 없습니다.",
+      });
+      const row = await owner.ragTurn.findUniqueOrThrow({
+        where: {
+          installationId_requestId: {
+            installationId: "primary",
+            requestId: r.body.requestId,
+          },
+        },
+      });
+      expect(row.status).toBe("refused");
+      expect((row.result as { contractVersion?: number }).contractVersion).toBe(
+        2,
+      );
+      await app.close();
+      await start();
+      const reread = await call(
+        "get",
+        `/rag/questions/${r.body.requestId}`,
+      ).expect(200);
+      expect(reread.body).toEqual(r.body);
+      const gaps = await call("get", "/rag/gaps").expect(200);
+      expect(gaps.body.gaps[0].id).toBe(r.body.gapId);
+    });
+    test("R05: two different passages of one document are an unresolved conflict", async () => {
+      await owner.basicAgent.update({
+        where: { installationId: "primary" },
+        data: { sourceOriginalIds: [originalId] },
+      });
+      variant = "same_document";
+      const r = await ask().expect(200);
+      expect(r.body).toMatchObject({ status: "refused", isAnswerable: false });
+      expect(r.body.sources).toHaveLength(1);
+      expect(r.body.sources[0].originalId).toBe(originalId);
+      const sides = r.body.result.conflicts[0].evidence as { quote: string }[];
+      expect(sides).toHaveLength(2);
+      expect(sides[0]!.quote).not.toBe(sides[1]!.quote);
+      expect(r.body.answer).toContain("근거 간 충돌");
+      expect(r.body.gapId).toEqual(expect.any(String));
+    });
+    test("R05: a stored pre-R05 v1 row is still read with the v1 contract", async () => {
+      const r = await ask().expect(200);
+      const where = {
+        installationId_requestId: {
+          installationId: "primary",
+          requestId: r.body.requestId,
+        },
+      };
+      const row = await owner.ragTurn.findUniqueOrThrow({ where });
+      const v1 = { ...(row.result as Record<string, unknown>) };
+      delete v1.contractVersion;
+      delete v1.followUps;
+      await owner.ragTurn.update({
+        where,
+        data: { result: v1 as Prisma.InputJsonValue },
+      });
+      const read = await call(
+        "get",
+        `/rag/questions/${r.body.requestId}`,
+      ).expect(200);
+      expect(read.body.result).toEqual(v1);
+      expect(read.body.result.contractVersion).toBeUndefined();
+      expect(read.body.answer).toBe(r.body.answer);
+      expect(read.body.status).toBe("answered");
     });
     test("model refusal is persisted with Gap in the same completion transaction", async () => {
       variant = "refusal";

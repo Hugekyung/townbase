@@ -29,10 +29,10 @@ import {
   RAG_LIMITS,
   resolvedMode,
   answerText,
-  parseGroundedResult,
+  parseStoredRagResult,
   type RagQuestion,
   type RagSource,
-  type GroundedResult,
+  type RagStoredResult,
 } from "./rag-policy";
 import { randomUUID } from "node:crypto";
 
@@ -377,7 +377,7 @@ export class RagStore {
     c: Context,
     a: Admission,
     sources: RagSource[],
-    result: GroundedResult,
+    result: RagStoredResult,
     model: string | null,
   ) {
     return this.scoped(token, c, async (tx, fresh, now) => {
@@ -466,9 +466,9 @@ export class RagStore {
   private async turnView(tx: Tx, c: Context, row: Turn, now: Date) {
     const sources = savedSources(row.sources);
     const available = await this.available(tx, c, sources);
-    let result: GroundedResult | null = null;
+    let result: RagStoredResult | null = null;
     if (available && row.result != null)
-      result = parseGroundedResult(JSON.stringify(row.result), sources);
+      result = parseStoredRagResult(JSON.stringify(row.result), sources);
     const used = new Set(
       result
         ? [...result.claims, ...result.conflicts].flatMap((claim) =>
