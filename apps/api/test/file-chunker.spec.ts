@@ -15,6 +15,51 @@ function extraction(text: string): FileExtraction {
   };
 }
 describe("D04 structured file splitting", () => {
+  test("keeps complete rows and page boundaries with exact original offsets", () => {
+    const text =
+      "임대조건 단위: 천원\n18형 청년 보증금 22,302 계약금 4,460\n21형 청년 보증금 25,514 계약금 5,102";
+    const rows = fileChunks(
+      {
+        format: "pdf",
+        codePoints: Array.from(text).length + 3,
+        segments: [
+          { text, location: { page: 3 }, headingPath: [] },
+          { text: "다음쪽", location: { page: 4 }, headingPath: [] },
+        ],
+      },
+      128,
+    );
+    expect(rows.every((c) => Buffer.byteLength(c.content) <= 128)).toBe(true);
+    expect(
+      rows.every(
+        (c) => new Set(c.parts.map((p) => p.location.page)).size === 1,
+      ),
+    ).toBe(true);
+    for (const chunk of rows)
+      for (const part of chunk.parts) {
+        const original = part.segment === 0 ? text : "다음쪽";
+        const value = Array.from(original)
+          .slice(part.start, part.end)
+          .join("")
+          .trim()
+          .replace(/\s+/gu, " ");
+        expect(value.length).toBeGreaterThan(0);
+        expect(chunk.content).toContain(value);
+        const lines = original.split("\n");
+        const ranges = lines.map((line, index) => {
+          const start =
+            Array.from(lines.slice(0, index).join("\n")).length +
+            (index ? 1 : 0);
+          return { start, end: start + Array.from(line).length };
+        });
+        expect(ranges).toContainEqual({ start: part.start, end: part.end });
+      }
+    expect(
+      rows.some((c) =>
+        c.content.includes("18형 청년 보증금 22,302 계약금 4,460"),
+      ),
+    ).toBe(true);
+  });
   test.each(["한국어😀".repeat(2000), "no-spaces".repeat(3000)])(
     "bounds UTF-8 without losing or splitting Unicode characters",
     (text) => {
@@ -45,7 +90,7 @@ describe("D04 structured file splitting", () => {
       })),
     };
     const chunks = fileChunks(source);
-    expect(chunks).toHaveLength(3);
+    expect(chunks).toHaveLength(300);
     expect(chunks.every((c) => c.parts.length <= 128)).toBe(true);
     expect(chunks.flatMap((c) => c.parts).map((p) => p.location.page)).toEqual(
       Array.from({ length: 300 }, (_, i) => i + 1),
@@ -73,9 +118,12 @@ describe("D04 structured file splitting", () => {
     "normalizes whitespace deliberately and retains original code point offsets",
     (text) => {
       const chunks = fileChunks(extraction(text), 256);
-      expect(chunks.map((c) => c.content).join("")).toBe(
-        text.trim().replace(/\s+/gu, " "),
-      );
+      expect(
+        chunks
+          .map((c) => c.content)
+          .join("")
+          .replace(/\s+/gu, " "),
+      ).toBe(text.trim().replace(/\s+/gu, " "));
       expect(
         chunks.every(
           (c) => c.content.trim() && Buffer.byteLength(c.content) <= 256,

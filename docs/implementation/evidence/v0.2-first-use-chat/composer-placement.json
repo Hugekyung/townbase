@@ -1,0 +1,41 @@
+{
+  "dateKst": "2026-11-10",
+  "status": "local_verified_pending_delivery_approval",
+  "scope": "Composer layout only; model selection and persistence handlers unchanged",
+  "testedSource": {
+    "state": "uncommitted_worktree",
+    "identity": "sourceArtifactsSha256"
+  },
+  "sourceArtifactsSha256": {
+    "apps/web/src/workspace/ChatPanel.tsx": "6bf1d8ba63510bd25c26727644c76d8624485e2559a7427ee38535f07e088ec4",
+    "apps/web/src/style.css": "9350641ad8e662dee860fd428d3995b1ce4b991d91e1d07ba46684d931233305"
+  },
+  "checks": {
+    "webBuild": {
+      "passed": true,
+      "logSha256": "ee627adc72b29d0b783cbcbd302ed6772d17e02910cdee5abd81a9060549a64e"
+    },
+    "chatRecoveryAndChoiceTests": {
+      "passed": 2,
+      "logSha256": "e9d56b9eb6d3da3f44b7d580d0d076017aabffbed5c2a1e6c87aede6a58efcd2"
+    },
+    "browser": {
+      "data": "synthetic read-only API preview serving actual built web assets on a temporary loopback port; actual user tab needed login again",
+      "desktop": {
+        "insideComposer": true,
+        "modelLeftOfEffort": true,
+        "effortLeftOfSend": true,
+        "sameRow": true
+      },
+      "narrow390px": {
+        "noHorizontalOverflow": true,
+        "effortLeftOfSend": true,
+        "sameRow": true
+      },
+      "temporaryViewportReset": true
+    }
+  },
+  "localRuntime": "API image rebuilt/recreated; readyz HTTP200/execution ready; no DB migration for placement change",
+  "actualModelCalls": 0,
+  "delivery": "No commit/push/PR performed."
+}

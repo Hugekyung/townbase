@@ -1,3 +1,4 @@
+import { answerOptions } from "../model-integration/model-policy";
 import {
   Injectable,
   Logger,
@@ -216,6 +217,7 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
             ? { originalIds: a.config.sourceOriginalIds }
             : {}),
           knowledgeTypes: profile.knowledgeTypes,
+          question: a.turn.question,
         },
       );
       const candidates = retrieved.map((s) => ({
@@ -255,6 +257,9 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
         {
           requestId: a.turn.answerRequestId,
           purpose: "rag_answer",
+          ...(a.turn.modelOptions == null
+            ? {}
+            : { modelOptions: answerOptions(a.turn.modelOptions) }),
           ...prompt,
           fileNames: selection.sources.map((s) => s.fileName),
         },

@@ -19,6 +19,7 @@ import { FileStorage } from "../files/file-storage";
 import { fileFormat } from "../files/file-contract";
 import {
   DEFAULT_EXECUTION,
+  answerOptions,
   MIN_ANSWER_INPUT_TOKEN_LIMIT,
   digest,
   ModelCallError,
@@ -348,6 +349,12 @@ export class AttachmentStore {
           agentRevision: agent.revision,
           executionDigest: settings.digest,
           operation: input.operation,
+          modelOptions: answerOptions(
+            input.modelOptions ?? {
+              answerModel: settings.answerModel,
+              reasoning: settings.reasoning,
+            },
+          ),
           question: input.question,
           ragQuestion: input.ragQuestion,
           requestedMode: input.requestedMode,
@@ -621,6 +628,8 @@ export class AttachmentStore {
       answer: result ? answerText(result) : null,
       result,
       model: row.model,
+      modelOptions:
+        row.modelOptions == null ? null : answerOptions(row.modelOptions),
       sourceState: available ? "available" : "unavailable",
       sources: available
         ? [

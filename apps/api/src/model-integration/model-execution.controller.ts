@@ -52,6 +52,11 @@ export class ModelExecutionController {
       this.execution.snapshot(this.access.requester(req)),
     );
   }
+  @Get("usage")
+  @Header("Cache-Control", "no-store")
+  usage(@Req() req: AccessRequest) {
+    return this.handle(() => this.execution.usage(this.access.requester(req)));
+  }
   @Put("execution")
   @Header("Cache-Control", "no-store")
   configure(@Req() req: AccessRequest, @Body() body: unknown) {

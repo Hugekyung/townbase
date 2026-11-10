@@ -1,3 +1,4 @@
+import { modelSetupSteps, connectionLabels } from "./model-readiness";
 import { useEffect, useState } from "react";
 import { api, ApiError, errorText, rememberRequest } from "../api";
 import type { Work } from "../Workspace";
@@ -25,42 +26,145 @@ export function SettingsPanel({ work }: { work: Work }) {
   const [integration, setIntegration] = useState<Integration | null>(null),
     [agent, setAgent] = useState<Agent | null>(null),
     [files, setFiles] = useState<FileItem[]>([]),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [loading, setLoading] = useState(true),
+    [attempt, setAttempt] = useState(0),
+    [agentLoaded, setAgentLoaded] = useState(false),
+    [filesLoaded, setFilesLoaded] = useState(false),
+    [agentError, setAgentError] = useState(""),
+    [filesError, setFilesError] = useState(""),
+    [agentLoading, setAgentLoading] = useState(true),
+    [filesLoading, setFilesLoading] = useState(true);
   useEffect(() => {
     const c = new AbortController();
     setError("");
-    void Promise.all([
-      api<Integration>(
-        "/settings/model-integration",
-        "GET",
-        undefined,
-        {},
-        c.signal,
-      ),
-      api<{ agent: Agent | null }>(
-        "/settings/agent",
-        "GET",
-        undefined,
-        {},
-        c.signal,
-      ),
-      selectableFiles(c.signal),
-    ])
-      .then(([i, a, f]) => {
-        setIntegration(i);
-        setAgent(a.agent);
-        setFiles(f);
+    setLoading(true);
+    setAgentLoading(true);
+    setFilesLoading(true);
+    setAgentError("");
+    setFilesError("");
+    void api<Integration>(
+      "/settings/model-integration",
+      "GET",
+      undefined,
+      {},
+      c.signal,
+    )
+      .then((value) => {
+        if (!c.signal.aborted) setIntegration(value);
       })
       .catch((e) => {
         if (!c.signal.aborted) setError(errorText(e));
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setLoading(false);
+      });
+    void api<{ agent: Agent | null }>(
+      "/settings/agent",
+      "GET",
+      undefined,
+      {},
+      c.signal,
+    )
+      .then((value) => {
+        if (!c.signal.aborted) {
+          setAgent(value.agent);
+          setAgentLoaded(true);
+        }
+      })
+      .catch((e) => {
+        if (!c.signal.aborted) setAgentError(errorText(e));
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setAgentLoading(false);
+      });
+    void selectableFiles(c.signal)
+      .then((value) => {
+        if (!c.signal.aborted) {
+          setFiles(value);
+          setFilesLoaded(true);
+        }
+      })
+      .catch((e) => {
+        if (!c.signal.aborted) setFilesError(errorText(e));
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setFilesLoading(false);
       });
     return () => c.abort();
-  }, [work.refresh]);
-  if (error) return <p role="alert">{error}</p>;
-  if (!integration) return <p>설정을 확인하고 있어요.</p>;
+  }, [work.refresh, attempt]);
+  const retry = (
+    <button
+      type="button"
+      disabled={work.busy || loading}
+      onClick={() => setAttempt((n) => n + 1)}
+    >
+      설정 상태 다시 확인
+    </button>
+  );
+  if (!integration)
+    return (
+      <section aria-busy={loading}>
+        {error ? (
+          <p role="alert">설정을 불러오지 못했어요. {error}</p>
+        ) : (
+          <p role="status">저장된 설정을 확인하고 있어요.</p>
+        )}
+        {retry}
+      </section>
+    );
+  const steps = modelSetupSteps(integration, {
+    agentConfigured: agentLoaded && agent != null,
+  }).map((step) => ({
+    ...step,
+    unknown: step.id === "agent" && (agentLoading || Boolean(agentError)),
+  }));
+  const missing = steps.filter((step) => !step.ready);
   return (
     <div className="settings-grid">
-      <section className="settings-card">
+      <section
+        className="settings-card setup-progress"
+        aria-label="문서 채팅 준비 상태"
+        aria-busy={loading}
+      >
+        <h3>문서 채팅 준비 상태</h3>
+        <p>
+          {steps.some((step) => step.unknown)
+            ? "일부 설정 상태를 확인 중이거나 확인하지 못했어요. 아래 항목을 확인해 주세요."
+            : missing.length
+              ? "Key 저장과 채팅 준비 완료는 달라요. 아래 남은 설정을 완료해 주세요."
+              : "모델 실행 설정을 마쳤어요. 문서 등록·색인 후 질문해 보세요."}
+        </p>
+        {loading && <p role="status">저장된 설정을 다시 확인하고 있어요.</p>}
+        {error && <p role="alert">최신 설정을 확인하지 못했어요. {error}</p>}
+        <ul>
+          {steps.map((step) => (
+            <li key={step.id}>
+              <span>
+                {step.unknown
+                  ? agentError
+                    ? "확인 실패"
+                    : "확인 중"
+                  : step.ready
+                    ? "완료"
+                    : "설정 필요"}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById(step.section)
+                    ?.scrollIntoView({ block: "start", behavior: "smooth" })
+                }
+              >
+                {step.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+        {retry}
+      </section>
+      <section className="settings-card" id="model-credentials">
         <h3>1. OpenAI 연결·전송 허용</h3>
         <p>
           내 계정의 API Key로 사용하고 비용은 해당 계정에 청구돼요. Key 저장과
@@ -72,6 +176,7 @@ export function SettingsPanel({ work }: { work: Work }) {
             purpose={p}
             data={integration.credentials[p]}
             work={work}
+            onChanged={setIntegration}
           />
         ))}
         <TransferForm
@@ -85,12 +190,23 @@ export function SettingsPanel({ work }: { work: Work }) {
         integration={integration}
         work={work}
       />
-      <AgentForm
-        key={(agent?.revision ?? 0) + ":" + (agent?.id ?? "new")}
-        agent={agent}
-        files={files}
-        work={work}
-      />
+      {agentError && (
+        <p role="alert">기본 Agent 설정을 확인하지 못했어요. {agentError}</p>
+      )}
+      {filesError && (
+        <p role="alert">참조 문서 목록을 확인하지 못했어요. {filesError}</p>
+      )}
+      {agentLoaded ? (
+        <AgentForm
+          key={(agent?.revision ?? 0) + ":" + (agent?.id ?? "new")}
+          agent={agent}
+          files={files}
+          filesReady={filesLoaded && !filesLoading && !filesError}
+          work={work}
+        />
+      ) : !agentError && !filesError ? (
+        <p role="status">기본 Agent·참조 문서를 확인하고 있어요.</p>
+      ) : null}
     </div>
   );
 }
@@ -98,19 +214,32 @@ function KeyForm({
   purpose,
   data,
   work,
+  onChanged,
 }: {
   purpose: "answer" | "embedding";
   data: Integration["credentials"]["answer"];
   work: Work;
+  onChanged(value: Integration): void;
 }) {
   const [password, setPassword] = useState(""),
     [key, setKey] = useState(""),
     [message, setMessage] = useState("");
-  async function mutate(action: () => Promise<unknown>) {
+  async function mutate(
+    action: () => Promise<unknown>,
+    successMessage = "Key 상태 변경을 저장했어요.",
+  ) {
     setMessage("");
     try {
       await action();
-      setMessage("서버에서 변경 결과를 확인했어요.");
+      setMessage(successMessage);
+      try {
+        onChanged(await api<Integration>("/settings/model-integration"));
+      } catch {
+        setMessage(
+          successMessage +
+            " 최신 상태를 확인하지 못했어요. ‘설정 상태 다시 확인’을 눌러 주세요.",
+        );
+      }
     } finally {
       setPassword("");
       setKey("");
@@ -122,11 +251,13 @@ function KeyForm({
       onSubmit={(e) => {
         e.preventDefault();
         void work.run(() =>
-          mutate(() =>
-            api("/settings/model-integration/credentials/" + purpose, "PUT", {
-              currentPassword: password,
-              apiKey: key,
-            }),
+          mutate(
+            () =>
+              api("/settings/model-integration/credentials/" + purpose, "PUT", {
+                currentPassword: password,
+                apiKey: key,
+              }),
+            "Key를 저장했어요. 연결 검사는 아직 실행하지 않았어요. 위 준비 상태에서 남은 설정을 확인해 주세요.",
           ),
         );
       }}
@@ -134,7 +265,9 @@ function KeyForm({
       <h4>{purpose === "answer" ? "답변" : "임베딩"} Key</h4>
       <p>
         {data.configured ? (data.enabled ? "사용 중" : "비활성") : "미등록"} ·
-        연결 상태 {data.connection} · {data.masked ?? ""}
+        연결 상태{" "}
+        {data.configured ? connectionLabels[data.connection] : "Key 미등록"} ·{" "}
+        {data.masked ?? ""}
       </p>
       <label>
         새 API Key
@@ -232,6 +365,7 @@ function TransferForm({
     [password, setPassword] = useState("");
   return (
     <form
+      id="model-transfers"
       className="setup-form inset"
       onSubmit={(e) => {
         e.preventDefault();
@@ -294,7 +428,7 @@ function ModelForm({
       value.priceVersion === integration.execution.priceVersion,
     );
   return (
-    <section className="settings-card">
+    <section className="settings-card" id="model-budget">
       <h3>2. 답변 모델·사용 한도</h3>
       <form
         className="setup-form"
@@ -443,10 +577,12 @@ function ModelForm({
 function AgentForm({
   agent,
   files,
+  filesReady,
   work,
 }: {
   agent: Agent | null;
   files: FileItem[];
+  filesReady: boolean;
   work: Work;
 }) {
   const [name, setName] = useState(agent?.name ?? "기본 Agent"),
@@ -460,7 +596,7 @@ function AgentForm({
     [password, setPassword] = useState("");
   return (
     <section className="settings-card">
-      <h3>3. 기본 Agent</h3>
+      <h3 id="basic-agent-settings">3. 기본 Agent</h3>
       <form
         className="setup-form"
         onSubmit={(e) => {
@@ -551,6 +687,7 @@ function AgentForm({
         <label>
           참조 문서
           <select
+            disabled={!filesReady}
             value={selection}
             onChange={(e) => setSelection(e.target.value as "all" | "selected")}
           >
@@ -558,8 +695,14 @@ function AgentForm({
             <option value="selected">선택한 문서만</option>
           </select>
         </label>
+        {!filesReady && (
+          <p role="status">
+            참조 문서 목록을 확인할 수 없어 선택 변경은 잠시 사용할 수 없어요.
+            기존 선택은 유지돼요.
+          </p>
+        )}
         {selection === "selected" && (
-          <fieldset>
+          <fieldset disabled={!filesReady}>
             <legend>선택 {ids.length}개</legend>
             {files.map((f) => (
               <label key={f.id} className="check-label">

@@ -19,6 +19,7 @@ import { assertExtraction, FileError, type FileFormat } from "./file-contract";
 import { currentFileWhere, currentIndexWhere } from "./file-index-state";
 
 import { FileStorage } from "./file-storage";
+import { retrievalTerms } from "./retrieval-text";
 
 type Tx = Prisma.TransactionClient;
 type Run = Prisma.FileRunGetPayload<Record<string, never>>;
@@ -328,6 +329,7 @@ export class FileIndexService {
     selection?: {
       originalIds?: readonly string[];
       knowledgeTypes?: readonly string[];
+      question?: string;
     },
   ) {
     try {
@@ -337,6 +339,7 @@ export class FileIndexService {
     }
     if (!Number.isInteger(topK) || topK < 1 || topK > 20)
       throw new ModelCallError("invalid_search_limit");
+    const terms = retrievalTerms(selection?.question ?? "");
     return this.scoped(token, context, (tx, c) =>
       tx.$queryRaw<
         Array<{
@@ -361,9 +364,12 @@ export class FileIndexService {
           requestedMode: string | null;
           resolvedMode: string | null;
           score: number;
+          vectorRank?: number | null;
+          lexicalRank?: number | null;
           reference: string;
         }>
       >(Prisma.sql`
+      WITH eligible AS MATERIALIZED (
       SELECT ch.id,i.id AS "indexId",i."scopeRevision",i."originalId",i."versionId",o.title,v."fileName",v.format,v."contentHash",ch."contentHash" AS "chunkHash",ch.content,ch.locations,ch."headingPath",ch."sourceType",ch."knowledgeTypes",ch."domainTags",ch.status,ch."sourcePriority",ch."requestedMode",ch."resolvedMode",1-(ch.embedding <=> ${toPgVectorLiteral(vector)}::vector) AS score, '/files/'||o.id::text||'/reference?versionId='||v.id::text||'&scopeRevision='||o."scopeRevision"::text AS reference
       FROM "FileIndexChunk" ch JOIN "FileIndex" i ON i.id=ch."indexId" AND i."installationId"=ch."installationId"
       JOIN "FileVersion" v ON v.id=i."versionId" AND v."installationId"=i."installationId"
@@ -371,7 +377,30 @@ export class FileIndexService {
       WHERE i."installationId"=${c.installationId} AND o."ownerAdministratorId"=${c.administratorId} AND i."ownerAdministratorId"=${c.administratorId} AND ${currentIndexWhere}
       ${selection?.originalIds == null ? Prisma.empty : selection.originalIds.length === 0 ? Prisma.sql`AND false` : Prisma.sql`AND i."originalId" IN (${Prisma.join(selection.originalIds.map((id) => Prisma.sql`${id}::uuid`))})`}
       ${selection?.knowledgeTypes == null ? Prisma.empty : Prisma.sql`AND ch."knowledgeTypes"::text[] && ARRAY[${Prisma.join(selection.knowledgeTypes)}]::text[]`}
-      ORDER BY ch.embedding <=> ${toPgVectorLiteral(vector)}::vector, ch.id LIMIT ${topK}`),
+      ), normalized AS MATERIALIZED (
+        SELECT id,regexp_replace(lower(normalize(content,NFKC)), '[[:space:]]', '', 'g') AS text FROM eligible
+      ), scored AS (
+        SELECT eligible.*, ${
+          terms.length
+            ? Prisma.sql`(${Prisma.join(
+                terms.map(
+                  (term) =>
+                    Prisma.sql`CASE WHEN normalized.text LIKE ${"%" + term + "%"} THEN 1 ELSE 0 END`,
+                ),
+                " + ",
+              )})`
+            : Prisma.sql`0`
+        } AS hits
+        FROM eligible JOIN normalized USING (id)
+      ), semantic AS (
+        SELECT id,row_number() OVER (ORDER BY score DESC,id)::int AS rank FROM scored ORDER BY score DESC,id LIMIT ${topK}
+      ), lexical AS (
+        SELECT id,row_number() OVER (ORDER BY hits DESC,score DESC,id)::int AS rank FROM scored WHERE hits>=2 ORDER BY hits DESC,score DESC,id LIMIT ${topK}
+      )
+      SELECT s.*,v.rank AS "vectorRank",l.rank AS "lexicalRank" FROM scored s
+      LEFT JOIN semantic v ON v.id=s.id LEFT JOIN lexical l ON l.id=s.id
+      WHERE v.id IS NOT NULL OR l.id IS NOT NULL
+      ORDER BY (COALESCE(1.0/(60+v.rank),0)+COALESCE(1.0/(60+l.rank),0)) DESC,s.id`),
     );
   }
 }

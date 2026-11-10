@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   ModelCallError,
+  answerOptions,
+  type AnswerOptions,
   validRequestId,
 } from "../model-integration/model-policy";
 import {
@@ -25,6 +27,7 @@ export type AttachmentInput = {
   historyRequestIds: string[];
   ragQuestion: string | null;
   requestedMode: BasicAgentMode;
+  modelOptions?: AnswerOptions;
 };
 export function taskInput(body: unknown): AttachmentInput {
   if (body == null || typeof body !== "object" || Array.isArray(body))
@@ -41,6 +44,7 @@ export function taskInput(body: unknown): AttachmentInput {
           "historyRequestIds",
           "ragQuestion",
           "requestedMode",
+          "modelOptions",
         ].includes(k),
     )
   )
@@ -78,6 +82,9 @@ export function taskInput(body: unknown): AttachmentInput {
         }).question;
   return {
     ...base,
+    ...(v.modelOptions === undefined
+      ? {}
+      : { modelOptions: answerOptions(v.modelOptions) }),
     operation: v.operation as AttachmentInput["operation"],
     attachmentIds: ids(v.attachmentIds, ATTACHMENT_LIMITS.files, 1),
     historyRequestIds: ids(v.historyRequestIds ?? [], 3, 0),

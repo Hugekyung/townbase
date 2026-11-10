@@ -1,5 +1,7 @@
 import {
   DEFAULT_EXECUTION,
+  answerOptions,
+  REASONING_OPTIONS,
   MIN_ANSWER_INPUT_TOKEN_LIMIT,
   PRICE_VERSION,
   cost,
@@ -192,5 +194,27 @@ describe("model configuration and exact cost arithmetic", () => {
     expect(inputBound("한글")).toBe(262);
     expect(validRequestId("1")).toBe(false);
     expect(validRequestId("12345678-1234-4234-8234-123456789012")).toBe(true);
+  });
+});
+
+describe("per-answer choices", () => {
+  test.each(
+    Object.entries(REASONING_OPTIONS).flatMap(([answerModel, efforts]) =>
+      efforts.map((reasoning) => ({ answerModel, reasoning })),
+    ),
+  )("accepts supported choice %j", (choice) => {
+    expect(answerOptions(choice)).toEqual(choice);
+  });
+  test.each([
+    null,
+    undefined,
+    [],
+    {},
+    { answerModel: "gpt-6.1-sol", reasoning: "none" },
+    { answerModel: "gpt-6-luna", reasoning: "ultra" },
+    { answerModel: "text-embedding-3-small", reasoning: "low" },
+    { answerModel: "gpt-6-luna", reasoning: "low", inputTokenLimit: 999999 },
+  ])("rejects unsupported or expanded choices %j", (choice) => {
+    expect(() => answerOptions(choice)).toThrow("invalid_model_options");
   });
 });

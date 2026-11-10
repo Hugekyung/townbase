@@ -1,3 +1,5 @@
+import { boundedFileShutdown } from "./file-shutdown";
+import { fileLockConnectionUrl } from "./file-lock-connection";
 import { isDeepStrictEqual } from "node:util";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -98,12 +100,9 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     );
   }
   private async lock(key: number, wait = false) {
-    const url = new URL(process.env.DATABASE_URL!);
-    url.searchParams.set("connection_limit", "1");
-    // Shutdown must wait for admitted input I/O, not the readiness socket timeout.
-    if (wait) url.searchParams.delete("socket_timeout");
+    const url = fileLockConnectionUrl(process.env.DATABASE_URL!, wait);
     const client = new PrismaClient({
-      datasources: { db: { url: url.toString() } },
+      datasources: { db: { url } },
     });
     try {
       if (wait) {
@@ -174,45 +173,49 @@ export class FileRunService implements OnModuleInit, OnModuleDestroy {
     clearInterval(this.interval);
     if (!this.owner) return;
     this.files.onApplicationShutdown();
-    try {
-      if (this.active) {
-        try {
+    const owner = this.owner;
+    await boundedFileShutdown(async () => {
+      try {
+        if (this.active) {
+          try {
+            await this.db.prisma.fileRun.updateMany({
+              where: { id: this.active, status: "running" },
+              data: {
+                status: "interrupted",
+                errorCode: "api_stopped",
+                completedAt: new Date(),
+              },
+            });
+          } catch {
+            Logger.error("TOWNBASE_FILE_RUN_SHUTDOWN_UNCONFIRMED");
+          } finally {
+            this.activeCancellation?.abort();
+            this.extractor.cancel();
+          }
+        }
+        await this.task;
+        // Drain any admission already holding the input lock before releasing ownership.
+        // New admissions recheck closing under this same lock.
+        await this.staging(async () => {
           await this.db.prisma.fileRun.updateMany({
-            where: { id: this.active, status: "running" },
+            where: { status: "queued" },
             data: {
               status: "interrupted",
               errorCode: "api_stopped",
               completedAt: new Date(),
             },
           });
-        } catch {
-          Logger.error("TOWNBASE_FILE_RUN_SHUTDOWN_UNCONFIRMED");
-        } finally {
-          this.activeCancellation?.abort();
-          this.extractor.cancel();
-        }
+        }, true).catch(() =>
+          Logger.error("TOWNBASE_FILE_RUN_SHUTDOWN_UNCONFIRMED"),
+        );
+      } finally {
+        this.identities.clear();
+        await owner.$disconnect();
+        this.owner = undefined;
       }
-      await this.task;
-      // Drain any admission already holding the input lock before releasing ownership.
-      // New admissions recheck closing under this same lock.
-      await this.staging(async () => {
-        await this.db.prisma.fileRun.updateMany({
-          where: { status: "queued" },
-          data: {
-            status: "interrupted",
-            errorCode: "api_stopped",
-            completedAt: new Date(),
-          },
-        });
-      }, true).catch(() =>
-        Logger.error("TOWNBASE_FILE_RUN_SHUTDOWN_UNCONFIRMED"),
-      );
-    } finally {
-      this.identities.clear();
-      await this.owner.$disconnect();
-      this.owner = undefined;
-    }
+    });
   }
+
   private async scoped<T>(
     identity: Identity,
     work: (tx: Tx, context: AdministratorContext) => Promise<T>,

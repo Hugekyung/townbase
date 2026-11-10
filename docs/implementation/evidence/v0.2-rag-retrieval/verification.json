@@ -1,0 +1,64 @@
+{
+  "date": "2026-11-10",
+  "scope": "bundle A local verification; not model-answer evaluation",
+  "paidCalls": 0,
+  "productionReindexPerformed": false,
+  "existingSourceChunks": 27,
+  "newLocalChunks": 39,
+  "pages": 32,
+  "crossPageChunks": 0,
+  "readOnlyDatabaseProbe": {
+    "method": "read-only lexical diagnostic with synthetic unit vector; not live semantic/model evaluation",
+    "cases": 15,
+    "minSelected": 1,
+    "maxSelected": 4,
+    "maxEvidenceBytes": 7983,
+    "maxObservedMs": 173.9544579999997,
+    "qualityClaim": false
+  },
+  "offlineReplay": {
+    "method": "lexical-only-offline-diagnostic",
+    "cases": 15,
+    "inputHash": "2410996062138b200184fc14d435f20ce3645aec7845bc6f704f7f8008905de2",
+    "qualityClaim": false
+  },
+  "limitations": [
+    "No new live query embeddings or answer-model calls",
+    "Synthetic unit query vector in DB probe cannot measure semantic relevance",
+    "No geometry-based table reconstruction; original rows/units retained conservatively",
+    "Q08 grounded response validation and partial answers remain bundle B"
+  ],
+  "sourceHashes": {
+    "apps/api/src/files/retrieval-text.ts": "c69ccae9d43e3900e7ac4f8562f38aecb25fa111c9cb8330d10481b16a64bc8f",
+    "apps/api/src/files/file-chunker.ts": "99a4b64568364d556cac3c764acef3cfc11063fbeea48df894cac7d217c508c5",
+    "apps/api/src/files/file-index.service.ts": "71c43f4c0b316258e326bed5617c897bd4107e9b643f4fb4f2164aa5071435ec",
+    "apps/api/src/files/file-index-state.ts": "d686b654a1c82984fc115530301b5eb08a62828c03b823d55c07655fe3149475",
+    "apps/api/src/rag/rag-policy.ts": "c19f9e8d2fbc56b915748530f53d58f163dd25393508ced6c4a8cb52b0c1dbb0",
+    "apps/api/src/rag/rag-store.ts": "bb823201873d438ba09ef20bbef301e1223c4935cf8c5ec79a5a73ae7aca7ab0",
+    "apps/api/src/rag/rag.service.ts": "c1cffe7a71c07bdeab06d6400c15ccdc3dddbac5b192d12e5a5336a058230085",
+    "packages/database/prisma/migrations/20261110010000_file_index_structure/migration.sql": "f1627534157f1daa351af36038be3044ac4944f8745e8b7ff1f0a891d73300ff"
+  },
+  "tests": {
+    "apiPassed": 629,
+    "optInSkipped": 331,
+    "fileIndexDbPassed": 55,
+    "ragDbPassed": 27,
+    "runtimeAclPassed": 82,
+    "deploymentPassed": 40,
+    "totalNonDuplicatedPassed": 833
+  },
+  "localDeployment": {
+    "state": "applied",
+    "readinessHttp": 200,
+    "database": "ready",
+    "schema": "ready",
+    "execution": "ready",
+    "migration": "20261110010000_file_index_structure",
+    "existingIndexConfiguration": "file-index-d04-v2",
+    "existingVectorsPreserved": 27,
+    "automaticReindex": false,
+    "paidCalls": 0,
+    "backupMode": "0o600",
+    "temporaryDockerResourcesRemoved": true
+  }
+}

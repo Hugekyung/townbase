@@ -107,6 +107,7 @@ describe("self-hosted deployment surface", () => {
         schema: "ready",
         storage: "ready",
         setup: "required",
+        execution: "ready",
         capabilities: { administratorSetup: true, chat: false },
       });
   });
@@ -115,11 +116,19 @@ describe("self-hosted deployment surface", () => {
     setupStatus.mockResolvedValue({ state: "complete" });
     const ready = await request(app.getHttpServer()).get("/readyz").expect(200);
     expect(ready.body.capabilities.chat).toBe(true);
+    expect(ready.body.execution).toBe("ready");
     fileReady.mockResolvedValue(false);
     const unavailable = await request(app.getHttpServer())
       .get("/readyz")
       .expect(503);
     expect(unavailable.body.capabilities.chat).toBe(false);
+    expect(unavailable.body).toMatchObject({
+      database: "ready",
+      schema: "ready",
+      storage: "ready",
+      setup: "complete",
+      execution: "unavailable",
+    });
     await request(app.getHttpServer()).get("/health").expect(200);
   });
   it("requires the separate operational storage to be writable", async () => {
@@ -128,6 +137,22 @@ describe("self-hosted deployment surface", () => {
       .get("/readyz")
       .expect(503);
     expect(response.body.storage).toBe("unavailable");
+    expect(response.body.execution).toBe("unavailable");
+  });
+  it("does not report execution as ready when administrator setup cannot be checked", async () => {
+    setupStatus.mockRejectedValue(new Error("private-setup-canary"));
+    const response = await request(app.getHttpServer())
+      .get("/readyz")
+      .expect(503);
+    expect(response.body).toMatchObject({
+      database: "ready",
+      schema: "ready",
+      storage: "ready",
+      setup: "unavailable",
+      execution: "unavailable",
+      capabilities: { administratorSetup: false, chat: false },
+    });
+    expect(JSON.stringify(response.body)).not.toContain("private-setup-canary");
   });
   it("returns 503 for database and migration failures", async () => {
     check.mockResolvedValue({ database: "unavailable", schema: "unavailable" });

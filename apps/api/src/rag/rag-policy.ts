@@ -18,14 +18,24 @@ import {
 import { fields } from "../auth/auth-policy";
 import {
   ModelCallError,
+  answerOptions,
+  type AnswerOptions,
   inputBound,
   validRequestId,
 } from "../model-integration/model-policy";
 import type { FileIndexService } from "../files/file-index.service";
+import {
+  evidenceUnits,
+  lexicalMatches,
+  retrievalTerms,
+} from "../files/retrieval-text";
 
 export type RagSource = Awaited<
   ReturnType<FileIndexService["search"]>
->[number] & { promptLabel?: string };
+>[number] & {
+  promptLabel?: string;
+  evidenceWindow?: { start: number; end: number };
+};
 export type ResolvedMode = Exclude<BasicAgentMode, "auto">;
 export const RAG_LIMITS = Object.freeze({
   timeoutMs: 90_000,
@@ -38,6 +48,7 @@ export const RAG_LIMITS = Object.freeze({
 export type RagQuestion = ReturnType<typeof parseBasicAgentQuestion> & {
   conversationId?: string;
   historyRequestIds: string[];
+  modelOptions?: AnswerOptions;
 };
 export function questionInput(body: unknown): RagQuestion {
   if (body == null || typeof body !== "object" || Array.isArray(body))
@@ -45,6 +56,7 @@ export function questionInput(body: unknown): RagQuestion {
   const {
     conversationId,
     historyRequestIds = [],
+    modelOptions,
     ...base
   } = body as Record<string, unknown>;
   if (
@@ -61,6 +73,9 @@ export function questionInput(body: unknown): RagQuestion {
   try {
     return {
       ...parseBasicAgentQuestion(base),
+      ...(modelOptions === undefined
+        ? {}
+        : { modelOptions: answerOptions(modelOptions) }),
       ...(conversationId == null
         ? {}
         : { conversationId: (conversationId as string).toLowerCase() }),
@@ -169,35 +184,60 @@ export function selectSources(
   question = "",
 ) {
   const ranked = rankRetrievalCandidates(
-    strategyFor(mode),
+    { ...strategyFor(mode), topK: sources.length },
     sources.map((s) => ({ ...s, documentId: s.originalId })),
   );
   const rawOrdered = ranked.map((r) => sources.find((s) => s.id === r.id)!);
+  const fusion = (s: RagSource) =>
+    (s.vectorRank == null ? 0 : 1 / (60 + s.vectorRank)) +
+    (s.lexicalRank == null ? 0 : 1 / (60 + s.lexicalRank));
+  const independentLexical = (s: RagSource) =>
+    s.lexicalRank != null &&
+    lexicalMatches(question, s.content) >=
+      Math.max(2, Math.ceil(retrievalTerms(question).length * 0.25));
   const ordered = [...rawOrdered].sort(
     (a, b) =>
+      fusion(b) - fusion(a) ||
       Number(lexicalEvidence(question, b)) -
-      Number(lexicalEvidence(question, a)),
+        Number(lexicalEvidence(question, a)),
   );
   const usable = ordered.filter(
     (s) =>
       Number.isFinite(s.score) &&
-      (s.score >= 0.4 || lexicalEvidence(question, s)),
+      (s.score >= 0.4 || lexicalEvidence(question, s) || independentLexical(s)),
   );
   const selected: RagSource[] = [];
+  const diagnostics: Array<{ id: string; score: number; decision: string }> =
+    [];
   for (const source of usable) {
-    if (selected.length === RAG_LIMITS.sourceCount) break;
-    if (
-      Buffer.byteLength(JSON.stringify([...selected, source]), "utf8") <=
-      RAG_LIMITS.evidenceBytes
-    )
-      selected.push(source);
+    const candidate = evidenceSource(source, question);
+    const decision =
+      selected.length === RAG_LIMITS.sourceCount
+        ? "count"
+        : Buffer.byteLength(
+              JSON.stringify(promptSources([...selected, candidate])),
+              "utf8",
+            ) > RAG_LIMITS.evidenceBytes
+          ? "budget"
+          : "selected";
+    diagnostics.push({ id: source.id, score: source.score, decision });
+    if (decision === "selected") selected.push(candidate);
   }
+  for (const source of sources)
+    if (!diagnostics.some((d) => d.id === source.id))
+      diagnostics.push({
+        id: source.id,
+        score: source.score,
+        decision: rawOrdered.includes(source) ? "threshold" : "mode",
+      });
   if (usable.length && selected.length === 0)
     throw new ModelCallError("evidence_limit_exceeded", 413);
   const top = Math.max(0, ...selected.map((s) => s.score));
   const first = rawOrdered.slice(0, 3);
   const answerable =
-    selected.some((s) => lexicalEvidence(question, s)) ||
+    selected.some(
+      (s) => lexicalEvidence(question, s) || independentLexical(s),
+    ) ||
     (top >= 0.45 &&
       first.length > 0 &&
       first.reduce(
@@ -210,7 +250,70 @@ export function selectSources(
     sources: selected,
     answerable,
     omittedCount: sources.length - selected.length,
+    diagnostics,
+    evidenceBytes: Buffer.byteLength(
+      JSON.stringify(promptSources(selected)),
+      "utf8",
+    ),
   };
+}
+// Keep the complete immutable chunk for provenance and history. Only a bounded,
+// exact contiguous window is sent; both prompt and readback validate that window.
+export function evidenceContent(source: RagSource): string {
+  const range = source.evidenceWindow;
+  if (range == null) return source.content; // Stored v1 results remain readable.
+  if (
+    !Number.isInteger(range.start) ||
+    !Number.isInteger(range.end) ||
+    range.start < 0 ||
+    range.end <= range.start ||
+    range.end > source.content.length
+  )
+    throw new ModelCallError("stored_result_unavailable", 503);
+  return source.content.slice(range.start, range.end);
+}
+function evidenceSource(source: RagSource, question: string): RagSource {
+  const units = evidenceUnits(source.content);
+  if (Buffer.byteLength(source.content) <= 1800 || units.length < 2)
+    return source;
+  const best = units
+    .map((range, index) => ({
+      index,
+      score: lexicalMatches(
+        question,
+        source.content.slice(range.start, range.end),
+      ),
+    }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)[0]!.index;
+  let left = best,
+    right = best;
+  while (
+    right + 1 < units.length &&
+    Buffer.byteLength(
+      source.content.slice(units[left]!.start, units[right + 1]!.end),
+    ) <= 1800
+  )
+    right++;
+  while (
+    left > 0 &&
+    Buffer.byteLength(
+      source.content.slice(units[left - 1]!.start, units[right]!.end),
+    ) <= 1800
+  )
+    left--;
+  return {
+    ...source,
+    evidenceWindow: { start: units[left]!.start, end: units[right]!.end },
+  };
+}
+export function promptSources(sources: readonly RagSource[]) {
+  return sources.map((s, i) => ({
+    id: `S${i + 1}`,
+    title: s.title,
+    content: evidenceContent(s),
+    locations: s.locations,
+    headingPath: s.headingPath,
+  }));
 }
 export function callId(requestId: string, purpose: "embedding" | "answer") {
   const bytes = createHash("sha256")
@@ -326,7 +429,7 @@ export function parseGroundedResult(
             ? sources.find((_, i) => `S${i + 1}` === e.sourceId)
             : sources.find((s) => s.id === e.sourceId);
         if (!source) return invalid();
-        const excerpts = exactExcerpts(e.quote, source.content);
+        const excerpts = exactExcerpts(e.quote, evidenceContent(source));
         if (!excerpts) return invalid();
         return excerpts.map((quote) => ({
           sourceId: source.id,
@@ -401,13 +504,7 @@ export function promptFor(
     question,
     resolvedMode: mode,
     history,
-    sources: sources.map((s, i) => ({
-      id: `S${i + 1}`,
-      title: s.title,
-      content: s.content,
-      locations: s.locations,
-      headingPath: s.headingPath,
-    })),
+    sources: promptSources(sources),
   });
   if (inputBound(instructions + input + GROUNDED_FORMAT_INPUT) > inputLimit)
     throw new ModelCallError("input_limit_exceeded", 413);

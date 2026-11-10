@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-10",
+  "baseCommit": "42ea4288de112bbdc82fc8c4332bf0306f879e76",
+  "reviewedComments": 26,
+  "localFixes": 26,
+  "tests": {
+    "apiPassed": 639,
+    "optInSkipped": 331,
+    "fileIndexDbPassed": 55,
+    "ragDbPassed": 27,
+    "finalBasicDbPassed": 29,
+    "fileRunsDbPassed": 34,
+    "runtimeAclPassed": 82,
+    "deploymentPassed": 40,
+    "totalNonDuplicatedPassed": 906
+  },
+  "sourceHashes": {
+    "apps/api/src/attachments/attachment.service.ts": "61b5dbd3110b8b2dc0a2a79278d3a6af65851204cd620c56b630789642912def",
+    "apps/api/src/files/file-index.service.ts": "5d7d4f4262b4f1ce103a5ff26240ac10590f8f4f710194ae1d0aa94e94cddabf",
+    "apps/api/src/files/retrieval-text.ts": "a4c23b1168a6a36157b9a23bb7a571fdc358ace8a510f709cee4ec9bfc6b1389",
+    "apps/api/src/files/file-chunker.ts": "28bd54f1c4ab51e1a4ce3eb9137ffd4d1f21ec707540d0753780a4b3962abc3a",
+    "apps/api/src/files/file-shutdown.ts": "562589daaed8c2043d413a41f382a7058fe3d61592b783a466deeeb0e571267b",
+    "apps/api/src/files/file-run.service.ts": "f5c3562289481dfbb5325b365b7f15d12e354eae139f143b93103e365decc82f",
+    "apps/api/src/evaluation/retrieval-replay.ts": "69f210a2aaf607ac17cfbb35d32729a75f356f2e0ac37e9f696896ebf75841b0",
+    "apps/web/src/Workspace.tsx": "dbfd8e36003ce403856f41109db5c0153a58bd1d67423a8966020fe8ffedfe3e",
+    "apps/web/src/workspace/SettingsPanel.tsx": "a91b871d18d24b2785b72b87ed92e52ff7b8ee8dd7a556b87cf8bb234fbb9f92",
+    "apps/web/src/workspace/UsageDashboard.tsx": "341dd88784c69085de6101684cf899fdb34af5683a92a9cdd204605696359315",
+    "apps/web/src/style.css": "9caa779990cfa270920355533a003b68b88ec0d85c60bcb23c885f0e8a5356f6"
+  },
+  "paidCalls": 0,
+  "answerScoreRemeasured": false,
+  "documentReindexPerformed": false,
+  "localDeployment": {
+    "applied": true,
+    "readinessHttp": 200,
+    "database": "ready",
+    "schema": "ready",
+    "execution": "ready"
+  },
+  "manualUi": {
+    "surface": "Chrome local installation login screen",
+    "executionLabel": "문서 처리 실행기",
+    "allFiveChecks": "연결됨",
+    "authenticatedWorkspace": "not inspected: existing session expired; no credential entry"
+  },
+  "uiAutomation": "effect-running VM tests: mobile Escape/Tab/focus restoration/viewport, selected-document preservation, pending Agent status, usage refresh retention; not a full real-DOM browser suite",
+  "delivery": "user approved commit/push/PR49 summary comment; unrelated CLAUDE.md working changes excluded"
+}

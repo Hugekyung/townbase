@@ -29,7 +29,7 @@ const { configureSelfHostedHttp } = built(
   "../dist/deployment/self-hosted-http",
 ) as typeof import("../src/deployment/self-hosted-http");
 
-const { chunkRequestId } = built(
+const { chunkRequestId, FILE_INDEX_CONFIGURATION } = built(
   "../dist/files/file-chunker",
 ) as typeof import("../src/files/file-chunker");
 const { FileIndexService } = built(
@@ -53,6 +53,9 @@ const { FileManagementService } = built(
 const { FileStorage } = built(
   "../dist/files/file-storage",
 ) as typeof import("../src/files/file-storage");
+const { DeletionJournal } = built(
+  "../dist/operations/deletion-journal",
+) as typeof import("../src/operations/deletion-journal");
 const { DeploymentDatabase } = built(
   "../dist/deployment/deployment-database",
 ) as typeof import("../src/deployment/deployment-database");
@@ -333,7 +336,7 @@ integration("D04 actual persistent run queue", () => {
       expect(run).toMatchObject({
         status: "succeeded",
         operation: "index",
-        configurationVersion: "file-index-d04-v2",
+        configurationVersion: FILE_INDEX_CONFIGURATION,
         resultVersionId: item.version.id,
       });
       const file = await read(item.id);
@@ -1240,48 +1243,40 @@ integration("D04 actual persistent run queue", () => {
     expect((await scope(item.id, false)).scopeRevision).toBe(2);
     expect(await audit()).toBe(1);
   });
-  test("D05 re-inclusion never revives old vectors even when physical cleanup fails", async () => {
+  test("journal exclusion removes vectors atomically and re-inclusion requires fresh indexing", async () => {
     const item = await register("scope-failure.txt");
     const { source } = await sourceFor(item);
-    const db = app.get(DeploymentDatabase).prisma;
-    const remove = jest
-      .spyOn(db.fileIndex, "deleteMany")
-      .mockRejectedValue(new Error("synthetic cleanup failure"));
-    try {
-      expect((await scope(item.id, false)).cleanup).toBe("pending");
-      expect(
-        await owner.fileIndex.count({ where: { originalId: item.id } }),
-      ).toBe(1);
-      expect(await scope(item.id, true)).toMatchObject({
-        scopeRevision: 3,
-        cleanup: "pending",
-        version: { searchable: false },
-      });
-      await expect(currentSources([source])).rejects.toMatchObject({
-        code: "source_changed",
-      });
-      const saved = await app
-        .get(AuthService)
-        .authorizedOperation(token, context, async (tx, c) => ({
-          source: await fileSourceReference(
-            tx,
-            c,
-            source.originalId,
-            source.versionId,
-            source.scopeRevision,
-          ),
-        }));
-      expect(saved).toMatchObject({
-        ok: true,
-        source: { state: "excluded", resource: null, reference: null },
-      });
-      await request(app.getHttpServer())
-        .get(source.reference)
-        .set(headers())
-        .expect(404);
-    } finally {
-      remove.mockRestore();
-    }
+    expect((await scope(item.id, false)).cleanup).toBe("complete");
+    expect(
+      await owner.fileIndex.count({ where: { originalId: item.id } }),
+    ).toBe(0);
+    expect(await scope(item.id, true)).toMatchObject({
+      scopeRevision: 3,
+      cleanup: "complete",
+      version: { searchable: false },
+    });
+    await expect(currentSources([source])).rejects.toMatchObject({
+      code: "source_changed",
+    });
+    const saved = await app
+      .get(AuthService)
+      .authorizedOperation(token, context, async (tx, c) => ({
+        source: await fileSourceReference(
+          tx,
+          c,
+          source.originalId,
+          source.versionId,
+          source.scopeRevision,
+        ),
+      }));
+    expect(saved).toMatchObject({
+      ok: true,
+      source: { state: "excluded", resource: null, reference: null },
+    });
+    await request(app.getHttpServer())
+      .get(source.reference)
+      .set(headers())
+      .expect(404);
     const before = provider.call.mock.calls.length;
     const { source: fresh } = await sourceFor(item);
     expect(provider.call.mock.calls.length).toBeGreaterThan(before);
@@ -1513,7 +1508,7 @@ integration("D04 actual persistent run queue", () => {
     const item = await register("retry-cleanup.txt");
     const { source } = await sourceFor(item);
     const remove = jest
-      .spyOn(app.get(DeploymentDatabase).prisma.fileIndex, "deleteMany")
+      .spyOn(app.get(FileStorage), "removeIfPresent")
       .mockRejectedValue(new Error("synthetic unavailable DB"));
     try {
       expect(
@@ -1527,7 +1522,7 @@ integration("D04 actual persistent run queue", () => {
       ).toBe("pending");
       expect(
         await owner.fileIndex.count({ where: { originalId: item.id } }),
-      ).toBe(1);
+      ).toBe(0);
       await request(app.getHttpServer())
         .get(source.reference)
         .set(headers())
@@ -1700,7 +1695,7 @@ integration("D04 actual persistent run queue", () => {
       }),
     ).toBeNull();
   });
-  test("D05 audit failure rolls scope and revision back without removing a valid index", async () => {
+  test("journal audit failure blocks reads until startup replay completes exclusion", async () => {
     const item = await register("audit-rollback.txt");
     const { source } = await sourceFor(item);
     await owner.$executeRawUnsafe(
@@ -1717,12 +1712,33 @@ integration("D04 actual persistent run queue", () => {
         'ALTER TABLE "InstallationAuditEvent" DROP CONSTRAINT "D05_reject_scope_audit"',
       );
     }
-    expect(await read(item.id)).toMatchObject({
-      excludedAt: null,
-      scopeRevision: 1,
-      version: { searchable: true },
-    });
-    await currentSources([source]);
+    try {
+      expect(app.get(DeploymentDatabase).operationsBlocked).toBe(true);
+      expect(
+        await owner.fileOriginal.findUniqueOrThrow({ where: { id: item.id } }),
+      ).toMatchObject({ excludedAt: null, scopeRevision: 1 });
+      await request(app.getHttpServer())
+        .get(`/files/${item.id}`)
+        .set(headers())
+        .expect(503);
+      // Simulate successful startup replay before a new instance accepts requests.
+      await app.get(DeletionJournal).replay();
+      app.get(DeploymentDatabase).operationsBlocked = false;
+      expect(await read(item.id)).toMatchObject({
+        excludedAt: expect.any(String),
+        scopeRevision: 2,
+        version: { searchable: false },
+      });
+      await expect(currentSources([source])).rejects.toMatchObject({
+        code: "source_changed",
+      });
+    } finally {
+      try {
+        await app.get(DeletionJournal).replay();
+      } finally {
+        app.get(DeploymentDatabase).operationsBlocked = false;
+      }
+    }
   });
   test.each(["register", "replace", "reprocess", "index"])(
     "PR45 %s history retains captured scope across exclusion/re-inclusion on every read path",
@@ -1943,5 +1959,81 @@ integration("D04 actual persistent run queue", () => {
         })
       ).map((r) => r.requestId),
     ).toEqual([d05AnswerRequestId]);
+  });
+  test("independent lexical search finds a chunk outside vector top20 and retains scope filters", async () => {
+    const item = await register(
+      "lexical.txt",
+      Buffer.from(
+        ("alpha 일반 배송 안내입니다. ".repeat(120) + "\n").repeat(25) +
+          "고유한 해지수수료 환급기한은 7일입니다.",
+      ),
+    );
+    expect((await settled(await index(item.id))).status).toBe("succeeded");
+    const target = await owner.fileIndexChunk.findFirstOrThrow({
+      where: {
+        content: { contains: "고유한 해지수수료" },
+        index: { originalId: item.id },
+      },
+    });
+    await owner.$executeRaw`UPDATE "FileIndexChunk" SET embedding=${JSON.stringify(unitVector(1))}::vector WHERE id=${target.id}::uuid`;
+    expect((await search()).some((r) => r.id === target.id)).toBe(false);
+    const hybrid = await app
+      .get(FileIndexService)
+      .search(token, context, unitVector(), 20, {
+        question: "고유한 해지수수료 환급기한",
+      });
+    expect(hybrid.find((r) => r.id === target.id)).toMatchObject({
+      lexicalRank: 1,
+    });
+    const denied = await app
+      .get(FileIndexService)
+      .search(token, context, unitVector(), 20, {
+        question: "고유한 해지수수료 환급기한",
+        originalIds: [],
+      });
+    expect(denied).toEqual([]);
+    await request(app.getHttpServer())
+      .put(`/files/${item.id}/scope`)
+      .set(headers())
+      .send({ included: false })
+      .expect(200);
+    expect(
+      (
+        await app
+          .get(FileIndexService)
+          .search(token, context, unitVector(), 20, {
+            question: "고유한 해지수수료 환급기한",
+          })
+      ).some((r) => r.id === target.id),
+    ).toBe(false);
+  });
+
+  test("readable v2 indexes remain available until explicit v3 replacement commits", async () => {
+    const item = await register(
+      "upgrade.txt",
+      Buffer.from("alpha old compatible index"),
+    );
+    expect((await settled(await index(item.id))).status).toBe("succeeded");
+    const old = await owner.fileIndex.findFirstOrThrow({
+      where: { originalId: item.id },
+    });
+    await owner.fileIndex.update({
+      where: { id: old.id },
+      data: { configurationVersion: "file-index-d04-v2" },
+    });
+    expect((await read(item.id)).version.searchable).toBe(true);
+    expect(
+      (
+        await app
+          .get(FileIndexService)
+          .search(token, context, unitVector(), 20, { originalIds: [item.id] })
+      ).some((r) => r.indexId === old.id),
+    ).toBe(true);
+    expect((await settled(await index(item.id))).status).toBe("succeeded");
+    const fresh = await owner.fileIndex.findFirstOrThrow({
+      where: { originalId: item.id },
+    });
+    expect(fresh.configurationVersion).toBe(FILE_INDEX_CONFIGURATION);
+    expect(fresh.id).not.toBe(old.id);
   });
 });

@@ -15,7 +15,9 @@ export type Source = {
     headingPath?: string[];
   }[];
 };
+export type AnswerOptions = { answerModel: string; reasoning: string };
 export type Result = {
+  modelOptions?: AnswerOptions | null;
   requestId: string;
   conversationId?: string;
   createdAt?: string;
@@ -93,6 +95,7 @@ export type Integration = {
   execution: {
     settings: Execution;
     priceVersion: string;
+    supportedReasoning: Record<string, string[]>;
     chargedUsd: string;
     heldUsd: string;
     warning80: boolean;

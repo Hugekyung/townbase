@@ -16,6 +16,7 @@ import {
 } from "../files/file-source";
 import {
   DEFAULT_EXECUTION,
+  answerOptions,
   MIN_ANSWER_INPUT_TOKEN_LIMIT,
   digest,
   ModelCallError,
@@ -24,6 +25,7 @@ import {
 } from "../model-integration/model-policy";
 import {
   callId,
+  evidenceContent,
   RAG_LIMITS,
   resolvedMode,
   answerText,
@@ -75,6 +77,7 @@ export function savedSources(value: Prisma.JsonValue): RagSource[] {
     )
   )
     throw new ModelCallError("stored_result_unavailable", 503);
+  for (const source of sources) evidenceContent(source);
   return sources;
 }
 function unionSources(...groups: readonly RagSource[][]) {
@@ -312,7 +315,14 @@ export class RagStore {
           requestedMode: input.requestedMode,
           resolvedMode: resolvedMode(input.requestedMode, input.question),
           historyRequestIds: input.historyRequestIds,
-          configuredModel: settings.answerModel,
+          configuredModel:
+            input.modelOptions?.answerModel ?? settings.answerModel,
+          modelOptions: answerOptions(
+            input.modelOptions ?? {
+              answerModel: settings.answerModel,
+              reasoning: settings.reasoning,
+            },
+          ),
           status: "running",
           sources: historySources as unknown as Prisma.InputJsonValue,
           embeddingRequestId: callId(input.requestId, "embedding"),
@@ -491,6 +501,8 @@ export class RagStore {
       resolvedMode: row.resolvedMode,
       configuredModel: row.configuredModel,
       model: row.model,
+      modelOptions:
+        row.modelOptions == null ? null : answerOptions(row.modelOptions),
       status:
         row.status === "running" && row.deadlineAt <= now
           ? "interrupted"

@@ -21,6 +21,9 @@ import {
 } from "./transfer-policy";
 import {
   ANSWER_MODELS,
+  REASONING_OPTIONS,
+  answerOptions,
+  type AnswerOptions,
   DEFAULT_EXECUTION,
   PRICE_VERSION,
   ModelCallError,
@@ -52,6 +55,7 @@ export type CallInput = {
   input: string;
   instructions?: string;
   fileNames?: readonly string[];
+  modelOptions?: AnswerOptions;
 };
 export type CallBoundary = {
   signal: AbortSignal;
@@ -193,6 +197,7 @@ export class ModelExecutionService {
         return {
           settings,
           priceVersion: PRICE_VERSION,
+          supportedReasoning: REASONING_OPTIONS,
           pricing: [...ANSWER_MODELS, FIXED_EMBEDDING.model].map((model) => ({
             model,
             usdPerMillionTokens: Object.fromEntries(
@@ -212,6 +217,71 @@ export class ModelExecutionService {
             limit == null ||
             settings.priceVersion !== PRICE_VERSION ||
             exposure.charged + exposure.held >= limit,
+        };
+      },
+      { isolationLevel: "RepeatableRead" },
+    );
+  }
+  async usage(context: AdministratorContext) {
+    return this.database.prisma.$transaction(
+      async (tx) => {
+        const [clock] = await tx.$queryRaw<
+          Array<{ now: Date }>
+        >`SELECT clock_timestamp() AS now`;
+        if (!clock) throw new ModelCallError("clock_unavailable", 503);
+        const start = this.month(clock.now);
+        const end = new Date(
+          Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1),
+        );
+        const groups = await tx.$queryRaw<
+          Array<{
+            model: string;
+            purpose: string;
+            status: string;
+            calls: string;
+            measuredCalls: string;
+            inputTokens: string;
+            cachedTokens: string;
+            outputTokens: string;
+            reasoningTokens: string;
+            chargedNanoUsd: string;
+            heldNanoUsd: string;
+          }>
+        >`SELECT model,purpose,status,count(*)::text AS calls,
+        count(usage)::text AS "measuredCalls",
+        coalesce(sum((usage->>'input')::numeric),0)::text AS "inputTokens",
+        coalesce(sum((usage->>'cached')::numeric),0)::text AS "cachedTokens",
+        coalesce(sum((usage->>'output')::numeric),0)::text AS "outputTokens",
+        coalesce(sum((usage->>'reasoning')::numeric),0)::text AS "reasoningTokens",
+        coalesce(sum("chargedNanoUsd"),0)::text AS "chargedNanoUsd",
+        coalesce(sum(CASE WHEN "chargedNanoUsd" IS NULL THEN "reservedNanoUsd" ELSE 0 END),0)::text AS "heldNanoUsd"
+        FROM "ModelCall" WHERE "installationId"=${context.installationId}
+        AND "ownerAdministratorId"=${context.administratorId}
+        AND "createdAt">=${start} AND "createdAt"<${end}
+        GROUP BY model,purpose,status ORDER BY model,purpose,status`;
+        const daily = await tx.$queryRaw<
+          Array<{ day: string; calls: string; chargedNanoUsd: string }>
+        >`
+        SELECT to_char("createdAt",'YYYY-MM-DD') AS day,count(*)::text AS calls,
+        coalesce(sum("chargedNanoUsd"),0)::text AS "chargedNanoUsd"
+        FROM "ModelCall" WHERE "installationId"=${context.installationId}
+        AND "ownerAdministratorId"=${context.administratorId}
+        AND "createdAt">=${start} AND "createdAt"<${end}
+        GROUP BY day ORDER BY day`;
+        return {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          timeZone: "UTC",
+          scope: "townbase_current_administrator",
+          groups: groups.map(({ chargedNanoUsd, heldNanoUsd, ...g }) => ({
+            ...g,
+            chargedUsd: usd(BigInt(chargedNanoUsd)),
+            heldUsd: usd(BigInt(heldNanoUsd)),
+          })),
+          daily: daily.map(({ chargedNanoUsd, ...d }) => ({
+            ...d,
+            chargedUsd: usd(BigInt(chargedNanoUsd)),
+          })),
         };
       },
       { isolationLevel: "RepeatableRead" },
@@ -362,12 +432,17 @@ export class ModelExecutionService {
         ? {}
         : { instructions: input.instructions }),
       fileNames: [...(input.fileNames ?? [])],
+      ...(input.modelOptions === undefined
+        ? {}
+        : { modelOptions: answerOptions(input.modelOptions) }),
     };
     const purpose: CredentialPurpose =
       input.purpose === "document_embedding" ||
       input.purpose === "rag_question_embedding"
         ? "embedding"
         : "answer";
+    if (input.modelOptions && (purpose !== "answer" || check != null))
+      throw new ModelCallError("invalid_model_options");
     const persistedPurpose = check == null ? input.purpose : `check_${check}`;
     const inputDigest = digest({
       purpose: persistedPurpose,
@@ -376,6 +451,7 @@ export class ModelExecutionService {
         ? {}
         : { instructions: input.instructions }),
       fileNames: input.fileNames ?? [],
+      ...(input.modelOptions ? { modelOptions: input.modelOptions } : {}),
     });
     const findPrior = async (tx: Tx, fresh: AdministratorContext) => {
       const prior = await tx.modelCall.findUnique({
@@ -396,7 +472,8 @@ export class ModelExecutionService {
     };
     // Cheap DB/CPU preflight before file access; repeated under admission locks.
     const preflight = async (tx: Tx, fresh: AdministratorContext) => {
-      const settings = await this.settings(tx, fresh.installationId);
+      const configured = await this.settings(tx, fresh.installationId);
+      const settings = { ...configured, ...input.modelOptions };
       if (settings.priceVersion !== PRICE_VERSION)
         throw new ModelCallError("price_not_confirmed", 409);
       if (!validExecution(settings, purpose))

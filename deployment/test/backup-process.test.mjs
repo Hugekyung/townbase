@@ -108,7 +108,9 @@ test("stalled Docker CLI is killed and observed before returning deadline failur
     async (root) => {
       const pidFile = path.join(root, "pid");
       await assert.rejects(
-        docker([pidFile], undefined, { deadlineMs: 300 }),
+        // Leave room for Node fixture startup under parallel test load; still
+        // require actual deadline rejection and observed child termination.
+        docker([pidFile], undefined, { deadlineMs: 2000 }),
         /deadline exceeded/,
       );
       const pid = Number(await readFile(pidFile, "utf8"));

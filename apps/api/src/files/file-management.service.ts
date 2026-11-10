@@ -1,3 +1,4 @@
+import { fileLockConnectionUrl } from "./file-lock-connection";
 import { DeletionJournal } from "../operations/deletion-journal";
 import { createHash } from "node:crypto";
 import {
@@ -67,10 +68,9 @@ export class FileManagementService implements OnApplicationShutdown {
     try {
       // Pin one autocommit connection for the session advisory lock. A parser or
       // large cleanup must not outlive a transaction timeout that releases its lock.
-      const url = new URL(process.env.DATABASE_URL!);
-      url.searchParams.set("connection_limit", "1");
+      const url = fileLockConnectionUrl(process.env.DATABASE_URL!);
       const lease = new PrismaClient({
-        datasources: { db: { url: url.toString() } },
+        datasources: { db: { url } },
       });
       try {
         const [lock] = await lease.$queryRaw<

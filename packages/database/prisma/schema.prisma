@@ -463,7 +463,7 @@ model ModelExecutionSettings {
   installation         Installation @relation(fields: [installationId], references: [id], onDelete: Restrict)
 }
 
-// One explicitly configured Agent per installation; model choice lives in C settings.
+// One Agent per installation; C settings hold defaults, turns retain per-answer choices.
 model BasicAgent {
   installationId String @id
   id String @unique @db.Uuid
@@ -694,6 +694,7 @@ model RagConversation {
   @@unique([installationId,ownerAdministratorId,id])
 }
 model RagTurn {
+  modelOptions Json?
   installationId String
   requestId String @db.Uuid
   ownerAdministratorId String
@@ -767,6 +768,7 @@ model Attachment {
  @@index([installationId,ownerAdministratorId,expiresAt], map:"Attachment_owner_expires_idx")
 }
 model AttachmentTask {
+  modelOptions Json?
  installationId String
  requestId String @db.Uuid
  ownerAdministratorId String
