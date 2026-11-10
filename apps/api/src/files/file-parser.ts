@@ -10,6 +10,7 @@ import {
   type FileExtraction,
   type FileSegment,
 } from "./file-contract";
+import { pdfRules, pdfTables, type PdfTextItem } from "./pdf-table";
 
 // Called only in the bounded child. No file paths/URLs are accepted by any parser.
 export async function parseFile(
@@ -66,6 +67,7 @@ export async function parseFile(
         const reader = page.streamTextContent().getReader();
         let text = "",
           pageCount = 0;
+        const items: Array<PdfTextItem & { hasEOL: boolean }> = [];
         try {
           for (;;) {
             const chunk = await reader.read();
@@ -77,11 +79,31 @@ export async function parseFile(
               if (count + pageCount > FILE_LIMITS.codePoints)
                 throw new FileError("extraction_limit");
               text += value;
+              items.push({
+                index: items.length,
+                str: item.str,
+                hasEOL: item.hasEOL,
+                x: item.transform[4],
+                y: item.transform[5],
+                width: item.width,
+                height: item.height,
+              });
             }
           }
         } finally {
           await reader.cancel().catch(() => undefined);
         }
+        // Table detection is an enhancement: its failure keeps the original text.
+        const structured = await pageWithTables(pdf, page, items).catch(
+          () => null,
+        );
+        // Rebuilt tables repeat their headers per row. A page that would cross
+        // the extraction limit keeps its original text instead of failing.
+        if (
+          structured != null &&
+          count + boundedPageCodePoints(structured) <= FILE_LIMITS.codePoints
+        )
+          text = structured;
         append(text.trimEnd(), { page: pageNumber });
         page.cleanup();
       }
@@ -283,4 +305,65 @@ async function inspectDocx(bytes: Buffer): Promise<void> {
     });
     zip.readEntry();
   });
+}
+
+type PdfModule = typeof import("pdfjs-dist/types/src/pdf");
+type PdfPage = Awaited<
+  ReturnType<
+    Awaited<ReturnType<PdfModule["getDocument"]>["promise"]>["getPage"]
+  >
+>;
+// R04-b: rebuild ruled tables in place; every other item keeps its original
+// stream order. Returns null when no table could be rebuilt with certainty.
+async function pageWithTables(
+  pdf: PdfModule,
+  page: PdfPage,
+  items: ReadonlyArray<PdfTextItem & { hasEOL: boolean }>,
+): Promise<string | null> {
+  const operators = await page.getOperatorList();
+  const OPS = pdf.OPS;
+  const tables = pdfTables(
+    pdfRules(operators.fnArray, operators.argsArray, {
+      save: OPS.save,
+      restore: OPS.restore,
+      transform: OPS.transform,
+      constructPath: OPS.constructPath,
+      stroke: [
+        OPS.stroke,
+        OPS.closeStroke,
+        OPS.fillStroke,
+        OPS.eoFillStroke,
+        OPS.closeFillStroke,
+        OPS.closeEOFillStroke,
+      ],
+      fill: [OPS.fill, OPS.eoFill],
+    }),
+    items,
+  );
+  if (tables.length === 0) return null;
+  const owner = new Map<number, (typeof tables)[number]>();
+  for (const table of tables)
+    for (const index of table.itemIndexes) owner.set(index, table);
+  const emitted = new Set<(typeof tables)[number]>();
+  let text = "";
+  for (const item of items) {
+    const table = owner.get(item.index);
+    if (table == null) {
+      text += item.str + (item.hasEOL ? "\n" : " ");
+      continue;
+    }
+    if (emitted.has(table)) continue;
+    emitted.add(table);
+    text = text.replace(/[ \t]+$/u, "");
+    if (text && !text.endsWith("\n")) text += "\n";
+    text += table.lines.join("\n") + "\n";
+  }
+  return text;
+}
+function boundedPageCodePoints(text: string): number {
+  try {
+    return boundedCodePoints(text);
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
 }

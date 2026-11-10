@@ -214,7 +214,14 @@ export function selectSources(
   const diagnostics: Array<{ id: string; score: number; decision: string }> =
     [];
   for (const source of usable) {
-    const candidate = evidenceSource(source, question);
+    // R04-b: the top-ranked source goes whole when it fits on its own, so a
+    // rebuilt table chunk is not cut to one lexically tied row. Later sources
+    // keep bounded windows and share whatever budget remains.
+    const whole =
+      selected.length === 0 &&
+      Buffer.byteLength(JSON.stringify(promptSources([source])), "utf8") <=
+        RAG_LIMITS.evidenceBytes;
+    const candidate = whole ? source : evidenceSource(source, question);
     const decision =
       selected.length === RAG_LIMITS.sourceCount
         ? "count"
@@ -236,6 +243,7 @@ export function selectSources(
       });
   if (usable.length && selected.length === 0)
     throw new ModelCallError("evidence_limit_exceeded", 413);
+  growWindows(selected);
   const top = Math.max(0, ...selected.map((s) => s.score));
   const first = rawOrdered.slice(0, 3);
   const answerable =
@@ -310,12 +318,81 @@ function evidenceSource(source: RagSource, question: string): RagSource {
     evidenceWindow: { start: units[left]!.start, end: units[right]!.end },
   };
 }
+// R04-b: spend the remaining evidence budget on whole neighbouring units, one
+// unit per source per round, so a table split by the initial window can be
+// delivered whole. The budget check is the same prompt JSON as selection.
+function growWindows(selected: RagSource[]) {
+  const fits = () =>
+    Buffer.byteLength(JSON.stringify(promptSources(selected)), "utf8") <=
+    RAG_LIMITS.evidenceBytes;
+  const units = selected.map((s) =>
+    s.evidenceWindow == null ? null : evidenceUnits(s.content),
+  );
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (let i = 0; i < selected.length; i++) {
+      const window = selected[i]!.evidenceWindow;
+      const list = units[i];
+      if (window == null || list == null) continue;
+      const next = list.find((u) => u.start >= window.end);
+      const prev = [...list].reverse().find((u) => u.end <= window.start);
+      for (const range of [
+        next && { start: window.start, end: next.end },
+        prev && { start: prev.start, end: window.end },
+      ]) {
+        if (!range) continue;
+        const before = selected[i]!;
+        selected[i] = { ...before, evidenceWindow: range };
+        if (fits()) {
+          grew = true;
+          break;
+        }
+        selected[i] = before;
+      }
+    }
+  }
+}
+// The model needs where an excerpt came from, not per-line offsets. Only the
+// distinct locations inside the sent window are listed; the stored source keeps
+// every part for provenance, readback and conflict-side checks.
+export function promptLocations(source: RagSource): unknown[] {
+  const parts = Array.isArray(source.locations)
+    ? (source.locations as unknown[])
+    : [];
+  const lines = source.content.split("\n");
+  const range = source.evidenceWindow;
+  let chosen = parts;
+  if (range != null && parts.length === lines.length) {
+    chosen = [];
+    let offset = 0;
+    lines.forEach((line, i) => {
+      const start = offset;
+      const end = offset + line.length;
+      offset = end + 1;
+      if (start < range.end && end > range.start) chosen.push(parts[i]);
+    });
+  }
+  const seen = new Set<string>();
+  const out: unknown[] = [];
+  for (const part of chosen) {
+    const location =
+      part != null && typeof part === "object" && "location" in part
+        ? part.location
+        : part;
+    const key = JSON.stringify(location);
+    if (location == null || seen.has(key)) continue;
+    seen.add(key);
+    out.push(location);
+  }
+  return out;
+}
 export function promptSources(sources: readonly RagSource[]) {
   return sources.map((s, i) => ({
     id: `S${i + 1}`,
     title: s.title,
     content: evidenceContent(s),
-    locations: s.locations,
+    locations: promptLocations(s),
     headingPath: s.headingPath,
   }));
 }
