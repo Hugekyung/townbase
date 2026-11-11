@@ -94,7 +94,14 @@ export function pdf(text: string | null = "Townbase source text"): Buffer {
 // R04-b: one-page PDF from raw drawing operations. `rules` are content-stream
 // path operators (e.g. "10 10 m 100 10 l S"); `texts` are positioned Helvetica runs.
 export function drawnPdf(
-  texts: Array<{ x: number; y: number; text: string; size?: number }>,
+  texts: Array<{
+    x: number;
+    y: number;
+    text: string;
+    size?: number;
+    /** Text matrix a b c d; e.g. [0, 1, -1, 0] rotates 90 degrees. */
+    matrix?: [number, number, number, number];
+  }>,
   rules: string[] = [],
 ): Buffer {
   return pdfFromContent(
@@ -103,7 +110,7 @@ export function drawnPdf(
       ...rules,
       ...texts.map(
         (t) =>
-          `BT /F1 ${t.size ?? 8} Tf ${t.x} ${t.y} Td (${t.text.replace(/[\\()]/g, "\\$&")}) Tj ET`,
+          `BT /F1 ${t.size ?? 8} Tf ${t.matrix ? `${t.matrix.join(" ")} ${t.x} ${t.y} Tm` : `${t.x} ${t.y} Td`} (${t.text.replace(/[\\()]/g, "\\$&")}) Tj ET`,
       ),
     ].join("\n"),
   );

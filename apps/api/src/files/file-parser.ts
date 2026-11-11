@@ -87,6 +87,12 @@ export async function parseFile(
                 y: item.transform[5],
                 width: item.width,
                 height: item.height,
+                // Shear (italic) keeps a horizontal baseline; rotation,
+                // mirroring and flipping do not.
+                upright:
+                  Math.abs(item.transform[1]) < 1e-6 &&
+                  item.transform[0] > 0 &&
+                  item.transform[3] > 0,
               });
             }
           }

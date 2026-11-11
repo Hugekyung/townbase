@@ -10,6 +10,8 @@ export type PdfTextItem = {
   y: number;
   width: number;
   height: number;
+  /** False for rotated, mirrored or flipped text; its extent is not axis-aligned. */
+  upright: boolean;
 };
 export type PdfOperators = {
   save: number;
@@ -104,7 +106,9 @@ export function pdfRules(
           current = [point(ctm, data[k++]!, data[k++]!)];
           paths.push(current);
         } else if (op === 1) {
-          current?.push(point(ctm, data[k++]!, data[k++]!));
+          // Always consume both coordinates, even when a curve ended the path.
+          const p = point(ctm, data[k++]!, data[k++]!);
+          current?.push(p);
         } else if (op === 2) {
           k += 6;
           current = null;
@@ -275,6 +279,19 @@ export function rebuildTable(
   for (const item of items) {
     const text = item.str;
     if (!finite(item.x, item.y, item.width, item.height)) continue;
+    if (!item.upright && text.trim()) {
+      // Rotated text cannot be placed in a cell; any reach into the frame
+      // (bounded by its width plus height around the origin) aborts.
+      const reach = Math.abs(item.width) + Math.abs(item.height) + TOL;
+      if (
+        item.x + reach > xs[0]! &&
+        item.x - reach < xs[C]! &&
+        item.y - reach < ys[0]! &&
+        item.y + reach > ys[R]!
+      )
+        return null;
+      continue;
+    }
     if (!text.trim()) {
       // Spacing runs inside the frame belong to the table, not the page flow.
       if (
@@ -402,7 +419,8 @@ export function rebuildTable(
     // No certain header: keep cell grouping only, row by row.
     const lines: string[] = [];
     for (let r = 0; r < R; r++) {
-      const cs = rowCells(r).filter((c) => c.r0 === r);
+      // Merged cells repeat on every row they span, as with a header.
+      const cs = rowCells(r);
       if (cs.length) lines.push(cs.map((c) => c.text).join(" | "));
     }
     return lines.length ? { itemIndexes: used, lines } : null;

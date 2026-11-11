@@ -138,6 +138,34 @@ describe("R04-b ruled PDF tables through the real parser", () => {
       "First | Local residents",
     ]);
   }, 20000);
+  test("rotated text inside the frame keeps the original order; rotated text outside does not block", async () => {
+    const rotated = (x: number, y: number) => [
+      ...body(separate),
+      {
+        x,
+        y,
+        text: "Note",
+        matrix: [0, 1, -1, 0] as [number, number, number, number],
+      },
+    ];
+    const inside = await extractor.extract(
+      "rotated.pdf",
+      drawnPdf(rotated(345, 630), rules),
+    );
+    const plain = await extractor.extract(
+      "plain.pdf",
+      drawnPdf(rotated(345, 630)),
+    );
+    expect(inside.segments[0]!.text).not.toContain(" | ");
+    expect(inside.segments[0]!.text).toBe(plain.segments[0]!.text);
+    const outside = await extractor.extract(
+      "rotated-outside.pdf",
+      drawnPdf(rotated(520, 500), rules),
+    );
+    expect(outside.segments[0]!.text.split("\n")).toEqual(
+      expect.arrayContaining(rows),
+    );
+  }, 20000);
 });
 
 describe("R04-b rule extraction and certainty checks", () => {
@@ -174,6 +202,66 @@ describe("R04-b rule extraction and certainty checks", () => {
     });
     expect(pdfRules([91], [path(20, 0, 0, 0, 9, 1, 1)], OPS)).toBeNull();
   });
+  test("a line after a curve consumes its coordinates and keeps later rules aligned", () => {
+    // moveTo, curveTo, lineTo(50,50) with no open path, then a real rule.
+    expect(
+      pdfRules(
+        [91],
+        [
+          path(
+            20,
+            0,
+            0,
+            0,
+            2,
+            1,
+            1,
+            2,
+            2,
+            3,
+            3,
+            1,
+            50,
+            50,
+            0,
+            0,
+            10,
+            1,
+            100,
+            10,
+          ),
+        ],
+        OPS,
+      ),
+    ).toEqual({ horizontal: [{ at: 10, from: 0, to: 100 }], vertical: [] });
+  });
+  test("without a header, a vertically merged cell repeats on every row it spans", () => {
+    // Left column rows 1-2 merge; no numeric row, so no header is chosen.
+    const rules = {
+      horizontal: [
+        { at: 30, from: 0, to: 40 },
+        { at: 20, from: 0, to: 40 },
+        { at: 10, from: 20, to: 40 },
+        { at: 0, from: 0, to: 40 },
+      ],
+      vertical: [
+        { at: 0, from: 0, to: 30 },
+        { at: 20, from: 0, to: 30 },
+        { at: 40, from: 0, to: 30 },
+      ],
+    };
+    const item = (index: number, x: number, y: number, str: string) =>
+      ({ index, str, x, y, width: 6, height: 4, upright: true }) as PdfTextItem;
+    expect(
+      pdfTables(rules, [
+        item(0, 2, 23, "Rank"),
+        item(1, 22, 23, "Rule"),
+        item(2, 2, 8, "First"),
+        item(3, 22, 13, "Local"),
+        item(4, 22, 3, "Family"),
+      ]).map((t) => t.lines),
+    ).toEqual([["Rank | Rule", "First | Local", "First | Family"]]);
+  });
   test("a numeric-looking header row under a spanning header cell stays a header", () => {
     // Size spans header rows 0-1; Income spans the 100%/120% header row.
     const rules = {
@@ -191,7 +279,7 @@ describe("R04-b rule extraction and certainty checks", () => {
       ],
     };
     const item = (index: number, x: number, y: number, str: string) =>
-      ({ index, str, x, y, width: 6, height: 4 }) as PdfTextItem;
+      ({ index, str, x, y, width: 6, height: 4, upright: true }) as PdfTextItem;
     expect(
       pdfTables(rules, [
         item(0, 2, 18, "Size"),
@@ -219,7 +307,7 @@ describe("R04-b rule extraction and certainty checks", () => {
       ],
     };
     const item = (index: number, x: number, y: number, str: string) =>
-      ({ index, str, x, y, width: 4, height: 4 }) as PdfTextItem;
+      ({ index, str, x, y, width: 4, height: 4, upright: true }) as PdfTextItem;
     expect(
       pdfTables(rules, [item(0, 2, 13, "1"), item(1, 13, 3, "2")]),
     ).toEqual([]);
