@@ -182,6 +182,7 @@ export function lexicalEvidence(question: string, source: RagSource): boolean {
     );
   });
 }
+export const RAG_LEXICAL_LEAD = 2;
 export function selectSources(
   mode: ResolvedMode,
   sources: RagSource[],
@@ -205,11 +206,31 @@ export function selectSources(
       Number(lexicalEvidence(question, b)) -
         Number(lexicalEvidence(question, a)),
   );
-  const usable = ordered.filter(
+  const passing = ordered.filter(
     (s) =>
       Number.isFinite(s.score) &&
       (s.score >= 0.4 || lexicalEvidence(question, s) || independentLexical(s)),
   );
+  // Reciprocal-rank fusion ranks a chunk found only by lexical search (1/61)
+  // below any chunk found by both lists, even at mediocre ranks. In a small
+  // index almost every chunk is in both lists, so the strongest exact-term
+  // matches were cut for budget. The top two lexical candidates that pass the
+  // independent lexical gate are considered right after the top fused source.
+  // This changes order only; every gate, the count limit and budget still apply.
+  const lexicalLead = passing
+    .filter(
+      (s) =>
+        s !== passing[0] &&
+        s.lexicalRank != null &&
+        s.lexicalRank <= RAG_LEXICAL_LEAD &&
+        independentLexical(s),
+    )
+    .sort((a, b) => a.lexicalRank! - b.lexicalRank!);
+  const usable = [
+    ...passing.slice(0, 1),
+    ...lexicalLead,
+    ...passing.slice(1).filter((s) => !lexicalLead.includes(s)),
+  ];
   const selected: RagSource[] = [];
   const diagnostics: Array<{ id: string; score: number; decision: string }> =
     [];
@@ -284,9 +305,17 @@ export function evidenceContent(source: RagSource): string {
     throw new ModelCallError("stored_result_unavailable", 503);
   return source.content.slice(range.start, range.end);
 }
+// Initial window per non-top source. Korean text is ~3 bytes per character, so
+// 1,800-byte windows let only three sources fit the 8KB budget after a whole
+// top chunk, and strong later candidates were cut for budget. Smaller initial
+// windows admit more distinct sources; growWindows then spends the leftover.
+export const INITIAL_WINDOW_BYTES = 1000;
 function evidenceSource(source: RagSource, question: string): RagSource {
   const units = evidenceUnits(source.content);
-  if (Buffer.byteLength(source.content) <= 1800 || units.length < 2)
+  if (
+    Buffer.byteLength(source.content) <= INITIAL_WINDOW_BYTES ||
+    units.length < 2
+  )
     return source;
   const best = units
     .map((range, index) => ({
@@ -303,14 +332,14 @@ function evidenceSource(source: RagSource, question: string): RagSource {
     right + 1 < units.length &&
     Buffer.byteLength(
       source.content.slice(units[left]!.start, units[right + 1]!.end),
-    ) <= 1800
+    ) <= INITIAL_WINDOW_BYTES
   )
     right++;
   while (
     left > 0 &&
     Buffer.byteLength(
       source.content.slice(units[left - 1]!.start, units[right]!.end),
-    ) <= 1800
+    ) <= INITIAL_WINDOW_BYTES
   )
     left--;
   return {
