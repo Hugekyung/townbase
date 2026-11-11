@@ -476,3 +476,112 @@ describe("RAG question and grounded evidence contracts", () => {
     ).toBe(false);
   });
 });
+// R07 retrieval diagnosis: in a small index nearly every chunk is in both the
+// semantic and lexical lists, so reciprocal-rank fusion put the strongest
+// lexical-only match (1/61) below mediocre both-list chunks, and the 8KB budget
+// was spent before it was reached (Q05/Q09/Q10/Q04/Q14 of the housing notice).
+describe("R07 evidence selection keeps the strongest lexical match", () => {
+  const uid = (n: number) =>
+    `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const filler = (n: number, rank: number) =>
+    source({
+      id: uid(n),
+      content: Array.from(
+        { length: 80 },
+        (_, i) => `일반 안내 문장 ${n}-${i}번입니다.`,
+      ).join("\n"),
+      score: 0.5,
+      vectorRank: rank,
+      lexicalRank: rank + 1,
+    });
+  const question = "우편접수도 가능해? 접수 장소는 어디야?";
+  const target = (overrides: Partial<RagSource> = {}) =>
+    source({
+      id: uid(9),
+      content:
+        "■ 신청접수\n방문접수(우편접수 불가) 접수 장소는 본관 지하 회의실입니다.\n접수 시간은 10시부터 17시까지입니다.",
+      score: 0.3,
+      vectorRank: null,
+      lexicalRank: 1,
+      ...overrides,
+    });
+  test("a lexical-only rank-1 match that passes the lexical gate is not cut for budget", () => {
+    const candidates = [1, 2, 3, 4].map((n) => filler(n, n));
+    const selection = selectSources(
+      "onboarding",
+      [...candidates, target()],
+      question,
+    );
+    const ids = selection.sources.map((s) => s.id);
+    // The top fused source stays first; the lexical lead is considered next.
+    expect(ids[0]).toBe(uid(1));
+    expect(ids[1]).toBe(uid(9));
+    expect(evidenceContent(selection.sources[1]!)).toContain(
+      "방문접수(우편접수 불가)",
+    );
+    expect(selection.diagnostics.find((d) => d.id === uid(9))!.decision).toBe(
+      "selected",
+    );
+    expect(selection.evidenceBytes).toBeLessThanOrEqual(8000);
+    expect(selection.sources.length).toBeLessThanOrEqual(5);
+  });
+  test("smaller initial windows admit more distinct sources before growth", () => {
+    const candidates = [1, 2, 3, 4, 5].map((n) => filler(n, n));
+    const selection = selectSources("onboarding", candidates, "일반 안내 문장");
+    // A whole top chunk plus 1,800-byte windows left room for only three.
+    expect(selection.sources.length).toBeGreaterThanOrEqual(4);
+    expect(selection.evidenceBytes).toBeLessThanOrEqual(8000);
+  });
+  test("a top source too large to go whole keeps the 1,800-byte initial window", () => {
+    // Over 8KB, so the top source is windowed. With 1,800 bytes the window is
+    // the matching line plus the 1,400-byte next line; with 1,000 bytes it
+    // would be the 600-byte previous line instead, and the 6,000-byte second
+    // source leaves too little budget for growth to add the next line later.
+    const top = source({
+      id: uid(1),
+      content: [
+        "a".repeat(2500),
+        "a".repeat(2500),
+        "p".repeat(600),
+        "우편접수 장소 안내",
+        "n".repeat(1400),
+        "z".repeat(2500),
+      ].join("\n"),
+      score: 0.9,
+      vectorRank: 1,
+      lexicalRank: 1,
+    });
+    const other = source({
+      id: uid(2),
+      content: "o".repeat(6000),
+      score: 0.5,
+      vectorRank: 2,
+      lexicalRank: null,
+    });
+    const selection = selectSources(
+      "onboarding",
+      [top, other],
+      "우편접수 장소는?",
+    );
+    expect(selection.sources.map((s) => s.id)).toEqual([uid(1), uid(2)]);
+    const window = evidenceContent(selection.sources[0]!);
+    expect(window).toBe("우편접수 장소 안내\n" + "n".repeat(1400) + "\n");
+    expect(Buffer.byteLength(window)).toBeGreaterThan(1000);
+    expect(Buffer.byteLength(window)).toBeLessThanOrEqual(1800);
+  });
+  test("a lexical rank alone does not bypass the gates", () => {
+    const weak = target({
+      content: "본관 지하에는 회의실이 있습니다.",
+      lexicalRank: 1,
+    });
+    const selection = selectSources(
+      "onboarding",
+      [1, 2, 3].map((n) => filler(n, n)).concat(weak),
+      question,
+    );
+    expect(selection.sources.map((s) => s.id)).not.toContain(uid(9));
+    expect(selection.diagnostics.find((d) => d.id === uid(9))!.decision).toBe(
+      "threshold",
+    );
+  });
+});

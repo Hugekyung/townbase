@@ -334,3 +334,9 @@
 - 인용 실패 진단은 `QUOTE_MISMATCH`(글자·숫자 없음)·`QUOTE_PUNCTUATION`·`QUOTE_SPACING`으로 나눈다. 분류는 진단 전용이며 인용을 통과시키지 않는다. 이전 로그의 `QUOTE_MISMATCH`와 합산하지 않는다.
 - 채팅 출처 위치는 같은 위치를 한 번만 표시하고, `.thread-scroll`은 absolute 하위 요소를 가두도록 `position: relative`를 유지한다.
 - R07 재측정은 질문마다 새 대화로 한다. 첫 재평가 7/30·원인·남은 추출 품질 작업은 [후속 기록](docs/implementation/v0.2-r07-first-run-fixes.md)을 따른다.
+
+## R07 근거 선택 보완 (2026-11-11, 로컬)
+
+- 근거 선택은 합친 순위 1위 다음에 어휘 검색 2위 이내이면서 독립 어휘 기준을 통과한 후보를 먼저 검토한다(`RAG_LEXICAL_LEAD`). 순서만 바꾸며 점수·어휘 기준, 근거 최대5개·8KB 예산은 그대로다.
+- 첫 근거가 아닌 출처의 처음 구간은 1,000B(`INITIAL_WINDOW_BYTES`)이고, 남는 예산은 `growWindows`로 넓힌다. 첫 근거를 조각 전체로 보내는 R04-b 규칙은 유지한다. 첫 근거가 단독으로 예산을 넘으면 처음 구간은 1,800B(`TOP_WINDOW_BYTES`)다.
+- 진단·재현 결과와 한계는 [근거 선택 기록](docs/implementation/v0.2-evidence-selection.md)을 따른다. 재현은 근거 전달 확인이며 답변 정확도 측정이 아니다.
