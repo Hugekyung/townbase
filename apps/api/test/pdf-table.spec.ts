@@ -482,4 +482,35 @@ describe("R07 PDF runs that touch are one word", () => {
       ]).map((t) => t.lines),
     ).toEqual([["Rank | Rule", "First | 랜선 실", "First | Family"]]);
   });
+  test("words split from one crossing run keep their space even when the run is compressed", () => {
+    const rules = {
+      horizontal: [
+        { at: 30, from: 0, to: 40 },
+        { at: 20, from: 0, to: 40 },
+        { at: 0, from: 0, to: 40 },
+      ],
+      vertical: [
+        { at: 0, from: 0, to: 30 },
+        { at: 20, from: 0, to: 30 },
+        { at: 40, from: 0, to: 30 },
+      ],
+    };
+    const item = (
+      index: number,
+      x: number,
+      y: number,
+      str: string,
+      width = 6,
+    ) => ({ index, str, x, y, width, height: 4, upright: true }) as PdfTextItem;
+    // A narrow run: its estimated word gap (0.3 x 1.8 = 0.54) is below the
+    // touching bound for height 4 (0.6), but the run text has a real space.
+    const crossing = "ab cd" + " ".repeat(40) + "ef";
+    const lines = pdfTables(rules, [
+      item(0, 2, 23, "Rank"),
+      item(1, 22, 23, "Rule"),
+      item(2, 4, 8, crossing, 28.08),
+    ]).map((t) => t.lines);
+    expect(lines.flat().join("\n")).toContain("ab cd");
+    expect(lines.flat().join("\n")).not.toContain("abcd");
+  });
 });

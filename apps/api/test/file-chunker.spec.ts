@@ -185,6 +185,13 @@ describe("R07 v4 units and chunk size", () => {
       "다음 문장입니다.",
     ]);
   });
+  test("only a period right after a digit is exempt; a period after a space still ends a unit", () => {
+    const text = "서류를 제출 . 다음 단계 ! 확인 3. 끝";
+    const units = evidenceUnits(text).map((u) =>
+      text.slice(u.start, u.end).trim(),
+    );
+    expect(units).toEqual(["서류를 제출 .", "다음 단계 !", "확인 3. 끝"]);
+  });
   test("v4 indexes target 2,048-byte chunks under the unchanged 4,096 bound; v2/v3 stay readable", () => {
     expect(FILE_INDEX_CONFIGURATION).toBe("file-index-d04-v4");
     expect(READABLE_INDEX_CONFIGURATIONS).toEqual([
@@ -204,5 +211,7 @@ describe("R07 v4 units and chunk size", () => {
       expect(Buffer.byteLength(c.content)).toBeLessThanOrEqual(
         TARGET_CHUNK_BYTES,
       );
+    // Direct callers get the v4 target by default, not the 4,096 bound.
+    expect(fileChunks(extraction(text))).toEqual(chunks);
   });
 });

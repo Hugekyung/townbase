@@ -640,7 +640,7 @@ model FileRunRequest {
 // Persistent uploaded-file retrieval only; attachments never enter these tables.
 model FileIndex {
  scopeRevision Int @default(1)
- chunkBytes Int @default(4096)
+ chunkBytes Int @default(2048)
  id String @id @db.Uuid
  installationId String
  ownerAdministratorId String

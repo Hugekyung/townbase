@@ -71,8 +71,7 @@ export async function parseFile(
         const page = await document.getPage(pageNumber);
         // Stream so a single huge page cannot bypass the extraction limit.
         const reader = page.streamTextContent().getReader();
-        let text = "",
-          pageCount = 0;
+        let pageCount = 0;
         const items: Array<PdfTextItem & { hasEOL: boolean }> = [];
         try {
           for (;;) {
@@ -84,7 +83,6 @@ export async function parseFile(
               pageCount += boundedCodePoints(value);
               if (count + pageCount > FILE_LIMITS.codePoints)
                 throw new FileError("extraction_limit");
-              text += value;
               items.push({
                 index: items.length,
                 str: item.str,
@@ -105,9 +103,10 @@ export async function parseFile(
         } finally {
           await reader.cancel().catch(() => undefined);
         }
-        // The streamed text above bounds the limit check (one separator per
-        // item); the page text joins touching runs without an inserted space.
-        text = streamText(items);
+        // The streamed count above bounds the limit check (one separator per
+        // item); the page text, built once here, joins touching runs without
+        // an inserted space.
+        let text = streamText(items);
         // Table detection is an enhancement: its failure keeps the original text.
         const structured = await pageWithTables(pdf, page, items).catch(
           () => null,

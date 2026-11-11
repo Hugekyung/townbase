@@ -63,7 +63,16 @@ type Cell = {
   c0: number;
   c1: number;
   units: number;
-  words: Array<{ x: number; end: number; y: number; h: number; text: string }>;
+  // run: source text item. Words split from one run had whitespace between
+  // them in the run text, so they keep a space whatever their estimated gap.
+  words: Array<{
+    x: number;
+    end: number;
+    y: number;
+    h: number;
+    text: string;
+    run: number;
+  }>;
   text: string;
 };
 export type PdfTable = {
@@ -366,7 +375,14 @@ export function rebuildTable(
     const firstCell = at(r, first);
     const lastCell = at(r, last);
     if (firstCell === lastCell) {
-      firstCell.words.push({ x: left, end: right, y: item.y, h, text });
+      firstCell.words.push({
+        x: left,
+        end: right,
+        y: item.y,
+        h,
+        text,
+        run: item.index,
+      });
     } else {
       // One run crossing borders: place each word by its estimated centre and
       // require a clear margin; otherwise do not reconstruct this table.
@@ -393,7 +409,14 @@ export function rebuildTable(
         const margin = Math.min(centre - xs[c]!, xs[c + 1]! - centre);
         if (margin < 3) return null;
         const cell = at(r, c);
-        cell.words.push({ x: from, end: to, y: item.y, h, text: match[0] });
+        cell.words.push({
+          x: from,
+          end: to,
+          y: item.y,
+          h,
+          text: match[0],
+          run: item.index,
+        });
         touched.add(cell);
       }
       const span = new Set<Cell>();
@@ -420,7 +443,8 @@ export function rebuildTable(
             (w, i) =>
               (i === 0
                 ? ""
-                : touching(
+                : words[i - 1]!.run !== w.run &&
+                    touching(
                       words[i - 1]!.end,
                       w.x,
                       Math.max(words[i - 1]!.h, w.h),

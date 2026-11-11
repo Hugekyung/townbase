@@ -39,7 +39,7 @@ export type FileChunk = {
 };
 export function fileChunks(
   value: FileExtraction,
-  maxBytes = CHUNK_BYTES,
+  maxBytes = TARGET_CHUNK_BYTES,
 ): FileChunk[] {
   assertExtraction(value, value.format);
   if (!Number.isInteger(maxBytes) || maxBytes < 4 || maxBytes > CHUNK_BYTES)
@@ -107,7 +107,7 @@ export function fileChunks(
 }
 function byteChunks(
   value: FileExtraction,
-  maxBytes = CHUNK_BYTES,
+  maxBytes = TARGET_CHUNK_BYTES,
 ): FileChunk[] {
   if (!Number.isInteger(maxBytes) || maxBytes < 4 || maxBytes > CHUNK_BYTES)
     throw new RangeError("Invalid file chunk bound");
