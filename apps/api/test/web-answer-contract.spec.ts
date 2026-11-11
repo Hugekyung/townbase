@@ -147,6 +147,32 @@ describe("R05 chat result display", () => {
     // (JSX splits "출처 {n}개" into separate text children.)
     expect(view).toContain("등록 문서 모집공고16쪽오전 10시부터");
   });
+  test("per-line locations on one page are listed once per place", () => {
+    // Stored locations are one per extracted line, so a page-3 table chunk
+    // carries many page-3 entries. Each place shows once, in source order.
+    const at = (page: number) => ({
+      segment: 0,
+      start: 0,
+      end: 1,
+      location: { page },
+      headingPath: [],
+    });
+    const view = render({
+      ...base,
+      status: "refused",
+      answer: answerText(partial),
+      sources: [
+        {
+          ...source,
+          kind: "file",
+          locations: [at(3), at(3), at(3), at(4), at(3), at(4), at(3)],
+        },
+      ],
+      result: partial,
+    });
+    expect(view).toContain("모집공고3쪽 · 4쪽오전 10시부터");
+    expect(view).not.toContain("3쪽 · 3쪽");
+  });
   test.each([
     ["answered v2", { status: "answered", contractVersion: 2 }],
     [

@@ -257,6 +257,8 @@ describe("R05 RAG v2 answer contract", () => {
       "TOWNBASE_RAG_GROUNDING_ANSWERABILITY",
       "TOWNBASE_RAG_GROUNDING_CONFLICT_EVIDENCE",
       "TOWNBASE_RAG_GROUNDING_FOLLOW_UP",
+      "TOWNBASE_RAG_GROUNDING_QUOTE_PUNCTUATION",
+      "TOWNBASE_RAG_GROUNDING_QUOTE_SPACING",
     ]);
   });
 });
@@ -569,6 +571,106 @@ describe("R05 minimum input setting", () => {
       ).toBeLessThanOrEqual(MIN_ANSWER_INPUT_TOKEN_LIMIT);
     },
   );
+});
+
+// R07 first-use run: every failure was quote_mismatch. Extracted PDF lines keep
+// visual wraps inside sentences, and the model copied them as a space or as
+// nothing. Only whitespace may differ; the stored quote is the exact source span.
+describe("R07 quote whitespace tolerance", () => {
+  const wrapped = chunk(
+    3,
+    [
+      "※ 출산자녀는 ’23.",
+      "3.",
+      "28 이후 출산한 자녀(입양자녀 및 태아 포함)를 의미하며, 기준일 이후 출산 자녀가 있는 경우",
+      "에는 기준일 이전 출생한 기존 미성년자녀도 포함하여 최대 2자녀로 인정",
+      "총 1",
+      "2명 모집",
+      "‧ 방문접수(우편접수 불가)",
+    ],
+    [0, 1, 2, 3, 4, 5, 6].map((i) => ({
+      segment: 40,
+      start: i * 100,
+      end: i * 100 + 50,
+      page: 7,
+    })),
+  );
+  const answer = (quote: string) =>
+    v2({ claims: [claim("사실", ["S1", quote])] });
+  test.each([
+    [
+      "a wrapped date copied with spaces",
+      "’23. 3. 28 이후 출산한 자녀",
+      "’23.\n3.\n28 이후 출산한 자녀",
+    ],
+    [
+      "a wrapped date copied without spaces",
+      "’23.3.28 이후",
+      "’23.\n3.\n28 이후",
+    ],
+    [
+      "a word split across lines copied joined",
+      "출산 자녀가 있는 경우에는 기준일 이전 출생한 기존 미성년자녀도 포함",
+      "출산 자녀가 있는 경우\n에는 기준일 이전 출생한 기존 미성년자녀도 포함",
+    ],
+    [
+      "extra spaces and surrounding whitespace",
+      "  최대  2자녀로 인정 ",
+      "최대 2자녀로 인정",
+    ],
+  ])(
+    "%s is verified and stored as the exact source text",
+    (_n, quote, stored) => {
+      const result = parseRagAnswer(answer(quote), [wrapped]);
+      expect(result.claims[0]!.evidence).toEqual([
+        { sourceId: wrapped.id, quote: stored },
+      ]);
+      expect(wrapped.content).toContain(stored);
+      // Readback re-verifies the stored span exactly.
+      const readback = parseStoredRagResult(JSON.stringify(result), [wrapped]);
+      expect(readback.claims[0]!.evidence[0]!.quote).toBe(stored);
+    },
+  );
+  test.each([
+    ["digits joined across a wrap", "총 12명 모집", "quote_spacing"],
+    ["a space inserted between digits", "’2 3.", "quote_spacing"],
+    ["a changed date", "’23. 3. 29 이후 출산한 자녀", "quote_mismatch"],
+    ["a changed count", "최대 3자녀로 인정", "quote_mismatch"],
+    [
+      "a replaced bullet glyph",
+      "· 방문접수(우편접수 불가)",
+      "quote_punctuation",
+    ],
+    ["changed brackets", "방문접수[우편접수 불가]", "quote_punctuation"],
+  ])("%s is still rejected with its own diagnostic", (_n, quote, detail) => {
+    expect(rejection(() => parseRagAnswer(answer(quote), [wrapped]))).toBe(
+      detail,
+    );
+  });
+  test("joined nonadjacent pieces are each matched with whitespace tolerance", () => {
+    const result = parseRagAnswer(
+      answer("’23. 3. 28 이후 출산한 자녀\n방문접수(우편접수 불가)"),
+      [wrapped],
+    );
+    // Not one contiguous span, so it falls back to ordered exact pieces.
+    expect(result.claims[0]!.evidence.map((e) => e.quote)).toEqual([
+      "’23.\n3.\n28 이후 출산한 자녀",
+      "방문접수(우편접수 불가)",
+    ]);
+  });
+  test("the attachment v1 contract uses the same whitespace-only rule", () => {
+    const v1 = parseGroundedResult(
+      JSON.stringify({
+        isAnswerable: true,
+        reason: "",
+        claims: [claim("사실", ["S1", "있는 경우에는 기준일"])],
+        conflicts: [],
+      }),
+      [wrapped],
+      "prompt",
+    );
+    expect(v1.claims[0]!.evidence[0]!.quote).toBe("있는 경우\n에는 기준일");
+  });
 });
 
 describe("R05 grounding diagnostics", () => {

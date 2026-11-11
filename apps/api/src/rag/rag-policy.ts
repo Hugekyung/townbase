@@ -470,6 +470,11 @@ export const GROUNDING_REJECTIONS = [
   "answerability",
   "conflict_evidence",
   "follow_up",
+  // quote_mismatch is now "letters/digits not found". These two split out
+  // failures where only punctuation/symbols, or only whitespace between ASCII
+  // letters/digits, differ from the source.
+  "quote_punctuation",
+  "quote_spacing",
 ] as const;
 export type GroundingRejection = (typeof GROUNDING_REJECTIONS)[number];
 export class GroundingError extends ModelCallError {
@@ -483,11 +488,65 @@ export const GROUNDING_DIAGNOSTIC_CODES = GROUNDING_REJECTIONS.map(
 export function groundingDiagnostic(detail: GroundingRejection): string {
   return "TOWNBASE_RAG_GROUNDING_" + detail.toUpperCase();
 }
-// Models sometimes join nonadjacent sentences into one quote. Preserve every
-// non-whitespace character as separate exact, ordered excerpts; never repair
-// spelling, punctuation, numbers or missing facts with approximate matching.
-export function exactExcerpts(quote: string, content: string): string[] | null {
-  if (content.includes(quote)) return [quote];
+// Extracted PDF text keeps visual line wraps as newlines inside sentences
+// ("있는 경우\n에는", "’23.\n3.\n28"), and models copy them as a space or as
+// nothing. Only whitespace may differ: every non-whitespace character must match
+// exactly and contiguously. Whitespace is never added or removed between two
+// ASCII letters/digits, so "3\n4" cannot become "34" and "34" cannot become
+// "3 4". The located span is the exact source text, which is what is stored.
+type Located = { start: number; end: number };
+const isSpace = (ch: string) => /\s/u.test(ch);
+const isWordChar = (ch: string) => /[0-9A-Za-z]/.test(ch);
+function compact(text: string) {
+  const chars: string[] = [];
+  const at: number[] = [];
+  const spaceBefore: boolean[] = [];
+  let gap = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (isSpace(ch)) {
+      gap = chars.length > 0;
+      continue;
+    }
+    chars.push(ch);
+    at.push(i);
+    spaceBefore.push(gap);
+    gap = false;
+  }
+  return { text: chars.join(""), at, spaceBefore };
+}
+function locateQuote(
+  quote: string,
+  content: string,
+  from: number,
+): Located | null {
+  const exact = content.indexOf(quote, from);
+  if (exact >= 0) return { start: exact, end: exact + quote.length };
+  const q = compact(quote);
+  if (!q.text) return null;
+  const c = compact(content);
+  let start = c.at.findIndex((i) => i >= from);
+  if (start < 0) return null;
+  for (;;) {
+    const found = c.text.indexOf(q.text, start);
+    if (found < 0) return null;
+    let boundaryKept = true;
+    for (let k = 1; k < q.text.length; k++) {
+      if (q.spaceBefore[k] === c.spaceBefore[found + k]) continue;
+      if (isWordChar(q.text[k - 1]!) && isWordChar(q.text[k]!)) {
+        boundaryKept = false;
+        break;
+      }
+    }
+    if (boundaryKept)
+      return {
+        start: c.at[found]!,
+        end: c.at[found + q.text.length - 1]! + 1,
+      };
+    start = found + 1;
+  }
+}
+function quotePieces(quote: string): string[] {
   const boundaries = [...quote.matchAll(/\n+|(?<=[.!?。])\s+/gu)];
   const pieces: string[] = [];
   let start = 0;
@@ -498,17 +557,55 @@ export function exactExcerpts(quote: string, content: string): string[] | null {
     start = end + boundary[0].length;
   }
   const tail = quote.slice(start).trim();
-  if (tail) {
-    pieces.push(tail);
-  }
+  if (tail) pieces.push(tail);
+  return pieces;
+}
+// Models sometimes join nonadjacent sentences into one quote. Preserve every
+// non-whitespace character as separate exact, ordered excerpts; never repair
+// spelling, punctuation, numbers or missing facts with approximate matching.
+export function locateExcerpts(
+  quote: string,
+  content: string,
+): Located[] | null {
+  const whole = locateQuote(quote, content, 0);
+  if (whole) return [whole];
+  const pieces = quotePieces(quote);
   if (pieces.length < 2 || pieces.length > 5) return null;
+  const spans: Located[] = [];
   let offset = 0;
   for (const piece of pieces) {
-    const found = content.indexOf(piece, offset);
-    if (found < 0) return null;
-    offset = found + piece.length;
+    const found = locateQuote(piece, content, offset);
+    if (!found) return null;
+    spans.push(found);
+    offset = found.end;
   }
-  return pieces;
+  return spans;
+}
+export function exactExcerpts(quote: string, content: string): string[] | null {
+  return (
+    locateExcerpts(quote, content)?.map((s) => content.slice(s.start, s.end)) ??
+    null
+  );
+}
+// Diagnostic only: why a quote failed, without storing provider text. The
+// quote is never accepted on these weaker comparisons.
+export function quoteRejection(
+  quote: string,
+  content: string,
+): GroundingRejection {
+  const pieces = quotePieces(quote);
+  const failing =
+    pieces.length >= 2 && pieces.length <= 5
+      ? (pieces.find((p) => !locateQuote(p, content, 0)) ?? quote)
+      : quote;
+  const strip = (v: string, re: RegExp) => v.replace(re, "");
+  const ws = /\s+/gu;
+  if (strip(content, ws).includes(strip(failing, ws))) return "quote_spacing";
+  const symbols = /[^\p{L}\p{N}]+/gu;
+  const letters = strip(failing, symbols);
+  if (letters && strip(content, symbols).includes(letters))
+    return "quote_punctuation";
+  return "quote_mismatch";
 }
 type UnitSpan = { key: string; start: number; end: number };
 type LocatedEvidence = Evidence & { originalId: string; spans: UnitSpan[] };
@@ -656,20 +753,16 @@ function parseGrounded(
               : sources.find((s) => s.id === e.sourceId);
           if (!source) return invalid("source_id");
           const window = evidenceContent(source);
-          const excerpts = exactExcerpts(e.quote, window);
-          if (!excerpts) return invalid("quote_mismatch");
+          const located = locateExcerpts(e.quote, window);
+          if (!located) return invalid(quoteRejection(e.quote, window));
           const base = source.evidenceWindow?.start ?? 0;
-          let offset = 0;
-          return excerpts.map((quote) => {
-            const found = window.indexOf(quote, offset);
-            offset = found + quote.length;
-            return {
-              sourceId: source.id,
-              quote,
-              originalId: source.originalId,
-              spans: unitSpans(source, base + found, base + offset),
-            };
-          });
+          // The stored quote is the exact source span, not the model's copy.
+          return located.map(({ start, end }) => ({
+            sourceId: source.id,
+            quote: window.slice(start, end),
+            originalId: source.originalId,
+            spans: unitSpans(source, base + start, base + end),
+          }));
         },
       );
       if (evidence.length > 10) return invalid("schema");

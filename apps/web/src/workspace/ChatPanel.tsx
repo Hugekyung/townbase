@@ -9,9 +9,23 @@ import {
   download,
 } from "../api";
 import type { Work } from "../Workspace";
-import type { Result, Integration, AnswerOptions } from "./types";
+import type { Result, Integration, AnswerOptions, Source } from "./types";
 import type { ChatLocation } from "./navigation";
 import { Icon } from "./Icon";
+// Stored locations are per extracted line (one entry per chunk line), so many
+// share a page. Show each distinct place once, in source order.
+export function locationLabels(
+  locations: Source["locations"] | undefined,
+): string {
+  const labels = (locations ?? []).map(({ location: l }) =>
+    l.page
+      ? `${l.page}쪽`
+      : l.paragraph
+        ? `${l.paragraph}번째 문단`
+        : `${l.lineStart ?? ""}~${l.lineEnd ?? ""}줄`,
+  );
+  return labels.filter((l, i) => labels.indexOf(l) === i).join(" · ");
+}
 export function ResultView({ result }: { result: Result }) {
   const [error, setError] = useState("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -125,15 +139,7 @@ export function ResultView({ result }: { result: Result }) {
                     {s.title}
                   </strong>
                   <small>
-                    {s.locations
-                      ?.map((l) =>
-                        l.location.page
-                          ? `${l.location.page}쪽`
-                          : l.location.paragraph
-                            ? `${l.location.paragraph}번째 문단`
-                            : `${l.location.lineStart ?? ""}~${l.location.lineEnd ?? ""}줄`,
-                      )
-                      .join(" · ")}
+                    {locationLabels(s.locations)}
                   </small>
                   {claims
                     .flatMap((c) =>
