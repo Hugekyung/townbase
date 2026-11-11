@@ -899,6 +899,9 @@ footer span {
   border: 0;
 }
 .thread-scroll {
+  /* Contains absolutely positioned descendants (sr-only labels) so they are
+     clipped by this scroller instead of extending the page below the composer. */
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
