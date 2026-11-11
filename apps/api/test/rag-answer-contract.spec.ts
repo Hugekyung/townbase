@@ -521,6 +521,21 @@ describe("R05 stored readback and prompt boundary", () => {
     );
     expect(rag.instructions).toContain("followUps");
     expect(attachment.instructions).not.toContain("followUps");
+    // R07 Q13: only RAG v2 carries the list-scope (exception list) rule.
+    expect(rag.instructions).toContain("List scope:");
+    // Exemptions and eligibility exclusions are separate cases, and a missing
+    // introducing line leaves the item's role undecided.
+    expect(rag.instructions).toContain(
+      "exempts from a requirement (e.g. 다만 아래 경우는 제외) are exceptions",
+    );
+    expect(rag.instructions).toContain(
+      "excludes from eligibility (e.g. 해당하는 자는 제외) are bars",
+    );
+    expect(rag.instructions).toContain(
+      "If that line is not supplied, do not decide the item's role",
+    );
+    expect(rag.instructions).not.toContain("they are NOT requirements");
+    expect(attachment.instructions).not.toContain("List scope:");
     expect(attachment.input).toBe(rag.input);
     const bound = inputBound(
       rag.instructions + rag.input + RAG_GROUNDED_FORMAT_INPUT,
