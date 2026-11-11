@@ -658,6 +658,56 @@ describe("R07 quote whitespace tolerance", () => {
       "방문접수(우편접수 불가)",
     ]);
   });
+  test("stored readback accepts only the exact persisted span", () => {
+    const spaced = "’23. 3. 28 이후 출산한 자녀";
+    const stored = (contract: Record<string, unknown>) =>
+      JSON.stringify({
+        ...contract,
+        isAnswerable: true,
+        reason: "",
+        claims: [
+          { text: "사실", evidence: [{ sourceId: wrapped.id, quote: spaced }] },
+        ],
+        conflicts: [],
+      });
+    expect(
+      rejection(() =>
+        parseStoredRagResult(stored({ contractVersion: 2, followUps: [] }), [
+          wrapped,
+        ]),
+      ),
+    ).toBe("quote_spacing");
+    // Stored v1 rows (old RAG and attachment readback) are strict as well.
+    expect(rejection(() => parseGroundedResult(stored({}), [wrapped]))).toBe(
+      "quote_spacing",
+    );
+  });
+  test("an earlier whitespace-tolerant match is used when a later exact one would block the next piece", () => {
+    const layout = chunk(
+      4,
+      [
+        "가나다 기준일",
+        "이전 출생한 자녀 인정",
+        "기타 안내",
+        "방문접수(우편접수 불가)",
+        "기준일 이전 출생한 자녀 인정",
+      ],
+      [0, 1, 2, 3, 4].map((i) => ({
+        segment: 41,
+        start: i * 100,
+        end: i * 100 + 50,
+        page: 8,
+      })),
+    );
+    const result = parseRagAnswer(
+      answer("기준일 이전 출생한 자녀 인정\n방문접수(우편접수 불가)"),
+      [layout],
+    );
+    expect(result.claims[0]!.evidence.map((e) => e.quote)).toEqual([
+      "기준일\n이전 출생한 자녀 인정",
+      "방문접수(우편접수 불가)",
+    ]);
+  });
   test("the attachment v1 contract uses the same whitespace-only rule", () => {
     const v1 = parseGroundedResult(
       JSON.stringify({

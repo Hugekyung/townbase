@@ -494,6 +494,8 @@ export function groundingDiagnostic(detail: GroundingRejection): string {
 // exactly and contiguously. Whitespace is never added or removed between two
 // ASCII letters/digits, so "3\n4" cannot become "34" and "34" cannot become
 // "3 4". The located span is the exact source text, which is what is stored.
+// Stored readback is strict: a persisted quote is already an exact source span,
+// so only exact matches are accepted there.
 type Located = { start: number; end: number };
 const isSpace = (ch: string) => /\s/u.test(ch);
 const isWordChar = (ch: string) => /[0-9A-Za-z]/.test(ch);
@@ -515,13 +517,27 @@ function compact(text: string) {
   }
   return { text: chars.join(""), at, spaceBefore };
 }
+// Returns the match that ends first at or after `from`. For ordered pieces the
+// earliest end always leaves the most room for the next piece, so choosing it
+// never rejects a quote that some other choice of matches would accept.
 function locateQuote(
   quote: string,
   content: string,
   from: number,
+  tolerant: boolean,
 ): Located | null {
-  const exact = content.indexOf(quote, from);
-  if (exact >= 0) return { start: exact, end: exact + quote.length };
+  const at = content.indexOf(quote, from);
+  const exact = at >= 0 ? { start: at, end: at + quote.length } : null;
+  if (!tolerant) return exact;
+  const spaced = locateSpaced(quote, content, from);
+  if (exact == null || spaced == null) return exact ?? spaced;
+  return spaced.end < exact.end ? spaced : exact;
+}
+function locateSpaced(
+  quote: string,
+  content: string,
+  from: number,
+): Located | null {
   const q = compact(quote);
   if (!q.text) return null;
   const c = compact(content);
@@ -566,15 +582,16 @@ function quotePieces(quote: string): string[] {
 export function locateExcerpts(
   quote: string,
   content: string,
+  tolerant = true,
 ): Located[] | null {
-  const whole = locateQuote(quote, content, 0);
+  const whole = locateQuote(quote, content, 0, tolerant);
   if (whole) return [whole];
   const pieces = quotePieces(quote);
   if (pieces.length < 2 || pieces.length > 5) return null;
   const spans: Located[] = [];
   let offset = 0;
   for (const piece of pieces) {
-    const found = locateQuote(piece, content, offset);
+    const found = locateQuote(piece, content, offset, tolerant);
     if (!found) return null;
     spans.push(found);
     offset = found.end;
@@ -596,7 +613,7 @@ export function quoteRejection(
   const pieces = quotePieces(quote);
   const failing =
     pieces.length >= 2 && pieces.length <= 5
-      ? (pieces.find((p) => !locateQuote(p, content, 0)) ?? quote)
+      ? (pieces.find((p) => !locateQuote(p, content, 0, true)) ?? quote)
       : quote;
   const strip = (v: string, re: RegExp) => v.replace(re, "");
   const ws = /\s+/gu;
@@ -753,7 +770,13 @@ function parseGrounded(
               : sources.find((s) => s.id === e.sourceId);
           if (!source) return invalid("source_id");
           const window = evidenceContent(source);
-          const located = locateExcerpts(e.quote, window);
+          // Fresh provider output may differ only in whitespace; a stored
+          // quote must still be the exact persisted source span.
+          const located = locateExcerpts(
+            e.quote,
+            window,
+            referenceFormat === "prompt",
+          );
           if (!located) return invalid(quoteRejection(e.quote, window));
           const base = source.evidenceWindow?.start ?? 0;
           // The stored quote is the exact source span, not the model's copy.
