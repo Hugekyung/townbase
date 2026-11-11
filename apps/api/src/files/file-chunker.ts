@@ -6,13 +6,22 @@ import {
 } from "./file-contract";
 import { evidenceUnits } from "./retrieval-text";
 
-export const FILE_INDEX_CONFIGURATION = "file-index-d04-v3";
+// v4 (R07): 2,048-byte default chunks, number/date/section periods are no
+// longer unit boundaries, and PDF text items that touch are joined without an
+// inserted space (extraction d03-v3).
+export const FILE_INDEX_CONFIGURATION = "file-index-d04-v4";
 // Old embeddings stay usable until an explicit, atomic reindex succeeds.
 export const READABLE_INDEX_CONFIGURATIONS = [
   "file-index-d04-v2",
+  "file-index-d04-v3",
   FILE_INDEX_CONFIGURATION,
 ];
+// Upper bound for any chunk (and the stored chunkBytes CHECK).
 export const CHUNK_BYTES = 4096;
+// Default target. 4KB chunks mixed several provisions per page into one vector
+// and spent the 8KB evidence budget on three sources; 2KB keeps one or two
+// provisions per chunk. Overlap stays at most a quarter (512 bytes).
+export const TARGET_CHUNK_BYTES = 2048;
 const MAX_PARTS = 128;
 // Fixed UTF-8 bound, not an exact tokenizer. Normalize whitespace explicitly;
 // offsets still address the original segment (Unicode code points).

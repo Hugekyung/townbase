@@ -10,7 +10,13 @@ import {
   type FileExtraction,
   type FileSegment,
 } from "./file-contract";
-import { pdfRules, pdfTables, type PdfTextItem } from "./pdf-table";
+import {
+  itemSeparator,
+  pdfRules,
+  pdfTables,
+  streamText,
+  type PdfTextItem,
+} from "./pdf-table";
 
 // Called only in the bounded child. No file paths/URLs are accepted by any parser.
 export async function parseFile(
@@ -99,6 +105,9 @@ export async function parseFile(
         } finally {
           await reader.cancel().catch(() => undefined);
         }
+        // The streamed text above bounds the limit check (one separator per
+        // item); the page text joins touching runs without an inserted space.
+        text = streamText(items);
         // Table detection is an enhancement: its failure keeps the original text.
         const structured = await pageWithTables(pdf, page, items).catch(
           () => null,
@@ -352,18 +361,25 @@ async function pageWithTables(
     for (const index of table.itemIndexes) owner.set(index, table);
   const emitted = new Set<(typeof tables)[number]>();
   let text = "";
-  for (const item of items) {
+  items.forEach((item, i) => {
     const table = owner.get(item.index);
     if (table == null) {
-      text += item.str + (item.hasEOL ? "\n" : " ");
-      continue;
+      const next = items[i + 1];
+      text +=
+        item.str +
+        (next != null && owner.has(next.index)
+          ? item.hasEOL
+            ? "\n"
+            : " "
+          : itemSeparator(item, next));
+      return;
     }
-    if (emitted.has(table)) continue;
+    if (emitted.has(table)) return;
     emitted.add(table);
     text = text.replace(/[ \t]+$/u, "");
     if (text && !text.endsWith("\n")) text += "\n";
     text += table.lines.join("\n") + "\n";
-  }
+  });
   return text;
 }
 function boundedPageCodePoints(text: string): number {

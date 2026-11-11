@@ -1,10 +1,14 @@
 import {
   fileChunks,
   CHUNK_BYTES,
+  FILE_INDEX_CONFIGURATION,
+  READABLE_INDEX_CONFIGURATIONS,
+  TARGET_CHUNK_BYTES,
   chunkRequestId,
   embeddingVector,
 } from "../src/files/file-chunker";
 import type { FileExtraction } from "../src/files/file-contract";
+import { evidenceUnits } from "../src/files/retrieval-text";
 function extraction(text: string): FileExtraction {
   return {
     format: "txt",
@@ -164,4 +168,41 @@ describe("D04 structured file splitting", () => {
   );
   test("accepts only the fixed nonzero finite vector", () =>
     expect(() => embeddingVector(Array(1536).fill(0.1))).not.toThrow());
+});
+
+// R07: the splitter treated "’23." and "3-2." as sentence ends, so a date or a
+// section number and its title became separate lines/units.
+describe("R07 v4 units and chunk size", () => {
+  test("a period after a digit is not a unit boundary; a sentence end still is", () => {
+    const text =
+      "※ 출산자녀는 ’23. 3. 28 이후 출산한 자녀를 말합니다. 3-2. 청년 계층 신청 안내입니다. 다음 문장입니다.";
+    const units = evidenceUnits(text).map((u) =>
+      text.slice(u.start, u.end).trim(),
+    );
+    expect(units).toEqual([
+      "※ 출산자녀는 ’23. 3. 28 이후 출산한 자녀를 말합니다.",
+      "3-2. 청년 계층 신청 안내입니다.",
+      "다음 문장입니다.",
+    ]);
+  });
+  test("v4 indexes target 2,048-byte chunks under the unchanged 4,096 bound; v2/v3 stay readable", () => {
+    expect(FILE_INDEX_CONFIGURATION).toBe("file-index-d04-v4");
+    expect(READABLE_INDEX_CONFIGURATIONS).toEqual([
+      "file-index-d04-v2",
+      "file-index-d04-v3",
+      "file-index-d04-v4",
+    ]);
+    expect(TARGET_CHUNK_BYTES).toBe(2048);
+    expect(TARGET_CHUNK_BYTES).toBeLessThanOrEqual(CHUNK_BYTES);
+    const text = Array.from(
+      { length: 200 },
+      (_, i) => `안내 문장 ${i}입니다.`,
+    ).join(" ");
+    const chunks = fileChunks(extraction(text), TARGET_CHUNK_BYTES);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const c of chunks)
+      expect(Buffer.byteLength(c.content)).toBeLessThanOrEqual(
+        TARGET_CHUNK_BYTES,
+      );
+  });
 });
