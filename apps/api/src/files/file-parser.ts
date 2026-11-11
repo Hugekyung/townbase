@@ -15,6 +15,7 @@ import {
   pdfRules,
   pdfTables,
   streamText,
+  streamedCodePoints,
   type PdfTextItem,
 } from "./pdf-table";
 
@@ -79,11 +80,7 @@ export async function parseFile(
             if (chunk.done) break;
             for (const item of chunk.value.items) {
               if (!("str" in item)) continue;
-              const value = item.str + (item.hasEOL ? "\n" : " ");
-              pageCount += boundedCodePoints(value);
-              if (count + pageCount > FILE_LIMITS.codePoints)
-                throw new FileError("extraction_limit");
-              items.push({
+              const next = {
                 index: items.length,
                 str: item.str,
                 hasEOL: item.hasEOL,
@@ -97,15 +94,20 @@ export async function parseFile(
                   Math.abs(item.transform[1]) < 1e-6 &&
                   item.transform[0] > 0 &&
                   item.transform[3] > 0,
-              });
+              };
+              // Count with the separators streamText will use, so touching
+              // runs are not charged a space the page text never contains.
+              pageCount += streamedCodePoints(items.at(-1), next);
+              if (count + pageCount > FILE_LIMITS.codePoints)
+                throw new FileError("extraction_limit");
+              items.push(next);
             }
           }
         } finally {
           await reader.cancel().catch(() => undefined);
         }
-        // The streamed count above bounds the limit check (one separator per
-        // item); the page text, built once here, joins touching runs without
-        // an inserted space.
+        // The streamed count above uses the same separators as this page text,
+        // which joins touching runs without an inserted space.
         let text = streamText(items);
         // Table detection is an enhancement: its failure keeps the original text.
         const structured = await pageWithTables(pdf, page, items).catch(

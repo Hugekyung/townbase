@@ -1,3 +1,4 @@
+import { boundedCodePoints } from "./file-contract";
 // R04-b: ruling-line PDF table reconstruction. Pure functions over pdf.js
 // operator lists and text items; no I/O. A table is rebuilt only when its grid,
 // merged cells, item placement and header are all certain. Anything uncertain
@@ -37,6 +38,19 @@ export function itemSeparator(
   const height = Math.max(a.height, b.height);
   if (!(height > 0) || Math.abs(a.y - b.y) > height * 0.2) return " ";
   return touching(a.x + a.width, b.x, height) ? "" : " ";
+}
+// Code points the page text gains when `item` follows `prev` in the stream:
+// the separator streamText puts between them, then the item text. The last
+// item's trailing separator is not counted because the page text is trimmed
+// at the end. Summed while streaming, this bounds the final page text by the
+// same separators instead of assuming one per item.
+export function streamedCodePoints(
+  prev: (PdfTextItem & { hasEOL: boolean }) | undefined,
+  item: PdfTextItem & { hasEOL: boolean },
+): number {
+  return boundedCodePoints(
+    (prev == null ? "" : itemSeparator(prev, item)) + item.str,
+  );
 }
 export function streamText(
   items: ReadonlyArray<PdfTextItem & { hasEOL: boolean }>,

@@ -6,6 +6,7 @@ import {
   pdfRules,
   pdfTables,
   streamText,
+  streamedCodePoints,
   type PdfTextItem,
 } from "../src/files/pdf-table";
 import {
@@ -449,6 +450,30 @@ describe("R07 PDF runs that touch are one word", () => {
       itemSeparator(run(0, "a", 0, 10, { hasEOL: true }), run(1, "b", 10, 10)),
     ).toBe("\n");
   });
+  test("the streamed extraction count uses the page text's own separators", () => {
+    // Per-glyph touching runs: the page text has no space between them, so a
+    // count of one separator per item would roughly double the page size.
+    const glyphs = Array.from({ length: 40 }, (_, i) =>
+      run(i, "가", i * 10, 10),
+    );
+    const items = [
+      ...glyphs,
+      run(40, "본관", 450, 20), // a real gap keeps a space
+      run(41, "끝", 475, 10, { hasEOL: true }),
+      run(42, "다음 줄", 0, 30, { y: 85 }),
+    ];
+    let prev: (typeof items)[number] | undefined;
+    let streamed = 0;
+    for (const item of items) {
+      streamed += streamedCodePoints(prev, item);
+      prev = item;
+    }
+    const page = streamText(items).trimEnd();
+    expect(streamed).toBe(Array.from(page).length);
+    // The former bound (text plus one separator per item) overcounted.
+    const former = items.reduce((n, i) => n + Array.from(i.str).length + 1, 0);
+    expect(former - streamed).toBeGreaterThanOrEqual(40);
+  });
   test("touching runs inside a table cell join without a space", () => {
     const rules = {
       horizontal: [
@@ -510,7 +535,6 @@ describe("R07 PDF runs that touch are one word", () => {
       item(1, 22, 23, "Rule"),
       item(2, 4, 8, crossing, 28.08),
     ]).map((t) => t.lines);
-    expect(lines.flat().join("\n")).toContain("ab cd");
-    expect(lines.flat().join("\n")).not.toContain("abcd");
+    expect(lines).toEqual([["Rank | Rule", "ab cd | ef"]]);
   });
 });
