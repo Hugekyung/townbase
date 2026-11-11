@@ -52,7 +52,9 @@ type Input = {
   family?: string;
 };
 const ACTIVE = ["queued", "running"];
-const CONFIGURATION = "file-extraction-d03-v1";
+// v2 (R04-b): PDF tables with ruling lines are rebuilt as header-labelled rows.
+// Existing extractions stay as they are until an explicit reprocess.
+const CONFIGURATION = "file-extraction-d03-v2";
 const RETENTION_MS = 90 * 86400_000;
 const fingerprint = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");

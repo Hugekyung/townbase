@@ -92,6 +92,7 @@ test("stored source windows survive JSON readback and reject invalid ranges", ()
 });
 test("packs multiple exact evidence windows within the actual 8KB prompt envelope", () => {
   const text =
+    "머리말 고유 문장입니다. " +
     "일반 안내입니다. ".repeat(90) +
     "청약통장은 입주 전까지 가입해야 합니다. " +
     "별도 안내입니다. ".repeat(90);
@@ -119,8 +120,13 @@ test("packs multiple exact evidence windows within the actual 8KB prompt envelop
       "청약통장은 입주 전까지 가입해야 합니다.",
     );
   }
-  const s = selected.sources[0]!;
-  expect(() =>
+  // R04-b: the top-ranked source is sent whole; later ones stay windowed.
+  expect(selected.sources[0]!.evidenceWindow).toBeUndefined();
+  expect(evidenceContent(selected.sources[0]!)).toBe(text);
+  const s = selected.sources[1]!;
+  expect(s.evidenceWindow!.start).toBeGreaterThan(400);
+  // The same quote is valid against the whole top source.
+  expect(
     parseGroundedResult(
       JSON.stringify({
         ...valid,
@@ -128,8 +134,25 @@ test("packs multiple exact evidence windows within the actual 8KB prompt envelop
           {
             text: "설명",
             evidence: [
-              { sourceId: s.id, quote: "일반 안내입니다. ".repeat(15) },
+              {
+                sourceId: selected.sources[0]!.id,
+                quote: "머리말 고유 문장입니다.",
+              },
             ],
+          },
+        ],
+      }),
+      [selected.sources[0]!],
+    ).claims,
+  ).toHaveLength(1);
+  expect(() =>
+    parseGroundedResult(
+      JSON.stringify({
+        ...valid,
+        claims: [
+          {
+            text: "설명",
+            evidence: [{ sourceId: s.id, quote: "머리말 고유 문장입니다." }],
           },
         ],
       }),
