@@ -20,6 +20,7 @@ import { RagStore, type Admission } from "./rag-store";
 import {
   questionInput,
   strategyFor,
+  ragEvidenceBudget,
   selectSources,
   promptFor,
   parseRagAnswer,
@@ -227,7 +228,18 @@ export class RagService implements OnApplicationBootstrap, OnModuleDestroy {
         requestedMode: a.turn.requestedMode,
         resolvedMode: mode,
       }));
-      const selection = selectSources(mode, candidates, a.turn.question);
+      const selection = selectSources(
+        mode,
+        candidates,
+        a.turn.question,
+        ragEvidenceBudget(
+          a.config,
+          a.turn.question,
+          mode,
+          a.history,
+          a.inputLimit,
+        ),
+      );
       protectedSources = await this.store.recordSources(
         token,
         c,

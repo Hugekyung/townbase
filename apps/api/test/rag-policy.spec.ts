@@ -11,6 +11,9 @@ import {
   type RagSource,
   evidenceContent,
   promptSources,
+  ragEvidenceBudget,
+  RAG_EVIDENCE_MAX_BYTES,
+  RAG_LIMITS,
 } from "../src/rag/rag-policy";
 import { isRagQuestion } from "../src/rag/rag-http";
 import { savedSources } from "../src/rag/rag-store";
@@ -582,6 +585,140 @@ describe("R07 evidence selection keeps the strongest lexical match", () => {
     expect(selection.sources.map((s) => s.id)).not.toContain(uid(9));
     expect(selection.diagnostics.find((d) => d.id === uid(9))!.decision).toBe(
       "threshold",
+    );
+  });
+});
+
+describe("R07 evidence budget uses the input limit's room", () => {
+  const uid = (n: number) =>
+    `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const config = (instructions = "") => ({
+    name: "도우미",
+    purpose: "안내",
+    instructions,
+    terminology: [],
+    sourceSelection: "all" as const,
+    sourceOriginalIds: [] as const,
+  });
+  const question = "갱신계약 때 나이 요건도 다시 확인해?";
+  const chunk = (n: number, lines: string[]) =>
+    source({
+      id: uid(n),
+      originalId: uid(100 + n),
+      content: lines.join("\n"),
+      score: 0.6 - n / 100,
+      vectorRank: n,
+      lexicalRank: n,
+    });
+  const filler = (n: number) =>
+    Array.from({ length: 55 }, (_, i) => `일반 안내 문장 ${n}-${i}번입니다.`);
+  // As in the R07 Q13 renewal chunk: the best-matching line comes first, and
+  // the exception lines sit past the window that fits an 8KB budget.
+  const renewal = chunk(2, [
+    "갱신계약 때 나이 요건 다시 확인 안내입니다.",
+    ...Array.from({ length: 34 }, (_, i) => `거주기간 합산 안내 ${i}번입니다.`),
+    "■ 갱신계약자격",
+    ...Array.from({ length: 14 }, (_, i) => `입주자격 유지 안내 ${i}번입니다.`),
+    "* 다만, 아래 경우는 제외",
+    "- 청년계층의 경우 19세이상 39세이하",
+  ]);
+  const candidates = [
+    chunk(1, filler(1)),
+    renewal,
+    ...[3, 4, 5].map((n) => chunk(n, filler(n))),
+  ];
+  const exception =
+    "* 다만, 아래 경우는 제외\n- 청년계층의 경우 19세이상 39세이하";
+  const sent = (selection: ReturnType<typeof selectSources>) =>
+    selection.sources.map(evidenceContent).join("\n");
+  test("the room above 8KB is used up to the maximum", () => {
+    expect(ragEvidenceBudget(config(), question, "onboarding", [], 16000)).toBe(
+      RAG_EVIDENCE_MAX_BYTES,
+    );
+    const budget = ragEvidenceBudget(
+      config("가".repeat(600)),
+      question,
+      "onboarding",
+      [],
+      16000,
+    );
+    expect(budget).toBeGreaterThan(RAG_LIMITS.evidenceBytes);
+    expect(budget).toBeLessThan(RAG_EVIDENCE_MAX_BYTES);
+  });
+  test("lines cut at 8KB are delivered with the room, and the prompt still fits", () => {
+    const old = selectSources("onboarding", candidates, question);
+    expect(old.sources).toHaveLength(5);
+    expect(sent(old)).not.toContain(exception);
+    const budget = ragEvidenceBudget(
+      config(),
+      question,
+      "onboarding",
+      [],
+      16000,
+    );
+    const selection = selectSources("onboarding", candidates, question, budget);
+    expect(selection.sources.map((s) => s.id)).toEqual(
+      old.sources.map((s) => s.id),
+    );
+    expect(selection.evidenceBytes).toBeGreaterThan(RAG_LIMITS.evidenceBytes);
+    expect(selection.evidenceBytes).toBeLessThanOrEqual(budget);
+    expect(sent(selection)).toContain(exception);
+    expect(() =>
+      promptFor(
+        config(),
+        question,
+        "onboarding",
+        selection.sources,
+        [],
+        16000,
+        "rag_v2",
+      ),
+    ).not.toThrow();
+  });
+  test("below the maximum the budget is the exact room left by the input limit", () => {
+    const long = config("가".repeat(600));
+    const budget = ragEvidenceBudget(long, question, "onboarding", [], 16000);
+    const overhead = Buffer.byteLength(
+      JSON.stringify(promptSources([source({ id: uid(9), content: "" })])),
+    );
+    const sized = (bytes: number) =>
+      source({ id: uid(9), content: "a".repeat(bytes - overhead) });
+    expect(
+      Buffer.byteLength(JSON.stringify(promptSources([sized(budget)]))),
+    ).toBe(budget);
+    expect(() =>
+      promptFor(
+        long,
+        question,
+        "onboarding",
+        [sized(budget)],
+        [],
+        16000,
+        "rag_v2",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      promptFor(
+        long,
+        question,
+        "onboarding",
+        [sized(budget + 1)],
+        [],
+        16000,
+        "rag_v2",
+      ),
+    ).toThrow("input_limit_exceeded");
+  });
+  test("without room the previous 8KB floor stays instead of shrinking evidence", () => {
+    const history = [1, 2, 3].map((n) => ({
+      question: `이전 질문 ${n}`,
+      answer: "가".repeat(900),
+    }));
+    expect(
+      ragEvidenceBudget(config(), question, "onboarding", history, 16000),
+    ).toBe(RAG_LIMITS.evidenceBytes);
+    expect(ragEvidenceBudget(config(), question, "onboarding", [], 4096)).toBe(
+      RAG_LIMITS.evidenceBytes,
     );
   });
 });
