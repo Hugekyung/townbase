@@ -170,7 +170,13 @@ export class OpenAIProvider {
                 background: false,
                 stream: false,
                 service_tier: "default",
-                prompt_cache_options: { ttl: "30m" },
+                // Every answer input ends with per-question evidence, and the
+                // fixed instructions+schema prefix (~800 tokens) is below the
+                // 1,024-token cache minimum. The implicit breakpoint therefore
+                // wrote the whole input at 1.25x every call with zero reads.
+                // Explicit mode with no breakpoints creates no cache writes and
+                // bills input at the ordinary rate.
+                prompt_cache_options: { mode: "explicit" },
                 tools: [],
               },
         ),

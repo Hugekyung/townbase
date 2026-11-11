@@ -70,7 +70,7 @@ describe("OpenAI transport observed on loopback only", () => {
           background: false,
           stream: false,
           service_tier: "default",
-          prompt_cache_options: { ttl: "30m" },
+          prompt_cache_options: { mode: "explicit" },
           tools: [],
         },
       },

@@ -136,7 +136,7 @@ describe("fixed OpenAI provider protocol", () => {
       background: false,
       stream: false,
       service_tier: "default",
-      prompt_cache_options: { ttl: "30m" },
+      prompt_cache_options: { mode: "explicit" },
       tools: [],
     });
   });
