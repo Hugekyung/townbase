@@ -932,10 +932,13 @@ const RAG_V2_SCHEMA_RULE =
 // R07 Q13: the model read the items under "다만, 아래 경우는 제외" (renewal
 // skips the age check) as requirements and confidently answered the opposite.
 // Exact-quote checks cannot catch an inverted reading, so the model is told to
-// read and cite the line that sets a list's scope. RAG v2 only; the attachment
-// v1 prompt is unchanged.
+// read and cite the line that sets a list's scope. An exemption from a check and
+// an exclusion from eligibility both say "제외" but mean opposite things, so they
+// are separate cases. Bounded excerpts may cut the introducing line; then the
+// item's role is not decided (partial refusal) rather than guessed. RAG v2
+// only; the attachment v1 prompt is unchanged.
 export const RAG_LIST_SCOPE_RULE =
-  "List scope: before using a list item, read the line that introduces its list. If that line marks the items as exceptions or exclusions (e.g. 다만, 제외, 예외, 적용하지 않음), they are NOT requirements: state them as exceptions and cite the introducing line together with the item.";
+  "List scope: cite a list's introducing line with its item. Items it exempts from a requirement (e.g. 다만 아래 경우는 제외) are exceptions, not requirements; those it excludes from eligibility (e.g. 해당하는 자는 제외) are bars. If that line is not supplied, do not decide the item's role: refuse that judgement; add it to followUps.";
 export function promptFor(
   config: BasicAgentConfiguration,
   question: string,
