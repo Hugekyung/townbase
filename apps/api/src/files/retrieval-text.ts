@@ -76,7 +76,11 @@ export function evidenceUnits(
   text: string,
 ): Array<{ start: number; end: number }> {
   const boundaries = [0];
-  const separator = /\n+|(?<=[.!?。])\s+|\s+(?=[•※■◎①②③④⑤⑥⑦⑧⑨])/gu;
+  // A period right after a digit closes a number, date or section marker
+  // ("’23. 3. 28", "3-2. 청년 계층"), not a sentence, so it is not a boundary.
+  // Every other period, including one after a space, still is.
+  const separator =
+    /\n+|(?<=(?<!\d)\.)\s+|(?<=[!?。])\s+|\s+(?=[•※■◎①②③④⑤⑥⑦⑧⑨])/gu;
   for (const match of text.matchAll(separator)) {
     const end = match.index! + match[0].length;
     if (end > boundaries[boundaries.length - 1]!) boundaries.push(end);

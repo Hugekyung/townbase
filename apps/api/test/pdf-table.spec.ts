@@ -1,7 +1,14 @@
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import type { FileExtractor as ExtractorType } from "../src/files/file-extractor";
-import { pdfRules, pdfTables, type PdfTextItem } from "../src/files/pdf-table";
+import {
+  itemSeparator,
+  pdfRules,
+  pdfTables,
+  streamText,
+  streamedCodePoints,
+  type PdfTextItem,
+} from "../src/files/pdf-table";
 import {
   selectSources,
   promptSources,
@@ -391,5 +398,143 @@ describe("R04-b evidence delivery for table-heavy chunks", () => {
     expect(
       Buffer.byteLength(JSON.stringify(promptSources(selected.sources))),
     ).toBe(selected.evidenceBytes);
+  });
+});
+
+// R07: pdf.js emitted letter-spaced/per-glyph runs ("랜 선 회 의 실") and runs
+// split inside a word ("현|재"); the parser inserted a space between every pair.
+// Measured on the housing notice, touching runs ranged -0.28..+0.06 of height.
+describe("R07 PDF runs that touch are one word", () => {
+  const run = (
+    index: number,
+    str: string,
+    x: number,
+    width: number,
+    over: Partial<PdfTextItem & { hasEOL: boolean }> = {},
+  ) => ({
+    index,
+    str,
+    x,
+    y: 100,
+    width,
+    height: 10,
+    upright: true,
+    hasEOL: false,
+    ...over,
+  });
+  test("letter-spaced and split runs join; a real gap, a new line or a rotation keeps a space", () => {
+    const items = [
+      run(0, "랜", 0, 10),
+      run(1, "선", 7.8, 10), // overlaps by 0.22 of the height
+      run(2, "회의실", 17.8, 30), // touching
+      run(3, "본관", 50, 20), // gap 0.22 of the height: a word space
+      run(4, "공고일 현", 75, 40),
+      run(5, "재 소득", 115.6, 40, { hasEOL: true }), // +0.06
+      run(6, "다음 줄", 0, 30, { y: 85 }),
+    ];
+    expect(streamText(items)).toBe(
+      "랜선회의실 본관 공고일 현재 소득\n다음 줄 ",
+    );
+    // Another baseline, a rotation or a far jump back on the line is a space.
+    expect(
+      itemSeparator(run(0, "a", 0, 10), run(1, "b", 10, 10, { y: 104 })),
+    ).toBe(" ");
+    expect(
+      itemSeparator(
+        run(0, "a", 0, 10),
+        run(1, "b", 10, 10, { upright: false }),
+      ),
+    ).toBe(" ");
+    expect(itemSeparator(run(0, "a", 0, 300), run(1, "b", 10, 10))).toBe(" ");
+    expect(
+      itemSeparator(run(0, "a", 0, 10, { hasEOL: true }), run(1, "b", 10, 10)),
+    ).toBe("\n");
+  });
+  test("the streamed extraction count uses the page text's own separators", () => {
+    // Per-glyph touching runs: the page text has no space between them, so a
+    // count of one separator per item would roughly double the page size.
+    const glyphs = Array.from({ length: 40 }, (_, i) =>
+      run(i, "가", i * 10, 10),
+    );
+    const items = [
+      ...glyphs,
+      run(40, "본관", 450, 20), // a real gap keeps a space
+      run(41, "끝", 475, 10, { hasEOL: true }),
+      run(42, "다음 줄", 0, 30, { y: 85 }),
+    ];
+    let prev: (typeof items)[number] | undefined;
+    let streamed = 0;
+    for (const item of items) {
+      streamed += streamedCodePoints(prev, item);
+      prev = item;
+    }
+    const page = streamText(items).trimEnd();
+    expect(streamed).toBe(Array.from(page).length);
+    // The former bound (text plus one separator per item) overcounted.
+    const former = items.reduce((n, i) => n + Array.from(i.str).length + 1, 0);
+    expect(former - streamed).toBeGreaterThanOrEqual(40);
+  });
+  test("touching runs inside a table cell join without a space", () => {
+    const rules = {
+      horizontal: [
+        { at: 30, from: 0, to: 40 },
+        { at: 20, from: 0, to: 40 },
+        { at: 10, from: 20, to: 40 },
+        { at: 0, from: 0, to: 40 },
+      ],
+      vertical: [
+        { at: 0, from: 0, to: 30 },
+        { at: 20, from: 0, to: 30 },
+        { at: 40, from: 0, to: 30 },
+      ],
+    };
+    const item = (
+      index: number,
+      x: number,
+      y: number,
+      str: string,
+      width = 6,
+    ) => ({ index, str, x, y, width, height: 4, upright: true }) as PdfTextItem;
+    expect(
+      pdfTables(rules, [
+        item(0, 2, 23, "Rank"),
+        item(1, 22, 23, "Rule"),
+        item(2, 2, 8, "First"),
+        item(3, 22, 13, "랜", 3),
+        item(4, 24.6, 13, "선", 3), // overlaps by 0.1 of the height
+        item(5, 30, 13, "실", 3), // gap 0.6 of the height: separate word
+        item(6, 22, 3, "Family"),
+      ]).map((t) => t.lines),
+    ).toEqual([["Rank | Rule", "First | 랜선 실", "First | Family"]]);
+  });
+  test("words split from one crossing run keep their space even when the run is compressed", () => {
+    const rules = {
+      horizontal: [
+        { at: 30, from: 0, to: 40 },
+        { at: 20, from: 0, to: 40 },
+        { at: 0, from: 0, to: 40 },
+      ],
+      vertical: [
+        { at: 0, from: 0, to: 30 },
+        { at: 20, from: 0, to: 30 },
+        { at: 40, from: 0, to: 30 },
+      ],
+    };
+    const item = (
+      index: number,
+      x: number,
+      y: number,
+      str: string,
+      width = 6,
+    ) => ({ index, str, x, y, width, height: 4, upright: true }) as PdfTextItem;
+    // A narrow run: its estimated word gap (0.3 x 1.8 = 0.54) is below the
+    // touching bound for height 4 (0.6), but the run text has a real space.
+    const crossing = "ab cd" + " ".repeat(40) + "ef";
+    const lines = pdfTables(rules, [
+      item(0, 2, 23, "Rank"),
+      item(1, 22, 23, "Rule"),
+      item(2, 4, 8, crossing, 28.08),
+    ]).map((t) => t.lines);
+    expect(lines).toEqual([["Rank | Rule", "ab cd | ef"]]);
   });
 });

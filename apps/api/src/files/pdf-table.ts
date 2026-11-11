@@ -1,3 +1,4 @@
+import { boundedCodePoints } from "./file-contract";
 // R04-b: ruling-line PDF table reconstruction. Pure functions over pdf.js
 // operator lists and text items; no I/O. A table is rebuilt only when its grid,
 // merged cells, item placement and header are all certain. Anything uncertain
@@ -13,6 +14,53 @@ export type PdfTextItem = {
   /** False for rotated, mirrored or flipped text; its extent is not axis-aligned. */
   upright: boolean;
 };
+// Two runs on one baseline whose extents touch or overlap are one word. PDF
+// generators often emit letter-spaced or per-glyph runs ("인 천 광 역 시"); real
+// word spaces arrive inside the run text or as a gap wider than this bound.
+// Measured on the 2026-07-21 housing notice: touching runs ranged from -0.28
+// to +0.06 of the glyph height; a gap of a column/table jump was far outside.
+const TOUCH_MIN = -0.4;
+const TOUCH_MAX = 0.15;
+export function touching(end: number, start: number, height: number): boolean {
+  if (!(height > 0) || !Number.isFinite(end) || !Number.isFinite(start))
+    return false;
+  const gap = (start - end) / height;
+  return gap >= TOUCH_MIN && gap <= TOUCH_MAX;
+}
+// Separator after stream item a when b follows it in the page text flow.
+export function itemSeparator(
+  a: PdfTextItem & { hasEOL: boolean },
+  b: PdfTextItem | undefined,
+): string {
+  if (a.hasEOL) return "\n";
+  if (b == null || !a.upright || !b.upright || !a.str.trim() || !b.str.trim())
+    return " ";
+  const height = Math.max(a.height, b.height);
+  if (!(height > 0) || Math.abs(a.y - b.y) > height * 0.2) return " ";
+  return touching(a.x + a.width, b.x, height) ? "" : " ";
+}
+// Code points the page text gains when `item` follows `prev` in the stream:
+// the separator streamText puts between them, then the item text. The last
+// item's trailing separator is not counted because the page text is trimmed
+// at the end. Summed while streaming, this bounds the final page text by the
+// same separators instead of assuming one per item.
+export function streamedCodePoints(
+  prev: (PdfTextItem & { hasEOL: boolean }) | undefined,
+  item: PdfTextItem & { hasEOL: boolean },
+): number {
+  return boundedCodePoints(
+    (prev == null ? "" : itemSeparator(prev, item)) + item.str,
+  );
+}
+export function streamText(
+  items: ReadonlyArray<PdfTextItem & { hasEOL: boolean }>,
+): string {
+  let text = "";
+  items.forEach((item, i) => {
+    text += item.str + itemSeparator(item, items[i + 1]);
+  });
+  return text;
+}
 export type PdfOperators = {
   save: number;
   restore: number;
@@ -29,7 +77,16 @@ type Cell = {
   c0: number;
   c1: number;
   units: number;
-  words: Array<{ x: number; y: number; h: number; text: string }>;
+  // run: source text item. Words split from one run had whitespace between
+  // them in the run text, so they keep a space whatever their estimated gap.
+  words: Array<{
+    x: number;
+    end: number;
+    y: number;
+    h: number;
+    text: string;
+    run: number;
+  }>;
   text: string;
 };
 export type PdfTable = {
@@ -332,7 +389,14 @@ export function rebuildTable(
     const firstCell = at(r, first);
     const lastCell = at(r, last);
     if (firstCell === lastCell) {
-      firstCell.words.push({ x: left, y: item.y, h, text });
+      firstCell.words.push({
+        x: left,
+        end: right,
+        y: item.y,
+        h,
+        text,
+        run: item.index,
+      });
     } else {
       // One run crossing borders: place each word by its estimated centre and
       // require a clear margin; otherwise do not reconstruct this table.
@@ -359,7 +423,14 @@ export function rebuildTable(
         const margin = Math.min(centre - xs[c]!, xs[c + 1]! - centre);
         if (margin < 3) return null;
         const cell = at(r, c);
-        cell.words.push({ x: from, y: item.y, h, text: match[0] });
+        cell.words.push({
+          x: from,
+          end: to,
+          y: item.y,
+          h,
+          text: match[0],
+          run: item.index,
+        });
         touched.add(cell);
       }
       const span = new Set<Cell>();
@@ -379,12 +450,24 @@ export function rebuildTable(
       else lines.push({ y: w.y, words: [w] });
     }
     cell.text = lines
-      .map((l) =>
-        l.words
-          .sort((a, b) => a.x - b.x)
-          .map((w) => w.text)
-          .join(" "),
-      )
+      .map((l) => {
+        const words = l.words.sort((a, b) => a.x - b.x);
+        return words
+          .map(
+            (w, i) =>
+              (i === 0
+                ? ""
+                : words[i - 1]!.run !== w.run &&
+                    touching(
+                      words[i - 1]!.end,
+                      w.x,
+                      Math.max(words[i - 1]!.h, w.h),
+                    )
+                  ? ""
+                  : " ") + w.text,
+          )
+          .join("");
+      })
       .join(" ")
       .replace(/\s+/gu, " ")
       .trim();

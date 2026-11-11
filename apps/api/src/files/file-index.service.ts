@@ -13,7 +13,7 @@ import {
   chunkRequestId,
   embeddingVector,
   FILE_INDEX_CONFIGURATION,
-  CHUNK_BYTES,
+  TARGET_CHUNK_BYTES,
 } from "./file-chunker";
 import { assertExtraction, FileError, type FileFormat } from "./file-contract";
 import { currentFileWhere, currentIndexWhere } from "./file-index-state";
@@ -90,7 +90,7 @@ export class FileIndexService {
       select: { inputTokenLimit: true },
     });
     const chunkBytes = Math.min(
-      CHUNK_BYTES,
+      TARGET_CHUNK_BYTES,
       (settings?.inputTokenLimit ?? 16000) - 256,
     );
     return {

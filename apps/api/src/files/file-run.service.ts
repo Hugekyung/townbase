@@ -53,8 +53,10 @@ type Input = {
 };
 const ACTIVE = ["queued", "running"];
 // v2 (R04-b): PDF tables with ruling lines are rebuilt as header-labelled rows.
+// v3 (R07): PDF runs that touch on one baseline (letter-spaced or split words)
+// join without a space, in page text and inside table cells alike.
 // Existing extractions stay as they are until an explicit reprocess.
-const CONFIGURATION = "file-extraction-d03-v2";
+const CONFIGURATION = "file-extraction-d03-v3";
 const RETENTION_MS = 90 * 86400_000;
 const fingerprint = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
