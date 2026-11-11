@@ -929,6 +929,13 @@ const V1_SCHEMA_RULE =
 // prompt plus the v2 schema. It replaces the v1 incomplete/conflict line too.
 const RAG_V2_SCHEMA_RULE =
   'Schema rules: every fact is a claim with exact evidence. Answerable: reason "" and followUps []. Answer facts stated directly in a source without asking for confirmation. If the requested final judgement cannot be made from the supplied excerpts, set isAnswerable=false with a Korean reason about what these excerpts do not establish (never say the whole document lacks it); keep verified partial facts as claims, never as a final decision; put missing inputs in followUps (max 5 short Korean items, no facts or citations). Each conflict cites two different passages: two documents or non-overlapping passages of one document, never one sentence twice; do not resolve it by guessing. Cite only supplied S1/S2 IDs.';
+// R07 Q13: the model read the items under "다만, 아래 경우는 제외" (renewal
+// skips the age check) as requirements and confidently answered the opposite.
+// Exact-quote checks cannot catch an inverted reading, so the model is told to
+// read and cite the line that sets a list's scope. RAG v2 only; the attachment
+// v1 prompt is unchanged.
+export const RAG_LIST_SCOPE_RULE =
+  "List scope: before using a list item, read the line that introduces its list. If that line marks the items as exceptions or exclusions (e.g. 다만, 제외, 예외, 적용하지 않음), they are NOT requirements: state them as exceptions and cite the introducing line together with the item.";
 export function promptFor(
   config: BasicAgentConfiguration,
   question: string,
@@ -946,7 +953,7 @@ export function promptFor(
     "History only clarifies the question. Every factual claim must be supported by the current supplied source body, with an exact verbatim quote.",
     "Each quote must be one short continuous substring copied exactly, preferably a single factual sentence under 160 characters. Never join a title/status with a distant fact, remove intervening headings, change whitespace/punctuation, or insert ellipses. Use separate evidence entries for separate passages.",
     ...(contract === "rag_v2"
-      ? [RAG_V2_SCHEMA_RULE]
+      ? [RAG_LIST_SCOPE_RULE, RAG_V2_SCHEMA_RULE]
       : [
           "If evidence is incomplete, return isAnswerable=false. Identify contradictory documents explicitly and cite both sides. Do not resolve contradictions by guessing.",
           V1_SCHEMA_RULE,

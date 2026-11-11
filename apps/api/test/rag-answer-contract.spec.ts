@@ -521,6 +521,10 @@ describe("R05 stored readback and prompt boundary", () => {
     );
     expect(rag.instructions).toContain("followUps");
     expect(attachment.instructions).not.toContain("followUps");
+    // R07 Q13: only RAG v2 carries the list-scope (exception list) rule.
+    expect(rag.instructions).toContain("List scope:");
+    expect(rag.instructions).toContain("they are NOT requirements");
+    expect(attachment.instructions).not.toContain("List scope:");
     expect(attachment.input).toBe(rag.input);
     const bound = inputBound(
       rag.instructions + rag.input + RAG_GROUNDED_FORMAT_INPUT,
