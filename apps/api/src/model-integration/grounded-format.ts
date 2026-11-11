@@ -44,7 +44,8 @@ export const GROUNDED_FORMAT = {
   },
 } as const;
 // R05 RAG-only v2: a refusal may keep verified partial claims and lists the
-// missing inputs separately. followUps carry no facts and no evidence.
+// missing inputs separately; since R07 an answer may also list checks left to
+// the user. followUps carry no facts and no evidence.
 export const RAG_FOLLOW_UP_LIMITS = Object.freeze({ items: 5, length: 300 });
 export const RAG_GROUNDED_FORMAT = {
   type: "json_schema",

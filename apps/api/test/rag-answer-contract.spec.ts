@@ -174,14 +174,74 @@ describe("R05 RAG v2 answer contract", () => {
   });
 
   test.each([
-    ["answerable with follow-ups", { followUps: ["추가 질문"] }],
-    ["answerable with a reason", { reason: "이유" }],
     ["answerable without claims", { claims: [] }],
+    [
+      "answerable without claims but with follow-ups",
+      { claims: [], followUps: ["추가 질문"] },
+    ],
     ["refusal without a reason", { isAnswerable: false, reason: " " }],
   ])("%s violates the answerability invariant", (_name, over) => {
     expect(rejection(() => parseRagAnswer(v2(over), [p16]))).toBe(
       "answerability",
     );
+  });
+
+  test.each([
+    ["without follow-ups", {}],
+    ["with follow-ups", { followUps: ["추가 질문"] }],
+  ])("an answerable result with a reason is rejected %s", (_name, over) => {
+    expect(
+      rejection(() => parseRagAnswer(v2({ reason: "이유", ...over }), [p16])),
+    ).toBe("answerable_reason");
+  });
+
+  // R07 Q07/Q10: answers whose correct form ends with checks left to the user
+  // failed as a whole when those checks were sent as followUps.
+  test("an answerable result may list checks left to the user", () => {
+    const result = parseRagAnswer(
+      v2({ followUps: ["계약 전 접수처에 장소를 확인하세요"] }),
+      [p16],
+    );
+    expect(result).toMatchObject({
+      contractVersion: 2,
+      isAnswerable: true,
+      reason: "",
+      followUps: ["계약 전 접수처에 장소를 확인하세요"],
+    });
+    const text = answerText(result);
+    expect(text).toBe(
+      "계약 장소는 본사입니다. [" +
+        p16.id +
+        "]\n\n추가로 확인할 항목:\n- 계약 전 접수처에 장소를 확인하세요",
+    );
+    // An answer is not a partial refusal: no refusal or scope notice.
+    expect(text).not.toContain(RAG_SCOPE_NOTICE);
+    expect(text).not.toContain(RAG_PARTIAL_NOTICE);
+    // Stored with real source IDs, the row reads back with the same rule.
+    const stored = parseStoredRagResult(
+      JSON.stringify({
+        ...result,
+        claims: result.claims.map((c) => ({
+          ...c,
+          evidence: c.evidence.map((e) => ({ ...e, sourceId: p16.id })),
+        })),
+      }),
+      [p16],
+    );
+    expect(stored).toMatchObject({
+      isAnswerable: true,
+      followUps: ["계약 전 접수처에 장소를 확인하세요"],
+    });
+  });
+
+  test("follow-ups on an answer keep the follow-up limits", () => {
+    expect(
+      rejection(() =>
+        parseRagAnswer(v2({ followUps: ["a", "b", "c", "d", "e", "f"] }), [
+          p16,
+        ]),
+      ),
+    ).toBe("follow_up");
   });
 
   test.each([
@@ -255,6 +315,7 @@ describe("R05 RAG v2 answer contract", () => {
       "TOWNBASE_RAG_GROUNDING_SOURCE_ID",
       "TOWNBASE_RAG_GROUNDING_QUOTE_MISMATCH",
       "TOWNBASE_RAG_GROUNDING_ANSWERABILITY",
+      "TOWNBASE_RAG_GROUNDING_ANSWERABLE_REASON",
       "TOWNBASE_RAG_GROUNDING_CONFLICT_EVIDENCE",
       "TOWNBASE_RAG_GROUNDING_FOLLOW_UP",
       "TOWNBASE_RAG_GROUNDING_QUOTE_PUNCTUATION",
@@ -554,6 +615,34 @@ describe("R05 stored readback and prompt boundary", () => {
         "rag_v2",
       ),
     ).toThrow("input_limit_exceeded");
+  });
+});
+
+describe("R07 answer follow-up instruction", () => {
+  test("the v2 rule allows follow-ups on an answer; v1 does not mention them", () => {
+    const config = {
+      name: "도우미",
+      purpose: "안내",
+      instructions: "",
+      terminology: [],
+      sourceSelection: "all" as const,
+      sourceOriginalIds: [] as [],
+    };
+    const v2Prompt = promptFor(
+      config,
+      "질문",
+      "onboarding",
+      [p16],
+      [],
+      1e9,
+      "rag_v2",
+    );
+    expect(v2Prompt.instructions).toContain(
+      'Answerable: reason ""; followUps only for user-side checks.',
+    );
+    expect(v2Prompt.instructions).not.toContain('reason "" and followUps []');
+    const v1Prompt = promptFor(config, "질문", "onboarding", [p16], [], 1e9);
+    expect(v1Prompt.instructions).not.toContain("followUps");
   });
 });
 

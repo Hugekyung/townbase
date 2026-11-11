@@ -508,6 +508,9 @@ export const GROUNDING_REJECTIONS = [
   "source_id",
   "quote_mismatch",
   "answerability",
+  // R07: an answerable v2 result that also carries a reason. Split from
+  // answerability so a recurrence shows which invariant the model broke.
+  "answerable_reason",
   "conflict_evidence",
   "follow_up",
   // quote_mismatch is now "letters/digits not found". These two split out
@@ -848,10 +851,16 @@ function parseGrounded(
     conflicts: parseClaims(value.conflicts, true),
   };
   const answered = result.claims.length + result.conflicts.length > 0;
+  // R07 Q07/Q10: answers whose correct form ends with checks left to the user
+  // ("나머지 요건 확인", "접수 장소 확인") failed as a whole when the model put
+  // those checks in followUps. An answerable v2 result may now carry them; they
+  // still hold no facts or citations and every claim keeps its exact evidence.
+  if (v2 && result.isAnswerable && answered && result.reason !== "")
+    return invalid("answerable_reason");
   if (
     v2
       ? result.isAnswerable
-        ? !answered || result.reason !== "" || followUps.length > 0
+        ? !answered
         : !result.reason.trim()
       : result.isAnswerable
         ? !answered || result.reason !== ""
@@ -929,7 +938,7 @@ const V1_SCHEMA_RULE =
 // Compact on purpose: the minimum input setting must still fit a short sourced
 // prompt plus the v2 schema. It replaces the v1 incomplete/conflict line too.
 const RAG_V2_SCHEMA_RULE =
-  'Schema rules: every fact is a claim with exact evidence. Answerable: reason "" and followUps []. Answer facts stated directly in a source without asking for confirmation. If the requested final judgement cannot be made from the supplied excerpts, set isAnswerable=false with a Korean reason about what these excerpts do not establish (never say the whole document lacks it); keep verified partial facts as claims, never as a final decision; put missing inputs in followUps (max 5 short Korean items, no facts or citations). Each conflict cites two different passages: two documents or non-overlapping passages of one document, never one sentence twice; do not resolve it by guessing. Cite only supplied S1/S2 IDs.';
+  'Schema rules: every fact is a claim with exact evidence. Answerable: reason ""; followUps only for user-side checks. Answer directly stated facts without asking for confirmation. If the requested final judgement cannot be made from the supplied excerpts, set isAnswerable=false with a Korean reason about what these excerpts do not establish (never say the whole document lacks it); keep verified partial facts as claims, never as a final decision; put missing inputs in followUps (max 5 short Korean items; no facts/citations). Each conflict cites two different passages: two documents or non-overlapping passages of one document, never one sentence twice; do not resolve it by guessing. Cite only supplied S1/S2 IDs.';
 // R07 Q13: the model read the items under "다만, 아래 경우는 제외" (renewal
 // skips the age check) as requirements and confidently answered the opposite.
 // Exact-quote checks cannot catch an inverted reading, so the model is told to
