@@ -242,7 +242,13 @@ export function selectSources(
       selected.length === 0 &&
       Buffer.byteLength(JSON.stringify(promptSources([source])), "utf8") <=
         RAG_LIMITS.evidenceBytes;
-    const candidate = whole ? source : evidenceSource(source, question);
+    const candidate = whole
+      ? source
+      : evidenceSource(
+          source,
+          question,
+          selected.length === 0 ? TOP_WINDOW_BYTES : INITIAL_WINDOW_BYTES,
+        );
     const decision =
       selected.length === RAG_LIMITS.sourceCount
         ? "count"
@@ -310,12 +316,16 @@ export function evidenceContent(source: RagSource): string {
 // top chunk, and strong later candidates were cut for budget. Smaller initial
 // windows admit more distinct sources; growWindows then spends the leftover.
 export const INITIAL_WINDOW_BYTES = 1000;
-function evidenceSource(source: RagSource, question: string): RagSource {
+// A top source too large to go whole keeps the earlier 1,800-byte window; only
+// later sources use the smaller window above.
+export const TOP_WINDOW_BYTES = 1800;
+function evidenceSource(
+  source: RagSource,
+  question: string,
+  limit: number,
+): RagSource {
   const units = evidenceUnits(source.content);
-  if (
-    Buffer.byteLength(source.content) <= INITIAL_WINDOW_BYTES ||
-    units.length < 2
-  )
+  if (Buffer.byteLength(source.content) <= limit || units.length < 2)
     return source;
   const best = units
     .map((range, index) => ({
@@ -332,14 +342,14 @@ function evidenceSource(source: RagSource, question: string): RagSource {
     right + 1 < units.length &&
     Buffer.byteLength(
       source.content.slice(units[left]!.start, units[right + 1]!.end),
-    ) <= INITIAL_WINDOW_BYTES
+    ) <= limit
   )
     right++;
   while (
     left > 0 &&
     Buffer.byteLength(
       source.content.slice(units[left - 1]!.start, units[right]!.end),
-    ) <= INITIAL_WINDOW_BYTES
+    ) <= limit
   )
     left--;
   return {

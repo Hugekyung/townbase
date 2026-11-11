@@ -532,6 +532,43 @@ describe("R07 evidence selection keeps the strongest lexical match", () => {
     expect(selection.sources.length).toBeGreaterThanOrEqual(4);
     expect(selection.evidenceBytes).toBeLessThanOrEqual(8000);
   });
+  test("a top source too large to go whole keeps the 1,800-byte initial window", () => {
+    // Over 8KB, so the top source is windowed. With 1,800 bytes the window is
+    // the matching line plus the 1,400-byte next line; with 1,000 bytes it
+    // would be the 600-byte previous line instead, and the 6,000-byte second
+    // source leaves too little budget for growth to add the next line later.
+    const top = source({
+      id: uid(1),
+      content: [
+        "a".repeat(2500),
+        "a".repeat(2500),
+        "p".repeat(600),
+        "우편접수 장소 안내",
+        "n".repeat(1400),
+        "z".repeat(2500),
+      ].join("\n"),
+      score: 0.9,
+      vectorRank: 1,
+      lexicalRank: 1,
+    });
+    const other = source({
+      id: uid(2),
+      content: "o".repeat(6000),
+      score: 0.5,
+      vectorRank: 2,
+      lexicalRank: null,
+    });
+    const selection = selectSources(
+      "onboarding",
+      [top, other],
+      "우편접수 장소는?",
+    );
+    expect(selection.sources.map((s) => s.id)).toEqual([uid(1), uid(2)]);
+    const window = evidenceContent(selection.sources[0]!);
+    expect(window).toBe("우편접수 장소 안내\n" + "n".repeat(1400) + "\n");
+    expect(Buffer.byteLength(window)).toBeGreaterThan(1000);
+    expect(Buffer.byteLength(window)).toBeLessThanOrEqual(1800);
+  });
   test("a lexical rank alone does not bypass the gates", () => {
     const weak = target({
       content: "본관 지하에는 회의실이 있습니다.",
