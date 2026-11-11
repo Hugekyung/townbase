@@ -189,6 +189,7 @@ describe("R05 RAG v2 answer contract", () => {
   test.each([
     ["without follow-ups", {}],
     ["with follow-ups", { followUps: ["추가 질문"] }],
+    ["without claims", { claims: [] }],
   ])("an answerable result with a reason is rejected %s", (_name, over) => {
     expect(
       rejection(() => parseRagAnswer(v2({ reason: "이유", ...over }), [p16])),
@@ -229,9 +230,41 @@ describe("R05 RAG v2 answer contract", () => {
       [p16],
     );
     expect(stored).toMatchObject({
+      contractVersion: 2,
       isAnswerable: true,
       followUps: ["계약 전 접수처에 장소를 확인하세요"],
     });
+    // The displayed answer reads back the same, with the stored source ID.
+    expect(answerText(stored)).toBe(text);
+  });
+
+  test.each([
+    ["an S-number", "S1 근거를 확인하세요"],
+    ["a bracketed S-number", "접수 장소 확인 [S2]"],
+    ["a source UUID", "출처 " + p16.id + " 확인"],
+  ])("fresh follow-ups that cite %s are rejected", (_name, f) => {
+    for (const over of [
+      { followUps: [f] },
+      { isAnswerable: false, reason: "판단 불가", claims: [], followUps: [f] },
+    ])
+      expect(rejection(() => parseRagAnswer(v2(over), [p16]))).toBe(
+        "follow_up",
+      );
+  });
+
+  test("a stored follow-up keeps the rule it was validated under", () => {
+    const stored = parseStoredRagResult(
+      JSON.stringify({
+        contractVersion: 2,
+        isAnswerable: false,
+        reason: "판단 불가",
+        claims: [],
+        conflicts: [],
+        followUps: ["S1 근거를 확인하세요"],
+      }),
+      [p16],
+    );
+    expect(stored).toMatchObject({ followUps: ["S1 근거를 확인하세요"] });
   });
 
   test("follow-ups on an answer keep the follow-up limits", () => {

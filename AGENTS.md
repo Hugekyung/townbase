@@ -365,5 +365,5 @@
 
 ## R07 답변의 추가 확인 항목 (2026-11-12, 로컬)
 
-- RAG v2 답변 가능 결과도 `followUps`에 사용자가 직접 확인할 항목을 둘 수 있다. 위 R05 절의 "answerable이면 비어 있어야 한다"는 당시 규칙이다. followUps는 여전히 사실·인용 통로가 아니고 거절에만 Gap을 저장한다. 답변 가능 결과의 `reason`은 비어 있어야 하며 위반은 `TOWNBASE_RAG_GROUNDING_ANSWERABLE_REASON`이다.
+- RAG v2 답변 가능 결과도 `followUps`에 사용자가 직접 확인할 항목을 둘 수 있다. 위 R05 절의 "answerable이면 비어 있어야 한다"는 당시 규칙이다. followUps는 여전히 사실·인용 통로가 아니고 거절에만 Gap을 저장한다. 답변 가능 결과의 `reason`은 비어 있어야 하며 위반은 사실 유무와 관계없이 `TOWNBASE_RAG_GROUNDING_ANSWERABLE_REASON`이다. `reason`이 빈 사실 없는 답변은 `ANSWERABILITY`다. 새 모델 응답의 followUps에 출처 번호·UUID가 있으면 `follow_up`으로 거절하고 저장 행에는 소급하지 않는다. "사실 없음"은 지침에만 의존한다.
 - RAG v2 지침의 최소 입력 설정(4,096) 여유는 약 4B다. 지침을 늘리기 전에 그 시험을 먼저 확인한다. [기록](docs/implementation/v0.2-answered-follow-ups.md)을 따른다.

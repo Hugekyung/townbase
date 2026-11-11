@@ -730,6 +730,10 @@ export function distinctConflictSides(
   return false;
 }
 type Contract = "v1" | "rag_v2";
+// A source reference (S1, [S2]) or a source UUID inside a follow-up. Only
+// citations are machine-checkable; "no facts" stays an instruction.
+const FOLLOW_UP_CITATION =
+  /(?<![A-Za-z0-9])S\d+(?![A-Za-z0-9])|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/iu;
 function parseGrounded(
   text: string | undefined,
   sources: readonly RagSource[],
@@ -779,7 +783,10 @@ function parseGrounded(
           typeof f === "string" &&
           f.trim() !== "" &&
           f.length <= RAG_FOLLOW_UP_LIMITS.length &&
-          !/[\u0000-\u001f\u007f]/u.test(f),
+          !/[\u0000-\u001f\u007f]/u.test(f) &&
+          // Fresh model output only: a follow-up must not carry a citation.
+          // Stored rows keep the rule they were validated under.
+          !(referenceFormat === "prompt" && FOLLOW_UP_CITATION.test(f)),
       )
     )
       return invalid("follow_up");
@@ -855,7 +862,7 @@ function parseGrounded(
   // ("나머지 요건 확인", "접수 장소 확인") failed as a whole when the model put
   // those checks in followUps. An answerable v2 result may now carry them; they
   // still hold no facts or citations and every claim keeps its exact evidence.
-  if (v2 && result.isAnswerable && answered && result.reason !== "")
+  if (v2 && result.isAnswerable && result.reason !== "")
     return invalid("answerable_reason");
   if (
     v2
