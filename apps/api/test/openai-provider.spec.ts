@@ -79,6 +79,41 @@ describe("fixed OpenAI provider protocol", () => {
   ])("rejects malformed or absent usage %#", (usage) =>
     expect(() => parseUsage(usage, false)).toThrow(),
   );
+  // Explicit cache mode without breakpoints writes nothing; the provider may
+  // omit the write total and/or its breakdown for a zero write.
+  test.each([
+    { cached_tokens: 20 },
+    { cached_tokens: 20, cache_write_tokens: 0 },
+    { cached_tokens: 20, cache_write_tokens: null },
+    { cached_tokens: 20, cache_write_tokens_details: null },
+  ])("reads an omitted zero cache write as no write %#", (details) =>
+    expect(
+      parseUsage(
+        { ...responseFixture().usage, input_tokens_details: details },
+        false,
+      ),
+    ).toMatchObject({ input: 100, cached: 20, write30: 0, write12: 0 }),
+  );
+  test.each([
+    { cached_tokens: 20, cache_write_tokens: 30 },
+    {
+      cached_tokens: 20,
+      cache_write_tokens_details: { ttl_30m_tokens: 30, ttl_12h_tokens: 0 },
+    },
+    { cached_tokens: 20, cache_write_tokens: "0" },
+    {
+      cached_tokens: 20,
+      cache_write_tokens: 0,
+      cache_write_tokens_details: { ttl_30m_tokens: 1, ttl_12h_tokens: 0 },
+    },
+  ])("still rejects a write without a matching breakdown %#", (details) =>
+    expect(() =>
+      parseUsage(
+        { ...responseFixture().usage, input_tokens_details: details },
+        false,
+      ),
+    ).toThrow("invalid_usage"),
+  );
   test.each([
     { ...responseFixture(), model: "other" },
     { ...responseFixture(), status: "failed" },

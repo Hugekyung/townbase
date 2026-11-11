@@ -45,8 +45,19 @@ export function parseUsage(value: unknown, embedding: boolean): Usage {
   }
   const d = object(v.input_tokens_details),
     o = object(v.output_tokens_details);
-  const write = integer(d.cache_write_tokens);
-  const wd = object(d.cache_write_tokens_details);
+  // Explicit cache mode without breakpoints writes nothing. The caching guide
+  // only guarantees both TTL fields when the breakdown is returned, so a zero
+  // write may come without the write fields. Only an absent total, or a zero
+  // total without a breakdown, reads as no write; a nonzero write must still
+  // carry a matching breakdown.
+  const write =
+    d.cache_write_tokens == null ? 0 : integer(d.cache_write_tokens);
+  if (d.cache_write_tokens_details == null && write !== 0)
+    throw new ModelCallError("invalid_usage", 502);
+  const wd =
+    d.cache_write_tokens_details == null
+      ? { ttl_30m_tokens: 0, ttl_12h_tokens: 0 }
+      : object(d.cache_write_tokens_details);
   const usage = {
     input: integer(v.input_tokens),
     cached: integer(d.cached_tokens),
@@ -170,12 +181,14 @@ export class OpenAIProvider {
                 background: false,
                 stream: false,
                 service_tier: "default",
-                // Every answer input ends with per-question evidence, and the
-                // fixed instructions+schema prefix (~800 tokens) is below the
-                // 1,024-token cache minimum. The implicit breakpoint therefore
-                // wrote the whole input at 1.25x every call with zero reads.
-                // Explicit mode with no breakpoints creates no cache writes and
-                // bills input at the ordinary rate.
+                // RAG and attachment answer inputs end with per-question
+                // evidence or attachment text, and the fixed RAG instructions+
+                // schema prefix (~800 tokens) is below the 1,024-token cache
+                // minimum; the connection check input is far shorter still.
+                // None of these can be reused. In the observed rag_answer calls
+                // the implicit breakpoint wrote the whole input at 1.25x with
+                // zero reads. Explicit mode with no breakpoints creates no cache
+                // writes and bills input at the ordinary rate.
                 prompt_cache_options: { mode: "explicit" },
                 tools: [],
               },
