@@ -64,7 +64,7 @@ Keeply 문서 21개·Golden Question 23개를 MCP `auto` 모드로 평가했다.
 | R07 | `랜 선 회 의 실`처럼 글자 사이 공백, 숫자 뒤 마침표로 근거가 쪼개짐 | 추출 d03-v3(맞닿은 PDF 조각 연결)·색인 v4(2KB 조각) | [PR #58](../implementation/v0.2-extraction-chunk-v4.md) |
 | R07 | 23/30 측정에서 Q13 근거 구간이 잘림 | 근거 예산을 입력 한도의 여유분(8~12KB)으로 확장 | [PR #59](../implementation/v0.2-evidence-budget.md) |
 | R07 | Q07이 “답 + 확인할 점” 형태에서 형식 검증 실패 | 답변 가능 결과에도 `followUps` 허용 | [PR #60](../implementation/v0.2-answered-follow-ups.md) |
-| R07 (진행 중) | Q03: 정답 조각을 1·2위로 찾았지만 raw 점수 0.402가 사전 기준 0.45에 걸려 모델 호출 없이 거절 | 점수 기준 사전 판정을 없애고 답변 가능 여부를 모델 판단에 맡김. 로컬 구현, 미병합 | [기록](../implementation/v0.2-model-answerability.md) |
+| R07 (진행 중) | Q03: 정답 조각을 1·2위로 찾았지만 raw 점수 0.402가 사전 기준 0.45에 걸려 모델 호출 없이 거절 | 점수 기준 사전 판정을 없애고 답변 가능 여부를 모델 판단에 맡김. 로컬 구현, 미병합 | 미병합(`codex/v02-rag-model-answerability`) |
 
 ## 남은 확인
 
